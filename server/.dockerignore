@@ -1,0 +1,42 @@
+# This file excludes paths from the Docker build context.
+#
+# By default, Docker's build context includes all files in the directory.
+# This can be slow, especially with large files or dependencies.
+# See https://docs.docker.com/build/building/context/ for more information.
+
+# Ignore Git metadata
+.git
+.gitignore
+
+# Ignore development/test configs
+/config/*.secret.exs
+.fetch
+
+# Ignore editor/IDE temp files
+*.sw?
+*~
+/.idea
+.vscode
+
+# Ignore deps/builds in case they were accidentally made for the wrong system
+/deps/
+/_build/
+.elixir_ls
+
+# Ignore env files
+.env
+.env.*
+
+# Ignore documentation
+/doc/
+
+# Ignore test/coverage data
+/cover/
+/test/
+
+# Ignore uploaded files during development
+/priv/static/uploads/
+
+# Ignore node_modules if any
+node_modules/
+

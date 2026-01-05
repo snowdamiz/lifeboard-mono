@@ -1,0 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 150 12% 97%;
+    --foreground: 160 30% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 30% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 30% 8%;
+    --primary: 158 64% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 155 12% 93%;
+    --secondary-foreground: 160 20% 35%;
+    --muted: 155 12% 93%;
+    --muted-foreground: 160 8% 46%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 38 90% 12%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 155 12% 89%;
+    --input: 155 12% 89%;
+    --ring: 158 64% 40%;
+    --radius: 0.5rem;
+    
+    /* Extended palette */
+    --success: 152 69% 40%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+  }
+
+  .dark {
+    --background: 165 30% 5%;
+    --foreground: 150 15% 93%;
+    --card: 165 25% 8%;
+    --card-foreground: 150 15% 93%;
+    --popover: 165 25% 8%;
+    --popover-foreground: 150 15% 93%;
+    --primary: 158 60% 52%;
+    --primary-foreground: 165 30% 5%;
+    --secondary: 165 22% 13%;
+    --secondary-foreground: 150 12% 75%;
+    --muted: 165 22% 13%;
+    --muted-foreground: 155 8% 52%;
+    --accent: 38 85% 52%;
+    --accent-foreground: 38 90% 8%;
+    --destructive: 0 62% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 165 18% 14%;
+    --input: 165 18% 14%;
+    --ring: 158 60% 52%;
+    
+    /* Extended palette */
+    --success: 152 65% 48%;
+    --warning: 38 85% 52%;
+    --info: 199 85% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    letter-spacing: -0.011em;
+  }
+  
+  /* Better heading rhythm */
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight;
+  }
+
+  h1 { letter-spacing: -0.025em; }
+  h2 { letter-spacing: -0.02em; }
+  h3 { letter-spacing: -0.015em; }
+  
+  /* Selection color */
+  ::selection {
+    @apply bg-primary/25 text-foreground;
+  }
+
+  /* Better focus states across the board */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/70 ring-offset-2 ring-offset-background;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-foreground/10 rounded-full;
+  transition: background 0.15s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-foreground/20;
+}
+
+/* Hide scrollbar by default, show on hover */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-thin:hover {
+  scrollbar-color: hsl(var(--foreground) / 0.1) transparent;
+}
+
+/* Focus visible ring utility */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+/* Interactive element base styles */
+.interactive {
+  @apply transition-colors duration-150;
+}
+
+.interactive-lift {
+  @apply transition-all duration-150;
+}
+
+.interactive-lift:hover {
+  @apply -translate-y-px;
+}
+
+.interactive-lift:active {
+  @apply translate-y-0;
+}
+
+/* Better text balance for headings */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Subtle glass effect */
+.glass {
+  @apply bg-card/80 backdrop-blur-md border-border/50;
+}
+
+/* Status colors */
+.status-dot {
+  @apply w-2 h-2 rounded-full shrink-0;
+}
+
+.status-not-started { @apply bg-muted-foreground/40; }
+.status-in-progress { @apply bg-amber-500; }
+.status-completed { @apply bg-primary; }
+
+/* Stagger animation delays */
+.stagger-1 { animation-delay: 0.03s; }
+.stagger-2 { animation-delay: 0.06s; }
+.stagger-3 { animation-delay: 0.09s; }
+.stagger-4 { animation-delay: 0.12s; }
+.stagger-5 { animation-delay: 0.15s; }
+.stagger-6 { animation-delay: 0.18s; }
+
+/* Mobile-specific utilities */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Touch-friendly utilities */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent zoom on double tap for interactive elements */
+@media (max-width: 768px) {
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+  }
+  
+  /* Larger tap targets on mobile */
+  .mobile-tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Mobile card swipe actions */
+.swipe-actions {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Improve form inputs on mobile */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important; /* Prevent iOS zoom */
+  }
+}
+
+/* Mobile modal styles */
+.mobile-modal {
+  @apply fixed inset-0 z-50;
+}
+
+@media (max-width: 640px) {
+  .mobile-modal > div {
+    @apply items-end justify-end;
+  }
+  
+  .mobile-modal-content {
+    @apply rounded-b-none rounded-t-2xl max-h-[90vh] w-full;
+  }
+}

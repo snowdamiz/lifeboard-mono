@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0abfc"/>
+      <stop offset="100%" style="stop-color:#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect x="2" y="2" width="28" height="28" rx="6" fill="url(#bg)"/>
+  <!-- Grid lines - planner aesthetic -->
+  <line x1="12" y1="6" x2="12" y2="26" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+  <line x1="20" y1="6" x2="20" y2="26" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+  <line x1="6" y1="12" x2="26" y2="12" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+  <line x1="6" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+  <!-- Checkmark in center-left cell -->
+  <path d="M7 15.5 L9.5 18 L14 13" stroke="url(#accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Small filled circle in top-right -->
+  <circle cx="24" cy="8" r="2.5" fill="#fbbf24"/>
+  <!-- M letter stylized -->
+  <path d="M21 22 L21 18 L23 20.5 L25 18 L25 22" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
+
