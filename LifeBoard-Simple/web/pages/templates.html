@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Templates - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .template-card {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            padding: var(--space-lg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .template-card:hover {
+            border-color: var(--color-primary);
+            background: var(--color-bg-secondary);
+        }
+
+        .template-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-xs);
+        }
+
+        .step-badge {
+            font-size: var(--text-xs);
+            padding: 2px 8px;
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-full);
+        }
+
+        .category-section {
+            margin-bottom: var(--space-xl);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/templates.html" class="nav-link active"><span
+                        class="nav-link-icon">📝</span><span>Templates</span></a>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Task Templates</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddTemplate()">+ New Template</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <p class="text-secondary mb-lg">Create reusable task templates with predefined steps and settings.</p>
+                <div id="templates-container">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Template Modal -->
+    <div class="modal-overlay" id="template-modal">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title" id="template-modal-title">New Template</h3>
+                <button class="modal-close" onclick="App.closeModal('template-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="template-id">
+                <div class="grid grid-cols-2 gap-md">
+                    <div class="form-group">
+                        <label class="form-label">Template Name</label>
+                        <input type="text" id="template-name" class="form-input" placeholder="e.g., Weekly Review">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select id="template-category" class="form-select">
+                            <option value="Work">Work</option>
+                            <option value="Personal">Personal</option>
+                            <option value="Health">Health</option>
+                            <option value="Learning">Learning</option>
+                            <option value="Routine">Routine</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-md">
+                    <div class="form-group">
+                        <label class="form-label">Task Type</label>
+                        <select id="template-type" class="form-select">
+                            <option value="todo">To-Do</option>
+                            <option value="timed">Timed Event</option>
+                            <option value="floating">Floating</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Duration (minutes, optional)</label>
+                        <input type="number" id="template-duration" class="form-input" placeholder="60">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select id="template-priority" class="form-select">
+                        <option value="1">Low</option>
+                        <option value="2" selected>Normal</option>
+                        <option value="3">High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Default Steps</label>
+                    <div id="steps-container" class="space-y-sm mb-sm"></div>
+                    <div class="flex gap-sm">
+                        <input type="text" id="new-step" class="form-input flex-1" placeholder="Add a step..."
+                            onkeypress="if(event.key==='Enter'){addStep();event.preventDefault();}">
+                        <button type="button" class="btn btn-secondary" onclick="addStep()">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('template-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Apply Template Modal -->
+    <div class="modal-overlay" id="apply-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Create Task from Template</h3>
+                <button class="modal-close" onclick="App.closeModal('apply-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-md" id="apply-template-name"></p>
+                <div class="form-group">
+                    <label class="form-label">Task Title</label>
+                    <input type="text" id="apply-title" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" id="apply-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Time (optional)</label>
+                    <input type="time" id="apply-time" class="form-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('apply-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="applyTemplate()">Create Task</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let templates = [];
+        let currentSteps = [];
+        let applyingTemplate = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadTemplates();
+        });
+
+        async function loadTemplates() {
+            try {
+                templates = await API.tasks.listTemplates();
+                renderTemplates();
+            } catch (e) {
+                // Templates endpoint might not exist yet
+                templates = JSON.parse(localStorage.getItem('taskTemplates') || '[]');
+                renderTemplates();
+            }
+        }
+
+        async function saveTemplatesLocal() {
+            localStorage.setItem('taskTemplates', JSON.stringify(templates));
+        }
+
+        function renderTemplates() {
+            const container = document.getElementById('templates-container');
+            if (templates.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📝</div>
+                        <div class="empty-state-title">No templates yet</div>
+                        <div class="empty-state-text">Create templates to quickly add common tasks</div>
+                        <button class="btn btn-primary mt-md" onclick="openAddTemplate()">Create Template</button>
+                    </div>`;
+                return;
+            }
+
+            // Group by category
+            const grouped = {};
+            templates.forEach(t => {
+                const cat = t.category || 'Other';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(t);
+            });
+
+            container.innerHTML = Object.entries(grouped).map(([category, items]) => `
+                <div class="category-section">
+                    <h3 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-md">${category}</h3>
+                    <div class="grid grid-cols-3 gap-md">
+                        ${items.map(t => `
+                            <div class="template-card" onclick="openApplyTemplate('${t.id}')">
+                                <div class="flex items-start justify-between">
+                                    <h4 class="font-semibold">${App.escapeHtml(t.name)}</h4>
+                                    <div class="flex gap-xs">
+                                        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); editTemplate('${t.id}')">✏️</button>
+                                        <button class="btn btn-ghost btn-sm text-error" onclick="event.stopPropagation(); deleteTemplate('${t.id}')">🗑️</button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-sm text-xs text-secondary">
+                                    <span>${t.taskType || 'todo'}</span>
+                                    ${t.durationMinutes ? `<span>• ${t.durationMinutes}min</span>` : ''}
+                                </div>
+                                ${t.defaultSteps && t.defaultSteps.length > 0 ? `
+                                    <div class="template-steps">
+                                        ${t.defaultSteps.slice(0, 3).map(s => `<span class="step-badge">${App.escapeHtml(s)}</span>`).join('')}
+                                        ${t.defaultSteps.length > 3 ? `<span class="step-badge">+${t.defaultSteps.length - 3} more</span>` : ''}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openAddTemplate() {
+            document.getElementById('template-modal-title').textContent = 'New Template';
+            document.getElementById('template-id').value = '';
+            document.getElementById('template-name').value = '';
+            document.getElementById('template-category').value = 'Work';
+            document.getElementById('template-type').value = 'todo';
+            document.getElementById('template-duration').value = '';
+            document.getElementById('template-priority').value = '2';
+            currentSteps = [];
+            renderSteps();
+            App.openModal('template-modal');
+        }
+
+        function editTemplate(id) {
+            const t = templates.find(x => x.id === id);
+            if (!t) return;
+            document.getElementById('template-modal-title').textContent = 'Edit Template';
+            document.getElementById('template-id').value = t.id;
+            document.getElementById('template-name').value = t.name;
+            document.getElementById('template-category').value = t.category || 'Work';
+            document.getElementById('template-type').value = t.taskType || 'todo';
+            document.getElementById('template-duration').value = t.durationMinutes || '';
+            document.getElementById('template-priority').value = t.priority || 2;
+            currentSteps = [...(t.defaultSteps || [])];
+            renderSteps();
+            App.openModal('template-modal');
+        }
+
+        function addStep() {
+            const input = document.getElementById('new-step');
+            const step = input.value.trim();
+            if (!step) return;
+            currentSteps.push(step);
+            input.value = '';
+            renderSteps();
+        }
+
+        function removeStep(index) {
+            currentSteps.splice(index, 1);
+            renderSteps();
+        }
+
+        function renderSteps() {
+            document.getElementById('steps-container').innerHTML = currentSteps.map((s, i) => `
+                <div class="flex items-center gap-sm p-sm bg-secondary rounded-lg">
+                    <span class="flex-1">${i + 1}. ${App.escapeHtml(s)}</span>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="removeStep(${i})">×</button>
+                </div>
+            `).join('');
+        }
+
+        async function saveTemplate() {
+            const name = document.getElementById('template-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+
+            const data = {
+                id: document.getElementById('template-id').value || Date.now().toString(),
+                name,
+                category: document.getElementById('template-category').value,
+                taskType: document.getElementById('template-type').value,
+                durationMinutes: parseInt(document.getElementById('template-duration').value) || null,
+                priority: parseInt(document.getElementById('template-priority').value),
+                defaultSteps: currentSteps
+            };
+
+            const existingIndex = templates.findIndex(t => t.id === data.id);
+            if (existingIndex >= 0) {
+                templates[existingIndex] = data;
+            } else {
+                templates.push(data);
+            }
+
+            await saveTemplatesLocal();
+            App.closeModal('template-modal');
+            renderTemplates();
+            App.toast('Template saved!', 'success');
+        }
+
+        async function deleteTemplate(id) {
+            if (!confirm('Delete this template?')) return;
+            templates = templates.filter(t => t.id !== id);
+            await saveTemplatesLocal();
+            renderTemplates();
+        }
+
+        function openApplyTemplate(id) {
+            applyingTemplate = templates.find(t => t.id === id);
+            if (!applyingTemplate) return;
+            document.getElementById('apply-template-name').textContent = `Creating task from: ${applyingTemplate.name}`;
+            document.getElementById('apply-title').value = applyingTemplate.name;
+            document.getElementById('apply-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('apply-time').value = '';
+            App.openModal('apply-modal');
+        }
+
+        async function applyTemplate() {
+            if (!applyingTemplate) return;
+            const title = document.getElementById('apply-title').value.trim();
+            if (!title) { App.toast('Title is required', 'error'); return; }
+
+            try {
+                const task = await API.tasks.create({
+                    title,
+                    dueDate: document.getElementById('apply-date').value,
+                    dueTime: document.getElementById('apply-time').value || null,
+                    priority: applyingTemplate.priority,
+                    durationMinutes: applyingTemplate.durationMinutes,
+                    taskType: applyingTemplate.taskType
+                });
+
+                // Add steps
+                for (const step of (applyingTemplate.defaultSteps || [])) {
+                    await API.tasks.addStep(task.id, step);
+                }
+
+                App.closeModal('apply-modal');
+                App.toast('Task created from template!', 'success');
+                window.location.href = '/pages/calendar.html';
+            } catch (e) {
+                App.toast('Failed to create task', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

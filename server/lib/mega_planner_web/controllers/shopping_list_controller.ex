@@ -8,9 +8,15 @@ defmodule MegaPlannerWeb.ShoppingListController do
 
   # Shopping Lists
 
-  def index(conn, _params) do
+  def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    lists = Inventory.list_shopping_lists(user.household_id)
+    tag_ids = case params["tag_ids"] do
+      nil -> nil
+      "" -> nil
+      ids when is_binary(ids) -> String.split(ids, ",")
+      ids when is_list(ids) -> ids
+    end
+    lists = Inventory.list_shopping_lists(user.household_id, tag_ids)
     json(conn, %{data: Enum.map(lists, &list_to_json/1)})
   end
 
@@ -68,7 +74,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
 
   # Shopping List Items
 
-  def create_item(conn, %{"list_id" => list_id, "item" => item_params}) do
+  def create_item(conn, %{"shopping_list_id" => list_id, "item" => item_params}) do
     user = Guardian.Plug.current_resource(conn)
 
     with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, list_id) do
@@ -90,7 +96,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
     end
   end
 
-  def update_item(conn, %{"list_id" => list_id, "id" => id, "item" => item_params}) do
+  def update_item(conn, %{"shopping_list_id" => list_id, "id" => id, "item" => item_params}) do
     user = Guardian.Plug.current_resource(conn)
 
     with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, list_id),
@@ -119,7 +125,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
     end
   end
 
-  def delete_item(conn, %{"list_id" => list_id, "id" => id}) do
+  def delete_item(conn, %{"shopping_list_id" => list_id, "id" => id}) do
     user = Guardian.Plug.current_resource(conn)
 
     with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, list_id),
@@ -150,6 +156,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
       items: Enum.map(list.items || [], &item_to_json/1),
       item_count: length(list.items || []),
       unpurchased_count: Enum.count(list.items || [], &(!&1.purchased)),
+      tags: Enum.map(list.tags || [], fn t -> %{id: t.id, name: t.name, color: t.color} end),
       inserted_at: list.inserted_at,
       updated_at: list.updated_at
     }

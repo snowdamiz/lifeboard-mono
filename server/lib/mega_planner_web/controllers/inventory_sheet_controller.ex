@@ -6,11 +6,17 @@ defmodule MegaPlannerWeb.InventorySheetController do
 
   action_fallback MegaPlannerWeb.FallbackController
 
-  def index(conn, _params) do
+  def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    sheets = Inventory.list_sheets(user.household_id)
+    tag_ids = parse_tag_ids(params)
+    sheets = Inventory.list_sheets(user.household_id, tag_ids)
     json(conn, %{data: Enum.map(sheets, &sheet_to_json/1)})
   end
+
+  defp parse_tag_ids(%{"tag_ids" => tag_ids}) when is_binary(tag_ids) do
+    tag_ids |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.filter(&(&1 != ""))
+  end
+  defp parse_tag_ids(_), do: nil
 
   def create(conn, %{"sheet" => sheet_params}) do
     user = Guardian.Plug.current_resource(conn)
@@ -63,6 +69,7 @@ defmodule MegaPlannerWeb.InventorySheetController do
       id: sheet.id,
       name: sheet.name,
       columns: sheet.columns,
+      tags: Enum.map(sheet.tags || [], &tag_to_json/1),
       inserted_at: sheet.inserted_at,
       updated_at: sheet.updated_at
     }

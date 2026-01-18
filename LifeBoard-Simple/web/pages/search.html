@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .search-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            margin-bottom: var(--space-lg);
+        }
+
+        .search-input {
+            font-size: var(--text-lg);
+            padding: var(--space-md) var(--space-lg);
+            padding-left: 48px;
+            border-radius: var(--radius-xl);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+        }
+
+        .search-kbd {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 4px 8px;
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            color: var(--color-text-secondary);
+        }
+
+        .result-section {
+            margin-bottom: var(--space-xl);
+        }
+
+        .result-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+
+        .result-item:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .result-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-md);
+        }
+
+        .result-content {
+            flex: 1;
+        }
+
+        .result-title {
+            font-weight: 500;
+        }
+
+        .result-meta {
+            font-size: var(--text-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .highlight {
+            background: yellow;
+            color: black;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/search.html" class="nav-link active"><span
+                        class="nav-link-icon">🔍</span><span>Search</span></a>
+                <a href="/pages/templates.html" class="nav-link"><span
+                        class="nav-link-icon">📝</span><span>Templates</span></a>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Search</h1>
+            </header>
+
+            <div class="app-content">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="search-input" class="form-input search-input"
+                            placeholder="Search tasks, notes, goals, inventory..." autofocus oninput="debounceSearch()">
+                        <span class="search-kbd">Ctrl+K</span>
+                    </div>
+
+                    <div id="search-results">
+                        <div class="text-center text-secondary p-xl">
+                            <div class="text-4xl mb-md">🔍</div>
+                            <div>Start typing to search across all your data</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let searchTimeout = null;
+        let allData = { tasks: [], goals: [], habits: [], notebooks: [], sheets: [], tags: [] };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadAllData();
+
+            // Global keyboard shortcut
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'k') {
+                    e.preventDefault();
+                    document.getElementById('search-input').focus();
+                }
+            });
+        });
+
+        async function loadAllData() {
+            try {
+                const [tasks, goals, habits, notebooks, sheets, tags] = await Promise.all([
+                    API.tasks.list({}).catch(() => []),
+                    API.goals.list().catch(() => []),
+                    API.habits.list().catch(() => []),
+                    API.notes.listNotebooks().catch(() => []),
+                    API.inventory.listSheets().catch(() => []),
+                    API.tags.list().catch(() => [])
+                ]);
+                allData = { tasks, goals, habits, notebooks, sheets, tags };
+            } catch (e) {
+                console.error('Failed to load data:', e);
+            }
+        }
+
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(performSearch, 200);
+        }
+
+        function performSearch() {
+            const query = document.getElementById('search-input').value.trim().toLowerCase();
+            const container = document.getElementById('search-results');
+
+            if (!query) {
+                container.innerHTML = `
+                    <div class="text-center text-secondary p-xl">
+                        <div class="text-4xl mb-md">🔍</div>
+                        <div>Start typing to search across all your data</div>
+                    </div>`;
+                return;
+            }
+
+            const results = {
+                tasks: allData.tasks.filter(t => matchesQuery(t.title, query) || matchesQuery(t.description, query)),
+                goals: allData.goals.filter(g => matchesQuery(g.title, query) || matchesQuery(g.description, query)),
+                habits: allData.habits.filter(h => matchesQuery(h.name, query) || matchesQuery(h.description, query)),
+                notebooks: allData.notebooks.filter(n => matchesQuery(n.name, query)),
+                sheets: allData.sheets.filter(s => matchesQuery(s.name, query)),
+                tags: allData.tags.filter(t => matchesQuery(t.name, query))
+            };
+
+            const totalResults = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
+
+            if (totalResults === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-secondary p-xl">
+                        <div class="text-4xl mb-md">😔</div>
+                        <div>No results found for "${App.escapeHtml(query)}"</div>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+
+            if (results.tasks.length) {
+                html += renderSection('📅 Tasks', results.tasks.map(t => ({
+                    icon: t.status === 'completed' ? '✅' : '📌',
+                    title: highlight(t.title, query),
+                    meta: t.dueDate || 'No date',
+                    link: `/pages/calendar.html?date=${t.dueDate || ''}`
+                })));
+            }
+
+            if (results.goals.length) {
+                html += renderSection('🎯 Goals', results.goals.map(g => ({
+                    icon: g.status === 'completed' ? '🏆' : '🎯',
+                    title: highlight(g.title, query),
+                    meta: `${g.progress}% complete`,
+                    link: `/pages/goal.html?id=${g.id}`
+                })));
+            }
+
+            if (results.habits.length) {
+                html += renderSection('✅ Habits', results.habits.map(h => ({
+                    icon: '🔄',
+                    title: highlight(h.name, query),
+                    meta: `${h.frequency} • ${h.currentStreak} streak`,
+                    link: `/pages/habits.html`
+                })));
+            }
+
+            if (results.notebooks.length) {
+                html += renderSection('📓 Notebooks', results.notebooks.map(n => ({
+                    icon: n.icon || '📓',
+                    title: highlight(n.name, query),
+                    meta: `${n.pageCount || 0} pages`,
+                    link: `/pages/notebook.html?id=${n.id}`
+                })));
+            }
+
+            if (results.sheets.length) {
+                html += renderSection('📦 Inventory', results.sheets.map(s => ({
+                    icon: s.icon || '📦',
+                    title: highlight(s.name, query),
+                    meta: `${s.itemCount || 0} items`,
+                    link: `/pages/sheet.html?id=${s.id}`
+                })));
+            }
+
+            if (results.tags.length) {
+                html += renderSection('🏷️ Tags', results.tags.map(t => ({
+                    icon: '🏷️',
+                    title: highlight(t.name, query),
+                    meta: t.color,
+                    link: `/pages/tags.html`
+                })));
+            }
+
+            container.innerHTML = html;
+        }
+
+        function matchesQuery(text, query) {
+            return text && text.toLowerCase().includes(query);
+        }
+
+        function highlight(text, query) {
+            if (!text) return '';
+            const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
+            return App.escapeHtml(text).replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function renderSection(title, items) {
+            return `
+                <div class="result-section">
+                    <h3 class="text-sm font-semibold text-secondary uppercase tracking-wide mb-md">${title}</h3>
+                    ${items.map(item => `
+                        <div class="result-item" onclick="window.location.href='${item.link}'">
+                            <div class="result-icon">${item.icon}</div>
+                            <div class="result-content">
+                                <div class="result-title">${item.title}</div>
+                                <div class="result-meta">${item.meta}</div>
+                            </div>
+                            <span class="text-secondary">→</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+    </script>
+</body>
+
+</html>

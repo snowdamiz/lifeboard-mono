@@ -12,6 +12,7 @@ defmodule MegaPlanner.Inventory.Sheet do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     has_many :items, MegaPlanner.Inventory.Item
+    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "inventory_sheets_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -23,5 +24,11 @@ defmodule MegaPlanner.Inventory.Sheet do
     |> validate_required([:name, :user_id, :household_id])
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:household_id)
+  end
+
+  def tags_changeset(sheet, tags) do
+    sheet
+    |> change()
+    |> put_assoc(:tags, tags)
   end
 end

@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { format, isToday, isSameDay, isSameMonth } from 'date-fns'
-import { ChevronLeft, ChevronRight, Plus, Calendar, CalendarDays } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Plus, Calendar, CalendarDays, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useCalendarStore } from '@/stores/calendar'
 import TaskCard from '@/components/calendar/TaskCard.vue'
 import TaskForm from '@/components/calendar/TaskForm.vue'
 import { cn } from '@/lib/utils'
+import type { Task } from '@/types'
 
 const calendarStore = useCalendarStore()
 const showTaskForm = ref(false)
 const selectedDate = ref<Date | null>(null)
+const selectedTask = ref<Task | null>(null)
 const mobileSelectedDay = ref<Date>(new Date())
+const expandedDay = ref<string | null>(null) // Stores ISO string of expanded day in month view
 
 const syncMobileSelectedDay = () => {
   const today = new Date()
@@ -95,14 +98,58 @@ const mobileMonthWeeks = computed(() => {
 })
 
 const openNewTask = (date?: Date) => {
+  selectedTask.value = null
   selectedDate.value = date || mobileSelectedDay.value || new Date()
+  showTaskForm.value = true
+}
+
+const openEditTask = (task: Task, date: Date) => {
+  selectedTask.value = task
+  selectedDate.value = date
   showTaskForm.value = true
 }
 
 const closeTaskForm = () => {
   showTaskForm.value = false
   selectedDate.value = null
+  selectedTask.value = null
 }
+
+// Filtering Logic
+import TagManager from '@/components/shared/TagManager.vue'
+import { Filter } from 'lucide-vue-next'
+const showFilterDropdown = ref(false)
+const filterCheckedTagIds = ref<Set<string>>(new Set(calendarStore.filterTags))
+const filterAppliedTagIds = computed(() => new Set<string>()) // No "applied" tags concept for filter, just selection
+
+// Watch for store filter changes (in case changed elsewhere)
+watch(() => calendarStore.filterTags, (newTags) => {
+  filterCheckedTagIds.value = new Set(newTags)
+})
+
+const applyFilters = () => {
+  calendarStore.filterTags = Array.from(filterCheckedTagIds.value)
+  calendarStore.fetchCurrentViewTasks()
+  showFilterDropdown.value = false
+}
+
+const clearFilters = () => {
+  calendarStore.filterTags = []
+  filterCheckedTagIds.value = new Set()
+  calendarStore.fetchCurrentViewTasks()
+  showFilterDropdown.value = false
+}
+
+const toggleExpandedDay = (day: Date) => {
+  const dateKey = format(day, 'yyyy-MM-dd')
+  if (expandedDay.value === dateKey) {
+    expandedDay.value = null
+  } else {
+    expandedDay.value = dateKey
+  }
+}
+
+const activeFilterCount = computed(() => calendarStore.filterTags.length)
 </script>
 
 <template>
@@ -120,8 +167,17 @@ const closeTaskForm = () => {
       </div>
 
       <div class="flex items-center gap-2 sm:gap-3">
-        <!-- View Toggle -->
+        <!-- Today Button -->
+        <Button variant="outline" size="sm" class="h-9 px-3 text-[13px]" @click="calendarStore.goToToday">
+          Today
+        </Button>
+
+        <!-- Navigation with View Toggle -->
         <div class="flex items-center rounded-lg border border-border bg-card overflow-hidden">
+          <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.prevPeriod" title="Previous">
+            <ChevronLeft class="h-4 w-4" />
+          </Button>
+          <div class="w-px h-5 bg-border" />
           <Button 
             :variant="calendarStore.viewMode === 'week' ? 'default' : 'ghost'" 
             size="sm" 
@@ -141,21 +197,62 @@ const closeTaskForm = () => {
             <CalendarDays class="h-4 w-4" />
             <span class="hidden sm:inline text-[13px]">Month</span>
           </Button>
-        </div>
-
-        <!-- Navigation -->
-        <div class="flex items-center rounded-lg border border-border bg-card overflow-hidden">
-          <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.prevPeriod">
-            <ChevronLeft class="h-4 w-4" />
-          </Button>
           <div class="w-px h-5 bg-border" />
-          <Button variant="ghost" size="sm" class="rounded-none px-3 sm:px-4 h-9 text-[13px]" @click="calendarStore.goToToday">
-            Today
-          </Button>
-          <div class="w-px h-5 bg-border" />
-          <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.nextPeriod">
+          <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.nextPeriod" title="Next">
             <ChevronRight class="h-4 w-4" />
           </Button>
+        </div>
+
+        <!-- Filter Button -->
+        <div class="relative">
+          <Button 
+            :variant="activeFilterCount > 0 ? 'default' : 'outline'" 
+            size="sm" 
+            class="h-9 gap-2"
+            @click="showFilterDropdown = !showFilterDropdown"
+          >
+            <Filter class="h-4 w-4" />
+            <span class="hidden sm:inline">Filter</span>
+            <Badge v-if="activeFilterCount > 0" variant="secondary" class="ml-0.5 h-5 px-1.5 min-w-[20px] justify-center bg-background/20 text-current border-0">
+              {{ activeFilterCount }}
+            </Badge>
+          </Button>
+
+          <!-- Filter Dropdown -->
+          <div
+            v-if="showFilterDropdown"
+            class="absolute top-full right-0 mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+          >
+            <div class="p-3 border-b border-border bg-secondary/30 flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter by Tags</span>
+              <button class="text-xs text-primary hover:underline" @click="clearFilters" v-if="activeFilterCount > 0">
+                Clear all
+              </button>
+            </div>
+            
+            <TagManager
+              ref="filterTagManagerRef"
+              v-model:checkedTagIds="filterCheckedTagIds"
+              :hide-input="true"
+              :compact="true"
+              :embedded="true"
+              :applied-tag-ids="filterAppliedTagIds"
+              class="max-h-[300px] overflow-auto"
+            >
+              <template #actions="{ checkedCount }">
+                <Button
+                  type="button"
+                  size="sm"
+                  class="w-full text-xs"
+                  @click="applyFilters"
+                >
+                  Apply Filter
+                </Button>
+              </template>
+            </TagManager>
+          </div>
+          <!-- Backdrop to close -->
+          <div v-if="showFilterDropdown" class="fixed inset-0 z-40 bg-transparent" @click="showFilterDropdown = false" />
         </div>
         
         <Button @click="openNewTask()" class="shrink-0">
@@ -338,7 +435,7 @@ const closeTaskForm = () => {
     </div>
 
     <!-- Desktop Month Calendar Grid -->
-    <div v-if="calendarStore.viewMode === 'month'" class="hidden md:flex flex-1 flex-col rounded-xl overflow-hidden border border-border/80">
+    <div v-if="calendarStore.viewMode === 'month'" class="hidden md:flex flex-1 flex-col rounded-xl border border-border/80 bg-card">
       <!-- Day of week headers -->
       <div class="grid grid-cols-7 bg-secondary/50 border-b border-border/60">
         <div 
@@ -356,7 +453,7 @@ const closeTaskForm = () => {
           v-for="day in calendarStore.monthDays"
           :key="day.toISOString()"
           :class="[
-            'group relative bg-card flex flex-col min-h-[100px] overflow-hidden transition-colors',
+            'group relative bg-card flex flex-col min-h-[100px] transition-colors',
             isToday(day) && 'bg-primary/[0.03]',
             !isSameMonth(day, calendarStore.currentDate) && 'bg-secondary/30'
           ]"
@@ -386,31 +483,56 @@ const closeTaskForm = () => {
           </div>
 
           <!-- Day Content -->
-          <div class="flex-1 px-1 pb-1 space-y-0.5 overflow-auto scrollbar-thin">
-            <div
+          <div class="flex-1 px-1 pb-1 space-y-1 overflow-auto scrollbar-thin">
+            <TaskCard
               v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).slice(0, 3)"
               :key="task.id"
-              :class="[
-                'px-1.5 py-0.5 text-[11px] rounded truncate cursor-pointer transition-colors',
-                task.status === 'completed'
-                  ? 'bg-secondary/60 text-muted-foreground line-through'
-                  : 'bg-primary/10 text-primary hover:bg-primary/20'
-              ]"
-              @click="() => { selectedDate = day; showTaskForm = true }"
-            >
-              {{ task.title }}
-            </div>
-            <div 
+              :task="task"
+              class="border-border/50 shadow-none hover:border-primary/30"
+            />
+            <button 
               v-if="(calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length > 3"
-              class="text-[10px] text-muted-foreground px-1.5"
+              class="text-[10px] text-muted-foreground px-1.5 text-center py-1 w-full hover:bg-secondary/50 rounded transition-colors cursor-pointer"
+              @click.stop="toggleExpandedDay(day)"
             >
               +{{ (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length - 3 }} more
+            </button>
+            
+            <!-- Expanded Tasks Dropdown -->
+            <div 
+              v-if="expandedDay === format(day, 'yyyy-MM-dd')" 
+              class="absolute left-[-1px] right-[-1px] top-[-1px] z-20 bg-card border border-border shadow-2xl rounded-lg flex flex-col p-2 min-h-[calc(100%+2px)] max-h-[350px]"
+            >
+              <div class="flex items-center justify-between mb-2 pb-2 border-b border-border/50">
+                <span class="text-xs font-semibold text-muted-foreground uppercase">{{ format(day, 'MMM d') }}</span>
+                <button 
+                  class="h-5 w-5 rounded-full hover:bg-secondary flex items-center justify-center text-muted-foreground transition-colors"
+                  @click.stop="expandedDay = null"
+                >
+                  <X class="h-3 w-3" />
+                </button>
+              </div>
+              <div class="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin pr-1">
+                <TaskCard
+                  v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || [])"
+                  :key="task.id"
+                  :task="task"
+                  class="border-border/50 shadow-sm hover:border-primary/30"
+                />
+              </div>
             </div>
+
+            <!-- Backdrop for closing -->
+            <div 
+              v-if="expandedDay === format(day, 'yyyy-MM-dd')" 
+              class="fixed inset-0 z-10 bg-transparent cursor-default" 
+              @click.stop="expandedDay = null" 
+            />
           </div>
 
           <!-- Add task button on hover -->
           <button
-            class="opacity-0 group-hover:opacity-100 absolute bottom-1 right-1 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center transition-opacity hover:bg-primary/20"
+            class="opacity-0 group-hover:opacity-100 absolute bottom-1 right-1 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center transition-opacity hover:bg-primary/20 z-10"
             @click="openNewTask(day)"
           >
             <Plus class="h-3.5 w-3.5 text-primary" />
@@ -421,6 +543,7 @@ const closeTaskForm = () => {
 
     <TaskForm
       v-if="showTaskForm"
+      :task="selectedTask || undefined"
       :initial-date="selectedDate"
       @close="closeTaskForm"
       @saved="closeTaskForm"

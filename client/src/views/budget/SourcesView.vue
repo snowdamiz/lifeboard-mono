@@ -73,9 +73,7 @@ const saveSource = async () => {
 }
 
 const deleteSource = async (id: string) => {
-  if (confirm('Delete this source? Entries using this source will not be deleted.')) {
-    await budgetStore.deleteSource(id)
-  }
+  await budgetStore.deleteSource(id)
 }
 
 const totalIncome = computed(() => 

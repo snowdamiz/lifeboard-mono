@@ -18,6 +18,13 @@ defmodule MegaPlanner.Tags.Tag do
     many_to_many :inventory_items, MegaPlanner.Inventory.Item,
       join_through: "inventory_items_tags",
       join_keys: [tag_id: :id, inventory_item_id: :id]
+    many_to_many :goals, MegaPlanner.Goals.Goal, join_through: "goals_tags"
+    many_to_many :pages, MegaPlanner.Notes.Page, join_through: "pages_tags"
+    many_to_many :habits, MegaPlanner.Goals.Habit, join_through: "habits_tags"
+    many_to_many :inventory_sheets, MegaPlanner.Inventory.Sheet, join_through: "inventory_sheets_tags"
+    many_to_many :shopping_lists, MegaPlanner.Inventory.ShoppingList, join_through: "shopping_lists_tags"
+    many_to_many :budget_entries, MegaPlanner.Budget.Entry, join_through: "budget_entries_tags"
+    many_to_many :notebooks, MegaPlanner.Notes.Notebook, join_through: "notebooks_tags"
 
     timestamps(type: :utc_datetime)
   end

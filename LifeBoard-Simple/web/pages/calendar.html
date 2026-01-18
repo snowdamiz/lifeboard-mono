@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .calendar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-lg);
+        }
+
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .calendar-day-header {
+            background: var(--color-bg-secondary);
+            padding: var(--space-sm);
+            text-align: center;
+            font-weight: 600;
+            font-size: var(--text-sm);
+        }
+
+        .calendar-day {
+            background: var(--color-bg);
+            min-height: 120px;
+            padding: var(--space-sm);
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+
+        .calendar-day:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .calendar-day.other-month {
+            background: var(--color-bg-secondary);
+            opacity: 0.6;
+        }
+
+        .calendar-day.today {
+            background: var(--color-primary-light);
+        }
+
+        .day-number {
+            font-weight: 600;
+            margin-bottom: var(--space-xs);
+        }
+
+        .day-task {
+            font-size: var(--text-xs);
+            padding: 4px 6px;
+            margin-bottom: 2px;
+            border-radius: var(--radius-sm);
+            background: var(--color-primary);
+            color: white;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: transform var(--transition-fast);
+        }
+
+        .day-task:hover {
+            transform: scale(1.02);
+        }
+
+        .day-task.completed {
+            background: var(--color-success);
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .day-task.timed {
+            border-left: 3px solid var(--color-warning);
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm);
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-xs);
+        }
+
+        .step-item input[type="checkbox"] {
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-content.completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .tag-pill {
+            display: inline-flex;
+            padding: 2px 8px;
+            font-size: var(--text-xs);
+            border-radius: var(--radius-full);
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link active"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/templates.html" class="nav-link"><span
+                        class="nav-link-icon">📝</span><span>Templates</span></a>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Calendar</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddTask()">+ Add Task</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div class="calendar-header">
+                    <div class="calendar-nav">
+                        <button class="btn btn-outline" onclick="prevMonth()">← Prev</button>
+                        <h2 class="text-xl font-semibold" id="current-month">January 2026</h2>
+                        <button class="btn btn-outline" onclick="nextMonth()">Next →</button>
+                    </div>
+                    <button class="btn btn-secondary" onclick="goToToday()">Today</button>
+                </div>
+
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- Calendar will be rendered here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Full Task Modal -->
+    <div class="modal-overlay" id="task-modal">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title" id="task-modal-title">New Task</h3>
+                <button class="modal-close" onclick="closeModal('task-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="task-id">
+
+                <div class="form-group">
+                    <label class="form-label">Title *</label>
+                    <input type="text" id="task-title" class="form-input" placeholder="Task title">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="task-desc" class="form-textarea" placeholder="Optional description"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-md">
+                    <div class="form-group">
+                        <label class="form-label">Date</label>
+                        <input type="date" id="task-date" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select id="task-type" class="form-select" onchange="toggleTimedFields()">
+                            <option value="todo">To Do</option>
+                            <option value="timed">Timed Event</option>
+                            <option value="floating">Floating</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-md" id="timed-fields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Start Time</label>
+                        <input type="time" id="task-time" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Duration (minutes)</label>
+                        <input type="number" id="task-duration" class="form-input" value="30" min="5" step="5">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select id="task-priority" class="form-select">
+                        <option value="1">Low</option>
+                        <option value="2" selected>Normal</option>
+                        <option value="3">High</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select id="task-status" class="form-select">
+                        <option value="not_started">Not Started</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+
+                <!-- Tags (available tags shown as badges) -->
+                <div class="form-group">
+                    <label class="form-label">Tags</label>
+                    <div id="tags-selector" class="flex flex-wrap gap-xs p-sm border rounded-lg min-h-12">
+                        <span class="text-secondary text-sm">Loading tags...</span>
+                    </div>
+                </div>
+
+                <!-- Steps -->
+                <div class="form-group">
+                    <label class="form-label">Steps</label>
+                    <div id="steps-container" class="mb-sm"></div>
+                    <div class="flex gap-sm">
+                        <input type="text" id="new-step" class="form-input flex-1" placeholder="Add a step..."
+                            onkeypress="if(event.key==='Enter'){addStep();event.preventDefault();}">
+                        <button type="button" class="btn btn-secondary" onclick="addStep()">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-error" id="delete-task-btn" onclick="deleteTask()"
+                    style="display: none;">Delete</button>
+                <div class="flex-1"></div>
+                <button class="btn btn-secondary" onclick="closeModal('task-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTask()">Save Task</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let currentDate = new Date();
+        let tasks = [];
+        let tags = [];
+        let selectedTags = new Set();
+        let steps = [];
+        let editingTaskId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadTags();
+            await loadCalendar();
+        });
+
+        async function loadTags() {
+            try {
+                tags = await API.tags.list();
+            } catch (e) {
+                tags = [];
+            }
+        }
+
+        async function loadCalendar() {
+            renderCalendar();
+            await loadTasks();
+        }
+
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            document.getElementById('current-month').textContent =
+                new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startDay = firstDay.getDay();
+            const daysInMonth = lastDay.getDate();
+
+            let html = '';
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            days.forEach(d => html += `<div class="calendar-day-header">${d}</div>`);
+
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+
+            // Previous month days
+            const prevMonth = new Date(year, month, 0);
+            for (let i = startDay - 1; i >= 0; i--) {
+                html += `<div class="calendar-day other-month"><div class="day-number">${prevMonth.getDate() - i}</div></div>`;
+            }
+
+            // Current month days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = dateStr === todayStr;
+                const dayTasks = tasks.filter(t => t.dueDate === dateStr || t.date === dateStr);
+
+                html += `<div class="calendar-day${isToday ? ' today' : ''}" data-date="${dateStr}" onclick="openAddTask('${dateStr}')">
+                    <div class="day-number">${day}</div>
+                    ${dayTasks.slice(0, 4).map(t => `<div class="day-task${t.status === 'completed' ? ' completed' : ''}${t.taskType === 'timed' ? ' timed' : ''}" onclick="event.stopPropagation(); editTask(${t.id})">${App.escapeHtml(t.title)}</div>`).join('')}
+                    ${dayTasks.length > 4 ? `<div class="text-xs text-secondary">+${dayTasks.length - 4} more</div>` : ''}
+                </div>`;
+            }
+
+            // Next month days
+            const remaining = 42 - (startDay + daysInMonth);
+            for (let i = 1; i <= remaining; i++) {
+                html += `<div class="calendar-day other-month"><div class="day-number">${i}</div></div>`;
+            }
+
+            document.getElementById('calendar-grid').innerHTML = html;
+        }
+
+        async function loadTasks() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+            const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${new Date(year, month + 1, 0).getDate()}`;
+
+            try {
+                tasks = await API.tasks.list({ startDate, endDate });
+                renderCalendar();
+            } catch (e) {
+                console.error('Failed to load tasks:', e);
+            }
+        }
+
+        function prevMonth() { currentDate.setMonth(currentDate.getMonth() - 1); loadCalendar(); }
+        function nextMonth() { currentDate.setMonth(currentDate.getMonth() + 1); loadCalendar(); }
+        function goToToday() { currentDate = new Date(); loadCalendar(); }
+
+        function toggleTimedFields() {
+            const type = document.getElementById('task-type').value;
+            document.getElementById('timed-fields').style.display = type === 'timed' ? '' : 'none';
+        }
+
+        function openAddTask(date = null) {
+            editingTaskId = null;
+            document.getElementById('task-modal-title').textContent = 'New Task';
+            document.getElementById('task-id').value = '';
+            document.getElementById('task-title').value = '';
+            document.getElementById('task-desc').value = '';
+            document.getElementById('task-date').value = date || new Date().toISOString().split('T')[0];
+            document.getElementById('task-type').value = 'todo';
+            document.getElementById('task-time').value = '';
+            document.getElementById('task-duration').value = '30';
+            document.getElementById('task-priority').value = '2';
+            document.getElementById('task-status').value = 'not_started';
+            document.getElementById('delete-task-btn').style.display = 'none';
+            selectedTags = new Set();
+            steps = [];
+            renderTagsSelector();
+            renderSteps();
+            toggleTimedFields();
+            App.openModal('task-modal');
+        }
+
+        async function editTask(id) {
+            try {
+                const task = await API.tasks.get(id);
+                editingTaskId = id;
+                document.getElementById('task-modal-title').textContent = 'Edit Task';
+                document.getElementById('task-id').value = id;
+                document.getElementById('task-title').value = task.title;
+                document.getElementById('task-desc').value = task.description || '';
+                document.getElementById('task-date').value = task.dueDate || task.date || '';
+                document.getElementById('task-type').value = task.taskType || 'todo';
+                document.getElementById('task-time').value = task.startTime || task.dueTime || '';
+                document.getElementById('task-duration').value = task.durationMinutes || 30;
+                document.getElementById('task-priority').value = task.priority || 2;
+                document.getElementById('task-status').value = task.status || 'not_started';
+                document.getElementById('delete-task-btn').style.display = '';
+
+                selectedTags = new Set((task.tags || []).map(t => t.id));
+                steps = (task.steps || []).map(s => ({ id: s.id, content: s.content, completed: s.completed }));
+
+                renderTagsSelector();
+                renderSteps();
+                toggleTimedFields();
+                App.openModal('task-modal');
+            } catch (e) {
+                App.toast('Failed to load task', 'error');
+            }
+        }
+
+        function renderTagsSelector() {
+            const container = document.getElementById('tags-selector');
+            if (tags.length === 0) {
+                container.innerHTML = '<span class="text-secondary text-sm">No tags available. <a href="/pages/tags.html" class="text-primary">Create tags</a></span>';
+                return;
+            }
+            container.innerHTML = tags.map(t => {
+                const isSelected = selectedTags.has(t.id);
+                return `<span class="tag-pill cursor-pointer ${isSelected ? '' : 'opacity-50'}" style="background: ${t.color}20; color: ${t.color}; border: 1px solid ${isSelected ? t.color : 'transparent'}" onclick="toggleTag(${t.id})">${App.escapeHtml(t.name)}</span>`;
+            }).join('');
+        }
+
+        function toggleTag(id) {
+            if (selectedTags.has(id)) {
+                selectedTags.delete(id);
+            } else {
+                selectedTags.add(id);
+            }
+            renderTagsSelector();
+        }
+
+        function renderSteps() {
+            const container = document.getElementById('steps-container');
+            container.innerHTML = steps.map((s, i) => `
+                <div class="step-item">
+                    <input type="checkbox" ${s.completed ? 'checked' : ''} onchange="toggleStep(${i}, this.checked)">
+                    <span class="step-content ${s.completed ? 'completed' : ''}">${App.escapeHtml(s.content)}</span>
+                    <button type="button" class="btn btn-ghost btn-sm text-error" onclick="removeStep(${i})">×</button>
+                </div>
+            `).join('');
+        }
+
+        function addStep() {
+            const input = document.getElementById('new-step');
+            const content = input.value.trim();
+            if (!content) return;
+            steps.push({ content, completed: false, isNew: true });
+            input.value = '';
+            renderSteps();
+        }
+
+        function removeStep(index) {
+            steps.splice(index, 1);
+            renderSteps();
+        }
+
+        function toggleStep(index, completed) {
+            steps[index].completed = completed;
+            renderSteps();
+        }
+
+        function closeModal(id) { App.closeModal(id); }
+
+        async function saveTask() {
+            const title = document.getElementById('task-title').value.trim();
+            if (!title) { App.toast('Title is required', 'error'); return; }
+
+            const taskType = document.getElementById('task-type').value;
+            const data = {
+                title,
+                description: document.getElementById('task-desc').value,
+                dueDate: document.getElementById('task-date').value,
+                taskType,
+                dueTime: taskType === 'timed' ? document.getElementById('task-time').value : null,
+                durationMinutes: taskType === 'timed' ? parseInt(document.getElementById('task-duration').value) : null,
+                priority: parseInt(document.getElementById('task-priority').value),
+                status: document.getElementById('task-status').value,
+                tagIds: Array.from(selectedTags)
+            };
+
+            try {
+                let taskId;
+                if (editingTaskId) {
+                    await API.tasks.update(editingTaskId, data);
+                    taskId = editingTaskId;
+
+                    // Handle step updates
+                    const originalTask = tasks.find(t => t.id === editingTaskId);
+                    const originalSteps = originalTask?.steps || [];
+                    const originalStepIds = originalSteps.map(s => s.id);
+
+                    for (const step of steps) {
+                        if (step.isNew) {
+                            await API.tasks.addStep(taskId, step.content);
+                        } else if (step.id) {
+                            const original = originalSteps.find(s => s.id === step.id);
+                            if (original && (original.completed !== step.completed || original.content !== step.content)) {
+                                await API.tasks.updateStep(taskId, step.id, { content: step.content, completed: step.completed });
+                            }
+                        }
+                    }
+
+                    // Delete removed steps
+                    const currentStepIds = steps.filter(s => s.id).map(s => s.id);
+                    for (const id of originalStepIds) {
+                        if (!currentStepIds.includes(id)) {
+                            await API.tasks.deleteStep(taskId, id);
+                        }
+                    }
+                } else {
+                    const task = await API.tasks.create(data);
+                    taskId = task.id;
+
+                    // Add steps for new task
+                    for (const step of steps) {
+                        await API.tasks.addStep(taskId, step.content);
+                    }
+                }
+
+                closeModal('task-modal');
+                loadTasks();
+                App.toast(editingTaskId ? 'Task updated!' : 'Task created!', 'success');
+            } catch (e) {
+                App.toast('Failed to save task', 'error');
+            }
+        }
+
+        async function deleteTask() {
+            if (!editingTaskId || !confirm('Delete this task?')) return;
+            try {
+                await API.tasks.delete(editingTaskId);
+                closeModal('task-modal');
+                loadTasks();
+                App.toast('Task deleted', 'success');
+            } catch (e) {
+                App.toast('Failed to delete task', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

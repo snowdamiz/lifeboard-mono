@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Sheet - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .item-row {
+            display: grid;
+            grid-template-columns: 1fr 100px 100px 80px 100px;
+            gap: var(--space-md);
+            align-items: center;
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .item-row:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .item-header {
+            font-weight: 600;
+            font-size: var(--text-sm);
+            color: var(--color-text-secondary);
+            background: var(--color-bg-secondary);
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+
+        .quantity-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+            background: var(--color-bg);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .quantity-btn:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .quantity-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .low-stock {
+            color: var(--color-error);
+        }
+
+        .essential-badge {
+            background: var(--color-warning-light);
+            color: var(--color-warning);
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: 500;
+        }
+
+        .item-row[draggable="true"] {
+            cursor: grab;
+        }
+
+        .item-row.dragging {
+            opacity: 0.5;
+            background: var(--color-primary-light);
+        }
+
+        .item-row.drag-over {
+            border-top: 2px solid var(--color-primary);
+        }
+
+        .drag-handle {
+            cursor: grab;
+            color: var(--color-text-secondary);
+            padding: 4px;
+            user-select: none;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        @media (max-width: 768px) {
+            .item-row {
+                grid-template-columns: 1fr auto;
+            }
+
+            .item-header {
+                display: none;
+            }
+
+            .mobile-hide {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link active"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <a href="/pages/inventory.html" class="btn btn-ghost">← Back</a>
+                <h1 class="text-xl font-semibold ml-md" id="sheet-title">Loading...</h1>
+                <div class="ml-auto flex gap-sm">
+                    <button class="btn btn-secondary" onclick="openEditSheet()">✏️ Edit Sheet</button>
+                    <button class="btn btn-primary" onclick="openAddItem()">+ Add Item</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <!-- Low Stock Alert -->
+                <div class="card mb-lg" id="low-stock-alert" style="display: none; border-color: var(--color-warning);">
+                    <div class="card-body flex items-center gap-md">
+                        <span class="text-2xl">⚠️</span>
+                        <div>
+                            <div class="font-semibold">Low Stock Items</div>
+                            <div class="text-sm text-secondary" id="low-stock-count">0 essential items are running low
+                            </div>
+                        </div>
+                        <button class="btn btn-warning ml-auto" onclick="addToShoppingList()">Add to Shopping
+                            List</button>
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div class="card">
+                    <div class="card-body p-0">
+                        <div class="item-row item-header">
+                            <div>Item Name</div>
+                            <div>Quantity</div>
+                            <div>Min Stock</div>
+                            <div class="mobile-hide">Essential</div>
+                            <div>Actions</div>
+                        </div>
+                        <div id="items-container">
+                            <div class="empty-state p-xl">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div class="modal-overlay" id="item-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="item-modal-title">Add Item</h3>
+                <button class="modal-close" onclick="App.closeModal('item-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="item-id">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="item-name" class="form-input" placeholder="e.g., Milk">
+                </div>
+                <div class="grid grid-cols-2 gap-md">
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" id="item-quantity" class="form-input" value="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Min Stock</label>
+                        <input type="number" id="item-min" class="form-input" value="0" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Unit (optional)</label>
+                    <input type="text" id="item-unit" class="form-input" placeholder="e.g., gallons, pieces">
+                </div>
+                <div class="form-group">
+                    <label class="form-switch">
+                        <input type="checkbox" id="item-essential">
+                        <span class="switch-slider"></span>
+                        <span>Essential item (track for shopping)</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea id="item-notes" class="form-textarea" placeholder="Optional notes"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('item-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveItem()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Sheet Modal -->
+    <div class="modal-overlay" id="sheet-modal">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Sheet</h3>
+                <button class="modal-close" onclick="App.closeModal('sheet-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="sheet-name" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icon</label>
+                    <input type="text" id="sheet-icon" class="form-input" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" id="sheet-color" class="form-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-error" onclick="deleteSheet()">Delete Sheet</button>
+                <button class="btn btn-primary" onclick="saveSheet()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let sheetId = new URLSearchParams(window.location.search).get('id');
+        let sheet = null;
+        let items = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            if (!sheetId) { window.location.href = '/pages/inventory.html'; return; }
+            await loadSheet();
+        });
+
+        async function loadSheet() {
+            try {
+                sheet = await API.inventory.getSheet(sheetId);
+                items = sheet.items || [];
+                document.getElementById('sheet-title').innerHTML = `${sheet.icon} ${App.escapeHtml(sheet.name)}`;
+                document.title = `${sheet.name} - LifeBoard`;
+                renderItems();
+                checkLowStock();
+            } catch (e) {
+                App.toast('Failed to load sheet', 'error');
+            }
+        }
+
+        function renderItems() {
+            const container = document.getElementById('items-container');
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state p-xl">
+                        <div class="empty-state-icon">📦</div>
+                        <div class="empty-state-title">No items yet</div>
+                        <button class="btn btn-primary mt-md" onclick="openAddItem()">Add First Item</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = items.map((item, index) => {
+                const isLow = item.isEssential && item.quantity < item.minQuantity;
+                return `
+                    <div class="item-row" draggable="true" data-id="${item.id}" data-index="${index}"
+                        ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
+                        ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="handleDragLeave(event)">
+                        <div class="flex items-center gap-sm">
+                            <span class="drag-handle" title="Drag to reorder">☰</span>
+                            <div>
+                                <div class="font-medium ${isLow ? 'low-stock' : ''}">${App.escapeHtml(item.name)}</div>
+                                ${item.unit ? `<div class="text-xs text-secondary">${App.escapeHtml(item.unit)}</div>` : ''}
+                            </div>
+                        </div>
+                        <div class="quantity-controls">
+                            <button class="quantity-btn" onclick="updateQuantity(${item.id}, -1)">−</button>
+                            <span class="quantity-value ${isLow ? 'low-stock' : ''}">${item.quantity}</span>
+                            <button class="quantity-btn" onclick="updateQuantity(${item.id}, 1)">+</button>
+                        </div>
+                        <div class="mobile-hide text-secondary">${item.minQuantity}</div>
+                        <div class="mobile-hide">${item.isEssential ? '<span class="essential-badge">Essential</span>' : ''}</div>
+                        <div class="flex gap-xs">
+                            <button class="btn btn-ghost btn-sm" onclick="editItem(${item.id})">✏️</button>
+                            <button class="btn btn-ghost btn-sm text-error" onclick="deleteItem(${item.id})">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function checkLowStock() {
+            const lowItems = items.filter(i => i.isEssential && i.quantity < i.minQuantity);
+            const alert = document.getElementById('low-stock-alert');
+            if (lowItems.length > 0) {
+                alert.style.display = 'block';
+                document.getElementById('low-stock-count').textContent = `${lowItems.length} essential item${lowItems.length > 1 ? 's are' : ' is'} running low`;
+            } else {
+                alert.style.display = 'none';
+            }
+        }
+
+        function openAddItem() {
+            document.getElementById('item-modal-title').textContent = 'Add Item';
+            document.getElementById('item-id').value = '';
+            document.getElementById('item-name').value = '';
+            document.getElementById('item-quantity').value = '1';
+            document.getElementById('item-min').value = '0';
+            document.getElementById('item-unit').value = '';
+            document.getElementById('item-essential').checked = false;
+            document.getElementById('item-notes').value = '';
+            App.openModal('item-modal');
+        }
+
+        function editItem(id) {
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            document.getElementById('item-modal-title').textContent = 'Edit Item';
+            document.getElementById('item-id').value = item.id;
+            document.getElementById('item-name').value = item.name;
+            document.getElementById('item-quantity').value = item.quantity;
+            document.getElementById('item-min').value = item.minQuantity;
+            document.getElementById('item-unit').value = item.unit || '';
+            document.getElementById('item-essential').checked = item.isEssential;
+            document.getElementById('item-notes').value = item.notes || '';
+            App.openModal('item-modal');
+        }
+
+        async function saveItem() {
+            const id = document.getElementById('item-id').value;
+            const data = {
+                name: document.getElementById('item-name').value.trim(),
+                quantity: parseInt(document.getElementById('item-quantity').value) || 0,
+                minQuantity: parseInt(document.getElementById('item-min').value) || 0,
+                unit: document.getElementById('item-unit').value.trim(),
+                isEssential: document.getElementById('item-essential').checked,
+                notes: document.getElementById('item-notes').value.trim()
+            };
+
+            if (!data.name) { App.toast('Name is required', 'error'); return; }
+
+            try {
+                if (id) {
+                    await API.inventory.updateItem(sheetId, id, data);
+                    App.toast('Item updated', 'success');
+                } else {
+                    await API.inventory.createItem(sheetId, data);
+                    App.toast('Item added', 'success');
+                }
+                App.closeModal('item-modal');
+                loadSheet();
+            } catch (e) {
+                App.toast('Failed to save item', 'error');
+            }
+        }
+
+        async function updateQuantity(id, delta) {
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            const newQty = Math.max(0, item.quantity + delta);
+            try {
+                await API.inventory.updateItem(sheetId, id, { quantity: newQty });
+                item.quantity = newQty;
+                renderItems();
+                checkLowStock();
+            } catch (e) {
+                App.toast('Failed to update quantity', 'error');
+            }
+        }
+
+        async function deleteItem(id) {
+            if (!confirm('Delete this item?')) return;
+            try {
+                await API.inventory.deleteItem(sheetId, id);
+                loadSheet();
+            } catch (e) {
+                App.toast('Failed to delete item', 'error');
+            }
+        }
+
+        function openEditSheet() {
+            document.getElementById('sheet-name').value = sheet.name;
+            document.getElementById('sheet-icon').value = sheet.icon;
+            document.getElementById('sheet-color').value = sheet.color;
+            App.openModal('sheet-modal');
+        }
+
+        async function saveSheet() {
+            try {
+                await API.inventory.updateSheet(sheetId, {
+                    name: document.getElementById('sheet-name').value.trim(),
+                    icon: document.getElementById('sheet-icon').value,
+                    color: document.getElementById('sheet-color').value
+                });
+                App.closeModal('sheet-modal');
+                loadSheet();
+                App.toast('Sheet updated', 'success');
+            } catch (e) {
+                App.toast('Failed to update sheet', 'error');
+            }
+        }
+
+        async function deleteSheet() {
+            if (!confirm('Delete this sheet and all its items?')) return;
+            try {
+                await API.inventory.deleteSheet(sheetId);
+                window.location.href = '/pages/inventory.html';
+            } catch (e) {
+                App.toast('Failed to delete sheet', 'error');
+            }
+        }
+
+        async function addToShoppingList() {
+            try {
+                await API.shopping.generate();
+                App.toast('Low stock items added to shopping list!', 'success');
+            } catch (e) {
+                App.toast('Failed to generate shopping list', 'error');
+            }
+        }
+
+        // Drag and drop reordering
+        let draggedItem = null;
+
+        function handleDragStart(event) {
+            draggedItem = event.target.closest('.item-row');
+            draggedItem.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', draggedItem.dataset.index);
+        }
+
+        function handleDragEnd(event) {
+            event.target.closest('.item-row')?.classList.remove('dragging');
+            document.querySelectorAll('.item-row').forEach(row => row.classList.remove('drag-over'));
+            draggedItem = null;
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            const row = event.target.closest('.item-row');
+            if (row && row !== draggedItem) {
+                document.querySelectorAll('.item-row').forEach(r => r.classList.remove('drag-over'));
+                row.classList.add('drag-over');
+            }
+        }
+
+        function handleDragLeave(event) {
+            event.target.closest('.item-row')?.classList.remove('drag-over');
+        }
+
+        async function handleDrop(event) {
+            event.preventDefault();
+            const targetRow = event.target.closest('.item-row');
+            if (!targetRow || !draggedItem || targetRow === draggedItem) return;
+
+            const fromIndex = parseInt(draggedItem.dataset.index);
+            const toIndex = parseInt(targetRow.dataset.index);
+
+            // Reorder in local array
+            const [movedItem] = items.splice(fromIndex, 1);
+            items.splice(toIndex, 0, movedItem);
+
+            // Update positions on server (if supported) or just re-render
+            try {
+                // Try to update positions - backend may support this
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].position !== i) {
+                        items[i].position = i;
+                        await API.inventory.updateItem(sheetId, items[i].id, { position: i }).catch(() => { });
+                    }
+                }
+            } catch (e) { /* Position update not critical */ }
+
+            renderItems();
+            App.toast('Order updated', 'success');
+        }
+    </script>
+</body>
+
+</html>

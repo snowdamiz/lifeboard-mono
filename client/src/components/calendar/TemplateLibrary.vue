@@ -112,7 +112,6 @@ async function handleUpdateTemplate() {
 }
 
 async function handleDeleteTemplate(id: string) {
-  if (!confirm('Delete this template?')) return
   await api.deleteTemplate(id)
   await fetchTemplates()
 }

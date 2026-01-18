@@ -6,11 +6,18 @@ defmodule MegaPlannerWeb.PageController do
 
   action_fallback MegaPlannerWeb.FallbackController
 
-  def index(conn, %{"notebook_id" => notebook_id}) do
+  def index(conn, %{"notebook_id" => notebook_id} = params) do
     user = Guardian.Plug.current_resource(conn)
 
+    opts = case params["tag_ids"] do
+      nil -> []
+      "" -> []
+      tag_ids when is_binary(tag_ids) -> [tag_ids: String.split(tag_ids, ",")]
+      tag_ids when is_list(tag_ids) -> [tag_ids: tag_ids]
+    end
+
     with notebook when not is_nil(notebook) <- Notes.get_household_notebook(user.household_id, notebook_id) do
-      pages = Notes.list_pages(notebook.id)
+      pages = Notes.list_pages(notebook.id, opts)
       json(conn, %{data: Enum.map(pages, &page_to_json/1)})
     else
       nil -> {:error, :not_found}
@@ -72,6 +79,7 @@ defmodule MegaPlannerWeb.PageController do
       content: page.content,
       notebook_id: page.notebook_id,
       links: Enum.map(page.links || [], &link_to_json/1),
+      tags: Enum.map(page.tags || [], &tag_to_json/1),
       inserted_at: page.inserted_at,
       updated_at: page.updated_at
     }
@@ -82,6 +90,14 @@ defmodule MegaPlannerWeb.PageController do
       id: link.id,
       link_type: link.link_type,
       linked_id: link.linked_id
+    }
+  end
+
+  defp tag_to_json(tag) do
+    %{
+      id: tag.id,
+      name: tag.name,
+      color: tag.color
     }
   end
 end

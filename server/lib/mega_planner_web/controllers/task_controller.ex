@@ -12,7 +12,8 @@ defmodule MegaPlannerWeb.TaskController do
     opts = []
     |> maybe_add_date(:start_date, params["start_date"])
     |> maybe_add_date(:end_date, params["end_date"])
-    |> maybe_add_opt(:status, params["status"])
+    |> maybe_add_status(params["status"])
+    |> maybe_add_tag_ids(params["tag_ids"])
 
     tasks = Calendar.list_tasks(user.household_id, opts)
     json(conn, %{data: Enum.map(tasks, &task_to_json/1)})
@@ -85,10 +86,17 @@ defmodule MegaPlannerWeb.TaskController do
   end
   defp maybe_add_date(opts, _key, _value), do: opts
 
-  defp maybe_add_opt(opts, key, value) when is_binary(value) and value != "" do
-    Keyword.put(opts, key, value)
+  defp maybe_add_status(opts, value) when is_binary(value) and value != "" do
+    statuses = String.split(value, ",")
+    Keyword.put(opts, :status, statuses)
   end
-  defp maybe_add_opt(opts, _key, _value), do: opts
+  defp maybe_add_status(opts, _value), do: opts
+
+  defp maybe_add_tag_ids(opts, value) when is_binary(value) and value != "" do
+    tag_ids = String.split(value, ",")
+    Keyword.put(opts, :tag_ids, tag_ids)
+  end
+  defp maybe_add_tag_ids(opts, _value), do: opts
 
   defp task_to_json(task) do
     %{

@@ -5,82 +5,60 @@ import { api } from '@/services/api'
 
 export const useGoalsStore = defineStore('goals', () => {
   const goals = ref<Goal[]>([])
-  const categories = ref<GoalCategory[]>([])
+  // const categories = ref<GoalCategory[]>([]) - Removed
+
   const currentGoal = ref<Goal | null>(null)
   const loading = ref(false)
 
-  const activeGoals = computed(() => 
+  const activeGoals = computed(() =>
     goals.value.filter(g => g.status === 'in_progress' || g.status === 'not_started')
   )
 
-  const completedGoals = computed(() => 
+  async function updateGoalStatusBasedOnProgress(goalId: string) {
+    const goal = goals.value.find(g => g.id === goalId)
+    // Don't auto-update if abandoned
+    if (!goal || goal.status === 'abandoned') return
+
+    let newStatus = goal.status
+    if (goal.progress === 100 && goal.status !== 'completed') {
+      newStatus = 'completed'
+    } else if (goal.progress === 0 && goal.status !== 'not_started') {
+      // Only revert to not_started if it was in_progress or completed
+      if (goal.status === 'in_progress' || goal.status === 'completed') {
+        newStatus = 'not_started'
+      }
+    } else if (goal.progress > 0 && goal.progress < 100 && goal.status !== 'in_progress') {
+      newStatus = 'in_progress'
+    }
+
+    if (newStatus !== goal.status) {
+      await updateGoal(goalId, { status: newStatus as any })
+    }
+  }
+
+  const completedGoals = computed(() =>
     goals.value.filter(g => g.status === 'completed')
   )
 
-  const goalsByCategory = computed(() => {
-    const grouped: Record<string, Goal[]> = {}
-    for (const goal of goals.value) {
-      const category = goal.goal_category?.name || goal.category || 'Uncategorized'
-      if (!grouped[category]) grouped[category] = []
-      grouped[category].push(goal)
-    }
-    return grouped
-  })
 
-  // Flatten categories with subcategories for select dropdowns
-  const flatCategories = computed(() => {
-    const result: { id: string; name: string; isSubcategory: boolean; parentName?: string }[] = []
-    for (const cat of categories.value) {
-      result.push({ id: cat.id, name: cat.name, isSubcategory: false })
-      if (cat.subcategories) {
-        for (const sub of cat.subcategories) {
-          result.push({ id: sub.id, name: sub.name, isSubcategory: true, parentName: cat.name })
-        }
-      }
-    }
-    return result
-  })
 
-  async function fetchCategories() {
-    const response = await api.listGoalCategories()
-    categories.value = response.data
-  }
 
-  async function createCategory(category: Partial<GoalCategory>) {
-    const response = await api.createGoalCategory(category)
-    // Add to appropriate place
-    if (response.data.parent_id) {
-      const parent = categories.value.find(c => c.id === response.data.parent_id)
-      if (parent) {
-        parent.subcategories = [...(parent.subcategories || []), response.data]
-      }
-    } else {
-      categories.value.push(response.data)
-    }
-    return response.data
-  }
-
-  async function updateCategory(id: string, updates: Partial<GoalCategory>) {
-    const response = await api.updateGoalCategory(id, updates)
-    // Re-fetch to ensure proper structure
-    await fetchCategories()
-    return response.data
-  }
-
-  async function deleteCategory(id: string) {
-    await api.deleteGoalCategory(id)
-    await fetchCategories()
-  }
+  const filterTags = ref<string[]>([])
 
   async function fetchGoals(params?: { status?: string; category_id?: string; tag_ids?: string[] }) {
     loading.value = true
     try {
-      const response = await api.listGoals(params)
+      const requestParams = { ...params }
+      if (filterTags.value.length > 0) {
+        requestParams.tag_ids = filterTags.value
+      }
+      const response = await api.listGoals(requestParams)
       goals.value = response.data
     } finally {
       loading.value = false
     }
   }
+
 
   async function fetchGoal(id: string) {
     loading.value = true
@@ -130,6 +108,7 @@ export const useGoalsStore = defineStore('goals', () => {
     }
     // Re-fetch to get updated progress
     await fetchGoal(goalId)
+    await updateGoalStatusBasedOnProgress(goalId)
     return response.data
   }
 
@@ -145,13 +124,14 @@ export const useGoalsStore = defineStore('goals', () => {
     }
     // Re-fetch to get updated progress
     await fetchGoal(goalId)
+    await updateGoalStatusBasedOnProgress(goalId)
     return response.data
   }
 
   async function toggleMilestone(goalId: string, milestoneId: string) {
     // Find the milestone in currentGoal (used by detail view)
-    const currentMilestone = currentGoal.value?.id === goalId 
-      ? currentGoal.value.milestones.find(m => m.id === milestoneId) 
+    const currentMilestone = currentGoal.value?.id === goalId
+      ? currentGoal.value.milestones.find(m => m.id === milestoneId)
       : null
     const previousCurrentCompleted = currentMilestone?.completed
 
@@ -175,6 +155,7 @@ export const useGoalsStore = defineStore('goals', () => {
       await api.toggleMilestone(goalId, milestoneId)
       // Re-fetch to get updated progress
       await fetchGoal(goalId)
+      await updateGoalStatusBasedOnProgress(goalId)
     } catch (error) {
       // Revert on error
       if (currentMilestone && previousCurrentCompleted !== undefined) {
@@ -200,6 +181,7 @@ export const useGoalsStore = defineStore('goals', () => {
     }
     // Re-fetch to get updated progress
     await fetchGoal(goalId)
+    await updateGoalStatusBasedOnProgress(goalId)
   }
 
   async function updateGoalTags(goalId: string, tagIds: string[]) {
@@ -221,17 +203,11 @@ export const useGoalsStore = defineStore('goals', () => {
 
   return {
     goals,
-    categories,
     currentGoal,
     loading,
     activeGoals,
     completedGoals,
-    goalsByCategory,
-    flatCategories,
-    fetchCategories,
-    createCategory,
-    updateCategory,
-    deleteCategory,
+    filterTags,
     fetchGoals,
     fetchGoal,
     createGoal,

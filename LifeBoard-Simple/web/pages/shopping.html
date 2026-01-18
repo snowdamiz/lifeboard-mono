@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Lists - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link active"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Shopping Lists</h1>
+                <div class="ml-auto flex gap-sm">
+                    <button class="btn btn-secondary" onclick="generateFromInventory()">🔄 Generate from
+                        Inventory</button>
+                    <button class="btn btn-primary" onclick="openAddList()">+ New List</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div id="lists-container">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- List Modal -->
+    <div class="modal-overlay" id="list-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">New Shopping List</h3>
+                <button class="modal-close" onclick="App.closeModal('list-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="list-name" class="form-input" placeholder="e.g., Weekly Groceries">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('list-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveList()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let lists = [];
+        let activeListId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadLists();
+        });
+
+        async function loadLists() {
+            try {
+                lists = await API.shopping.list();
+                renderLists();
+            } catch (e) {
+                App.toast('Failed to load lists', 'error');
+            }
+        }
+
+        function renderLists() {
+            const container = document.getElementById('lists-container');
+            if (lists.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🛒</div>
+                        <div class="empty-state-title">No shopping lists</div>
+                        <div class="empty-state-text">Create a list or generate one from low inventory</div>
+                        <button class="btn btn-primary" onclick="openAddList()">Create List</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = lists.map(list => `
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h3 class="card-title">${App.escapeHtml(list.name)}</h3>
+                        <div class="flex gap-sm">
+                            <span class="tag ${list.status === 'completed' ? 'tag-success' : 'tag-primary'}">${list.status}</span>
+                            <button class="btn btn-sm btn-ghost" onclick="deleteList(${list.id})">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="list-items-${list.id}">
+                            ${renderItems(list)}
+                        </div>
+                        <div class="p-md border-t">
+                            <div class="flex gap-sm">
+                                <input type="text" id="new-item-${list.id}" class="form-input" placeholder="Add item..." onkeypress="if(event.key==='Enter')addItem(${list.id})">
+                                <button class="btn btn-primary" onclick="addItem(${list.id})">Add</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderItems(list) {
+            if (!list.items || list.items.length === 0) {
+                return '<div class="p-md text-secondary text-center">No items yet</div>';
+            }
+            return list.items.map(item => `
+                <div class="list-item">
+                    <input type="checkbox" class="form-check-input" ${item.checked ? 'checked' : ''} onchange="toggleItem(${list.id}, ${item.id}, this.checked)">
+                    <span class="${item.checked ? 'text-muted' : ''}" style="${item.checked ? 'text-decoration: line-through' : ''}">${App.escapeHtml(item.name)}</span>
+                    ${item.quantity > 1 ? `<span class="tag">×${item.quantity}</span>` : ''}
+                    <button class="btn btn-ghost btn-sm ml-auto" onclick="removeItem(${list.id}, ${item.id})">×</button>
+                </div>
+            `).join('');
+        }
+
+        function openAddList() {
+            document.getElementById('list-name').value = '';
+            App.openModal('list-modal');
+        }
+
+        async function saveList() {
+            const name = document.getElementById('list-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+            try {
+                await API.shopping.create({ name });
+                App.closeModal('list-modal');
+                loadLists();
+                App.toast('List created!', 'success');
+            } catch (e) {
+                App.toast('Failed to create list', 'error');
+            }
+        }
+
+        async function addItem(listId) {
+            const input = document.getElementById(`new-item-${listId}`);
+            const name = input.value.trim();
+            if (!name) return;
+            try {
+                await API.shopping.addItem(listId, { name, quantity: 1 });
+                input.value = '';
+                loadLists();
+            } catch (e) {
+                App.toast('Failed to add item', 'error');
+            }
+        }
+
+        async function toggleItem(listId, itemId, checked) {
+            try {
+                await API.shopping.updateItem(listId, itemId, { checked });
+            } catch (e) {
+                App.toast('Failed to update item', 'error');
+                loadLists();
+            }
+        }
+
+        async function removeItem(listId, itemId) {
+            try {
+                await API.shopping.removeItem(listId, itemId);
+                loadLists();
+            } catch (e) {
+                App.toast('Failed to remove item', 'error');
+            }
+        }
+
+        async function deleteList(id) {
+            if (!confirm('Delete this list?')) return;
+            try {
+                await API.shopping.delete(id);
+                loadLists();
+            } catch (e) {
+                App.toast('Failed to delete list', 'error');
+            }
+        }
+
+        async function generateFromInventory() {
+            try {
+                await API.shopping.generate();
+                loadLists();
+                App.toast('Shopping list generated from low inventory!', 'success');
+            } catch (e) {
+                App.toast('Failed to generate list', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

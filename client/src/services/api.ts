@@ -168,12 +168,14 @@ class ApiClient {
     start_date?: string
     end_date?: string
     status?: string
+    tag_ids?: string
   }): Promise<ApiResponse<Task[]>> {
     const searchParams = new URLSearchParams()
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     if (params?.status) searchParams.set('status', params.status)
-    
+    if (params?.tag_ids) searchParams.set('tag_ids', params.tag_ids)
+
     const query = searchParams.toString()
     return this.request(`/tasks${query ? `?${query}` : ''}`)
   }
@@ -227,8 +229,12 @@ class ApiClient {
   }
 
   // Inventory Sheets
-  async listSheets(): Promise<ApiResponse<InventorySheet[]>> {
-    return this.request('/inventory/sheets')
+  async listSheets(params?: { tag_ids?: string[] }): Promise<ApiResponse<InventorySheet[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+
+    const query = searchParams.toString()
+    return this.request(`/inventory/sheets${query ? `?${query}` : ''}`)
   }
 
   async getSheet(id: string): Promise<ApiResponse<InventorySheet>> {
@@ -273,8 +279,12 @@ class ApiClient {
   }
 
   // Shopping Lists
-  async listShoppingLists(): Promise<ApiResponse<ShoppingList[]>> {
-    return this.request('/shopping-lists')
+  async listShoppingLists(params?: { tag_ids?: string[] }): Promise<ApiResponse<ShoppingList[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+
+    const query = searchParams.toString()
+    return this.request(`/shopping-lists${query ? `?${query}` : ''}`)
   }
 
   async getShoppingList(id: string): Promise<ApiResponse<ShoppingList>> {
@@ -358,12 +368,14 @@ class ApiClient {
     start_date?: string
     end_date?: string
     type?: string
+    tag_ids?: string[]
   }): Promise<ApiResponse<BudgetEntry[]>> {
     const searchParams = new URLSearchParams()
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     if (params?.type) searchParams.set('type', params.type)
-    
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+
     const query = searchParams.toString()
     return this.request(`/budget/entries${query ? `?${query}` : ''}`)
   }
@@ -390,14 +402,18 @@ class ApiClient {
     const searchParams = new URLSearchParams()
     if (year) searchParams.set('year', year.toString())
     if (month) searchParams.set('month', month.toString())
-    
+
     const query = searchParams.toString()
     return this.request(`/budget/summary${query ? `?${query}` : ''}`)
   }
 
   // Notebooks
-  async listNotebooks(): Promise<ApiResponse<Notebook[]>> {
-    return this.request('/notebooks')
+  async listNotebooks(params?: { tag_ids?: string[] }): Promise<ApiResponse<Notebook[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+
+    const query = searchParams.toString()
+    return this.request(`/notebooks${query ? `?${query}` : ''}`)
   }
 
   async getNotebook(id: string): Promise<ApiResponse<Notebook>> {
@@ -423,8 +439,12 @@ class ApiClient {
   }
 
   // Pages
-  async listPages(notebookId: string): Promise<ApiResponse<Page[]>> {
-    return this.request(`/notebooks/${notebookId}/pages`)
+  async listPages(notebookId: string, params?: { tag_ids?: string[] }): Promise<ApiResponse<Page[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+
+    const query = searchParams.toString()
+    return this.request(`/notebooks/${notebookId}/pages${query ? `?${query}` : ''}`)
   }
 
   async getPage(id: string): Promise<ApiResponse<Page>> {
@@ -472,6 +492,62 @@ class ApiClient {
     return this.request(`/tags/${id}`, { method: 'DELETE' })
   }
 
+  async listTagsWithUsage(): Promise<ApiResponse<Array<{
+    id: string
+    name: string
+    color: string
+    usage: {
+      tasks: number
+      goals: number
+      pages: number
+      habits: number
+      inventory_items: number
+      budget_sources: number
+    }
+    total_usage: number
+  }>>> {
+    return this.request('/tags?with_usage=true')
+  }
+
+  async getTagItems(tagId: string): Promise<ApiResponse<{
+    tag: Tag
+    items: {
+      tasks: Array<{ id: string; title: string; description: string | null; date: string | null; status: string; task_type: string }>
+      goals: Array<{ id: string; title: string; description: string | null; status: string; progress: number }>
+      pages: Array<{ id: string; title: string; content: string | null }>
+      habits: Array<{ id: string; name: string; description: string | null; frequency: string; streak_count: number }>
+      inventory_items: Array<{ id: string; name: string; quantity: number }>
+      budget_sources: Array<{ id: string; name: string; type: string; amount: string }>
+    }
+  }>> {
+    return this.request(`/tags/${tagId}/items`)
+  }
+
+  async searchByTags(tagIds: string[], mode: 'any' | 'all' = 'any'): Promise<ApiResponse<{
+    tasks: Array<{ id: string; title: string; description: string | null; date: string | null; status: string; task_type: string }>
+    goals: Array<{ id: string; title: string; description: string | null; status: string; progress: number }>
+    pages: Array<{ id: string; title: string; content: string | null }>
+    habits: Array<{ id: string; name: string; description: string | null; frequency: string; streak_count: number }>
+    inventory_items: Array<{ id: string; name: string; quantity: number }>
+    budget_sources: Array<{ id: string; name: string; type: string; amount: string }>
+  }>> {
+    return this.request(`/tags/search?tag_ids=${tagIds.join(',')}&mode=${mode}`)
+  }
+
+  async createTasksFromTags(tagIds: string[], options?: {
+    date?: string
+    include_types?: string[]
+  }): Promise<ApiResponse<Array<{ id: string; title: string }>>> {
+    const params: Record<string, unknown> = { tag_ids: tagIds }
+    if (options?.date) params.date = options.date
+    if (options?.include_types) params.include_types = options.include_types
+
+    return this.request('/tags/create-tasks', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    })
+  }
+
   // Search
   async search(query: string): Promise<ApiResponse<SearchResults>> {
     return this.request(`/search?q=${encodeURIComponent(query)}`)
@@ -485,7 +561,7 @@ class ApiClient {
     const searchParams = new URLSearchParams()
     if (params?.unread_only) searchParams.set('unread_only', 'true')
     if (params?.limit) searchParams.set('limit', params.limit.toString())
-    
+
     const query = searchParams.toString()
     return this.request(`/notifications${query ? `?${query}` : ''}`)
   }
@@ -558,7 +634,7 @@ class ApiClient {
     if (params?.status) searchParams.set('status', params.status)
     if (params?.category_id) searchParams.set('category_id', params.category_id)
     if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
-    
+
     const query = searchParams.toString()
     return this.request(`/goals${query ? `?${query}` : ''}`)
   }
@@ -621,8 +697,12 @@ class ApiClient {
   }
 
   // Habits
-  async listHabits(): Promise<ApiResponse<Habit[]>> {
-    return this.request('/habits')
+  async listHabits(params?: { tag_ids?: string[] }): Promise<ApiResponse<Habit[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+
+    const query = searchParams.toString()
+    return this.request(`/habits${query ? `?${query}` : ''}`)
   }
 
   async getHabit(id: string): Promise<ApiResponse<Habit>> {
@@ -662,7 +742,7 @@ class ApiClient {
     const searchParams = new URLSearchParams()
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
-    
+
     const query = searchParams.toString()
     return this.request(`/habits/${id}/completions${query ? `?${query}` : ''}`)
   }

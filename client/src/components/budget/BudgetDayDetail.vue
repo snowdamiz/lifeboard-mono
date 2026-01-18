@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { format } from 'date-fns'
-import { X, Plus, TrendingUp, TrendingDown, Trash2 } from 'lucide-vue-next'
+import { X, Plus, TrendingUp, TrendingDown, Trash2, Edit2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
 import { formatCurrency } from '@/lib/utils'
+import type { BudgetEntry } from '@/types'
 
 interface Props {
   date: Date
@@ -14,6 +16,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   addEntry: []
+  editEntry: [entry: BudgetEntry]
   refresh: []
 }>()
 
@@ -44,7 +47,6 @@ const totalExpense = computed(() =>
 const netAmount = computed(() => totalIncome.value - totalExpense.value)
 
 const deleteEntry = async (id: string) => {
-  if (!confirm('Delete this entry?')) return
   await budgetStore.deleteEntry(id)
   emit('refresh')
 }
@@ -120,11 +122,25 @@ const deleteEntry = async (id: string) => {
                     <div class="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
                       <TrendingUp class="h-4 w-4 text-emerald-600" />
                     </div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                       <p class="text-sm font-medium truncate">
                         {{ entry.source?.name || 'No source' }}
                       </p>
-                      <p v-if="entry.notes" class="text-xs text-muted-foreground truncate">
+                      
+                      <!-- Tags -->
+                      <div v-if="entry.tags && entry.tags.length > 0" class="flex flex-wrap gap-1 mt-1">
+                        <Badge 
+                          v-for="tag in entry.tags" 
+                          :key="tag.id"
+                          variant="secondary"
+                          class="text-[10px] px-1 h-4 font-normal"
+                          :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+                        >
+                          {{ tag.name }}
+                        </Badge>
+                      </div>
+
+                      <p v-if="entry.notes" class="text-xs text-muted-foreground truncate mt-0.5">
                         {{ entry.notes }}
                       </p>
                     </div>
@@ -133,6 +149,14 @@ const deleteEntry = async (id: string) => {
                     <span class="text-sm font-semibold text-emerald-600 tabular-nums">
                       +{{ formatCurrency(entry.amount) }}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                      @click="emit('editEntry', entry)"
+                    >
+                      <Edit2 class="h-3.5 w-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -162,11 +186,25 @@ const deleteEntry = async (id: string) => {
                     <div class="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
                       <TrendingDown class="h-4 w-4 text-red-500" />
                     </div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                       <p class="text-sm font-medium truncate">
                         {{ entry.source?.name || 'No source' }}
                       </p>
-                      <p v-if="entry.notes" class="text-xs text-muted-foreground truncate">
+
+                      <!-- Tags -->
+                      <div v-if="entry.tags && entry.tags.length > 0" class="flex flex-wrap gap-1 mt-1">
+                        <Badge 
+                          v-for="tag in entry.tags" 
+                          :key="tag.id"
+                          variant="secondary"
+                          class="text-[10px] px-1 h-4 font-normal"
+                          :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+                        >
+                          {{ tag.name }}
+                        </Badge>
+                      </div>
+
+                      <p v-if="entry.notes" class="text-xs text-muted-foreground truncate mt-0.5">
                         {{ entry.notes }}
                       </p>
                     </div>
@@ -175,6 +213,14 @@ const deleteEntry = async (id: string) => {
                     <span class="text-sm font-semibold text-red-500 tabular-nums">
                       -{{ formatCurrency(entry.amount) }}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                      @click="emit('editEntry', entry)"
+                    >
+                      <Edit2 class="h-3.5 w-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

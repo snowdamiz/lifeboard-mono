@@ -10,6 +10,7 @@ export const useCalendarStore = defineStore('calendar', () => {
   const loading = ref(false)
   const currentDate = ref(new Date())
   const viewMode = ref<'day' | 'week' | 'month'>('week')
+  const filterTags = ref<string[]>([])
 
   // Week view computed properties
   const weekStart = computed(() => startOfWeek(currentDate.value, { weekStartsOn: 1 }))
@@ -29,32 +30,32 @@ export const useCalendarStore = defineStore('calendar', () => {
 
   const monthDays = computed(() => {
     const days: Date[] = []
-    
+
     // Get the first day of the month
     const firstDay = monthStart.value
     // Get what day of week it is (0 = Sunday, 1 = Monday, etc.)
     let firstDayOfWeek = getDay(firstDay)
     // Adjust for Monday start (0 = Monday, 6 = Sunday)
     firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1
-    
+
     // Add padding days from previous month
     for (let i = firstDayOfWeek - 1; i >= 0; i--) {
       days.push(addDays(firstDay, -i - 1))
     }
-    
+
     // Add all days of the current month
     let currentDay = firstDay
     while (currentDay <= monthEnd.value) {
       days.push(currentDay)
       currentDay = addDays(currentDay, 1)
     }
-    
+
     // Add padding days from next month to complete the grid (6 rows * 7 days = 42)
     const remainingDays = 42 - days.length
     for (let i = 1; i <= remainingDays; i++) {
       days.push(addDays(monthEnd.value, i))
     }
-    
+
     return days
   })
 
@@ -75,10 +76,11 @@ export const useCalendarStore = defineStore('calendar', () => {
   async function fetchTasks(startDate?: Date, endDate?: Date) {
     loading.value = true
     try {
-      const params: { start_date?: string; end_date?: string } = {}
+      const params: { start_date?: string; end_date?: string; tag_ids?: string } = {}
       if (startDate) params.start_date = format(startDate, 'yyyy-MM-dd')
       if (endDate) params.end_date = format(endDate, 'yyyy-MM-dd')
-      
+      if (filterTags.value.length > 0) params.tag_ids = filterTags.value.join(',')
+
       const response = await api.listTasks(params)
       tasks.value = response.data
     } finally {
@@ -107,17 +109,20 @@ export const useCalendarStore = defineStore('calendar', () => {
 
   async function fetchTodayTasks() {
     const today = format(new Date(), 'yyyy-MM-dd')
-    const response = await api.listTasks({ start_date: today, end_date: today })
+    const params: any = { start_date: today, end_date: today }
+    if (filterTags.value.length > 0) params.tag_ids = filterTags.value.join(',')
+
+    const response = await api.listTasks(params)
     todaysTasks.value = response.data
   }
 
-  async function createTask(task: Partial<Task>) {
+  async function createTask(task: Partial<Task> & { tag_ids?: string[] }) {
     const response = await api.createTask(task)
     tasks.value.push(response.data)
     return response.data
   }
 
-  async function updateTask(id: string, updates: Partial<Task>) {
+  async function updateTask(id: string, updates: Partial<Task> & { tag_ids?: string[] }) {
     const response = await api.updateTask(id, updates)
     const index = tasks.value.findIndex(t => t.id === id)
     if (index !== -1) {
@@ -228,7 +233,8 @@ export const useCalendarStore = defineStore('calendar', () => {
     setViewMode,
     goToToday,
     nextPeriod,
-    prevPeriod
+    prevPeriod,
+    filterTags
   }
 })
 

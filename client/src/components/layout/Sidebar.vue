@@ -12,7 +12,8 @@ import {
   Flame,
   BarChart3,
   Settings,
-  GripVertical
+  GripVertical,
+  Tag
 } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 import { usePreferencesStore } from '@/stores/preferences'
@@ -31,6 +32,7 @@ const navItemsMap: Record<string, { name: string; path: string; icon: any; exact
   'calendar': { id: 'calendar', name: 'Calendar', path: '/calendar', icon: Calendar },
   'goals': { id: 'goals', name: 'Goals', path: '/goals', icon: Target, exact: true },
   'habits': { id: 'habits', name: 'Habits', path: '/habits', icon: Flame, exact: true },
+  'tags': { id: 'tags', name: 'Tags', path: '/tags', icon: Tag, exact: true },
   'inventory': { id: 'inventory', name: 'Inventory', path: '/inventory', icon: Package, exact: true },
   'shopping-list': { id: 'shopping-list', name: 'Shopping List', path: '/inventory/shopping-list', icon: ShoppingCart },
   'budget': { id: 'budget', name: 'Budget', path: '/budget', icon: DollarSign },

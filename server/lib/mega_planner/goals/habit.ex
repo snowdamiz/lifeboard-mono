@@ -22,6 +22,7 @@ defmodule MegaPlanner.Goals.Habit do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     has_many :completions, MegaPlanner.Goals.HabitCompletion, on_delete: :delete_all
+    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "habits_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -52,5 +53,14 @@ defmodule MegaPlanner.Goals.Habit do
         end
       _ -> add_error(changeset, :days_of_week, "must be a list")
     end
+  end
+
+  @doc """
+  Changeset for updating habit tags.
+  """
+  def tags_changeset(habit, tags) do
+    habit
+    |> change()
+    |> put_assoc(:tags, tags)
   end
 end

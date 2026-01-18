@@ -89,6 +89,8 @@ export interface InventorySheet {
   name: string
   columns: Record<string, string>
   items?: InventoryItem[]
+  tags?: Tag[]
+  tag_ids?: string[]
   inserted_at: string
   updated_at: string
 }
@@ -118,6 +120,8 @@ export interface ShoppingList {
   items: ShoppingListItem[]
   item_count: number
   unpurchased_count: number
+  tags?: Tag[]
+  tag_ids?: string[]
   inserted_at: string
   updated_at: string
 }
@@ -158,6 +162,8 @@ export interface BudgetEntry {
   notes: string | null
   source_id: string | null
   source: { id: string; name: string } | null
+  tags?: Tag[]
+  tag_ids?: string[]
   inserted_at: string
   updated_at: string
 }
@@ -176,6 +182,8 @@ export interface BudgetSummary {
 export interface Notebook {
   id: string
   name: string
+  tags?: Tag[]
+  tag_ids?: string[]
   inserted_at: string
   updated_at: string
 }
@@ -192,6 +200,8 @@ export interface Page {
   content: string | null
   notebook_id: string
   links: PageLink[]
+  tags: Tag[]
+  tag_ids?: string[]
   inserted_at: string
   updated_at: string
 }
@@ -313,6 +323,7 @@ export interface Habit {
   streak_count: number
   longest_streak: number
   color: string
+  tags: Tag[]
   inserted_at: string
   updated_at: string
 }
@@ -340,7 +351,7 @@ export interface TaskTemplate {
 }
 
 // User Preferences
-export type WidgetType = 
+export type WidgetType =
   | 'tasks_today'
   | 'tasks_detail'
   | 'inventory_status'

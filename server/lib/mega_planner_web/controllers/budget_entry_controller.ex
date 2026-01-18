@@ -13,6 +13,7 @@ defmodule MegaPlannerWeb.BudgetEntryController do
     |> maybe_add_date(:start_date, params["start_date"])
     |> maybe_add_date(:end_date, params["end_date"])
     |> maybe_add_opt(:type, params["type"])
+    |> maybe_add_list(:tag_ids, params["tag_ids"])
 
     entries = Budget.list_entries(user.household_id, opts)
     json(conn, %{data: Enum.map(entries, &entry_to_json/1)})
@@ -77,6 +78,13 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   end
   defp maybe_add_opt(opts, _key, _value), do: opts
 
+  defp maybe_add_list(opts, key, value) when is_binary(value) and value != "" do
+    list = String.split(value, ",")
+    Keyword.put(opts, key, list)
+  end
+  defp maybe_add_list(opts, key, value) when is_list(value), do: Keyword.put(opts, key, value)
+  defp maybe_add_list(opts, _key, _value), do: opts
+
   defp entry_to_json(entry) do
     %{
       id: entry.id,
@@ -86,8 +94,17 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       notes: entry.notes,
       source_id: entry.source_id,
       source: if(entry.source, do: %{id: entry.source.id, name: entry.source.name}, else: nil),
+      tags: Enum.map(entry.tags || [], &tag_to_json/1),
       inserted_at: entry.inserted_at,
       updated_at: entry.updated_at
+    }
+  end
+
+  defp tag_to_json(tag) do
+    %{
+      id: tag.id,
+      name: tag.name,
+      color: tag.color
     }
   end
 end

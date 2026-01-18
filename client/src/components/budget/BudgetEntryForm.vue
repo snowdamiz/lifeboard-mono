@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { format } from 'date-fns'
-import { X, Plus } from 'lucide-vue-next'
+import { X, Plus, PlusCircle, MinusCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
+import { useTagsStore } from '@/stores/tags'
+import TagManager from '@/components/shared/TagManager.vue'
+import type { BudgetEntry } from '@/types'
 
 interface Props {
   initialDate?: Date | null
+  entry?: BudgetEntry | null
 }
 
 const props = defineProps<Props>()
@@ -18,19 +23,72 @@ const emit = defineEmits<{
 }>()
 
 const budgetStore = useBudgetStore()
+const tagsStore = useTagsStore()
 const saving = ref(false)
 const showNewSource = ref(false)
 const newSourceName = ref('')
 const newSourceAmount = ref('')
 const creatingSource = ref(false)
 
+const isEditing = computed(() => !!props.entry)
+
 const form = ref({
-  date: props.initialDate ? format(props.initialDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-  type: 'expense' as 'income' | 'expense',
-  amount: '',
-  source_id: '',
-  notes: ''
+  date: props.entry?.date || (props.initialDate ? format(props.initialDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')),
+  type: (props.entry?.type || 'expense') as 'income' | 'expense',
+  amount: props.entry?.amount || '',
+  source_id: props.entry?.source_id || '',
+  notes: props.entry?.notes || '',
+  tag_ids: props.entry?.tags?.map(t => t.id) || [] as string[]
 })
+
+// Tag Management
+const checkedTagIds = ref<Set<string>>(new Set())
+const tagManagerRef = ref<InstanceType<typeof TagManager> | null>(null)
+
+const addCheckedTags = () => {
+  if (!tagManagerRef.value) return
+  checkedTagIds.value.forEach(tagId => {
+    if (!form.value.tag_ids.includes(tagId)) {
+      form.value.tag_ids.push(tagId)
+    }
+  })
+  checkedTagIds.value = new Set()
+}
+
+const removeCheckedTags = () => {
+  form.value.tag_ids = form.value.tag_ids.filter(
+    id => !checkedTagIds.value.has(id)
+  )
+  checkedTagIds.value = new Set()
+}
+
+// Helper to get tag by ID
+const getTagById = (tagId: string) => {
+  return tagsStore.tags.find(t => t.id === tagId)
+}
+
+// Helper to get tag style for badges
+const getTagStyle = (tagId: string) => {
+  const tag = getTagById(tagId)
+  if (!tag) return {}
+  return { 
+    backgroundColor: tag.color + '20', 
+    color: tag.color, 
+    borderColor: tag.color + '40' 
+  }
+}
+
+// Helper to get tag color
+const getTagColor = (tagId: string) => {
+  const tag = getTagById(tagId)
+  return tag?.color || '#64748b'
+}
+
+// Helper to get tag name
+const getTagName = (tagId: string) => {
+  const tag = getTagById(tagId)
+  return tag?.name || 'Unknown'
+}
 
 const filteredSources = computed(() => 
   budgetStore.sources.filter(s => s.type === form.value.type)
@@ -41,10 +99,11 @@ const sourceOptions = computed<SelectOption[]>(() => [
   ...filteredSources.value.map(s => ({ value: s.id, label: s.name }))
 ])
 
-onMounted(() => {
-  if (budgetStore.sources.length === 0) {
-    budgetStore.fetchSources()
-  }
+onMounted(async () => {
+  await Promise.all([
+    budgetStore.sources.length === 0 ? budgetStore.fetchSources() : Promise.resolve(),
+    tagsStore.tags.length === 0 ? tagsStore.fetchTags() : Promise.resolve()
+  ])
 })
 
 const selectSource = (sourceId: string) => {
@@ -88,13 +147,25 @@ const save = async () => {
   saving.value = true
   
   try {
-    await budgetStore.createEntry({
-      date: form.value.date,
-      type: form.value.type,
-      amount: form.value.amount,
-      source_id: form.value.source_id || null,
-      notes: form.value.notes || null
-    })
+    if (isEditing.value && props.entry) {
+      await budgetStore.updateEntry(props.entry.id, {
+        date: form.value.date,
+        type: form.value.type,
+        amount: form.value.amount,
+        source_id: form.value.source_id || null,
+        notes: form.value.notes || null,
+        tag_ids: form.value.tag_ids
+      })
+    } else {
+      await budgetStore.createEntry({
+        date: form.value.date,
+        type: form.value.type,
+        amount: form.value.amount,
+        source_id: form.value.source_id || null,
+        notes: form.value.notes || null,
+        tag_ids: form.value.tag_ids
+      })
+    }
     emit('saved')
   } finally {
     saving.value = false
@@ -107,7 +178,7 @@ const save = async () => {
     <div class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div class="w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[90vh] sm:max-h-[85vh] flex flex-col">
         <div class="flex items-center justify-between p-4 border-b border-border shrink-0">
-          <h2 class="text-lg font-semibold">Add Entry</h2>
+          <h2 class="text-lg font-semibold">{{ isEditing ? 'Edit Entry' : 'Add Entry' }}</h2>
           <Button variant="ghost" size="icon" @click="emit('close')">
             <X class="h-4 w-4" />
           </Button>
@@ -217,6 +288,67 @@ const save = async () => {
           </div>
 
           <div>
+            <label class="text-sm font-medium">Tags</label>
+            <div class="flex flex-wrap gap-1.5 mb-2" v-if="form.tag_ids.length > 0">
+              <Badge
+                v-for="tagId in form.tag_ids"
+                :key="tagId"
+                :style="getTagStyle(tagId)"
+                variant="outline"
+                class="gap-1 pr-1"
+              >
+                <div 
+                  class="h-1.5 w-1.5 rounded-full" 
+                  :style="{ backgroundColor: getTagColor(tagId) }"
+                />
+                {{ getTagName(tagId) }}
+                <button
+                  type="button"
+                  class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
+                  @click="form.tag_ids = form.tag_ids.filter(id => id !== tagId)"
+                >
+                  <X class="h-3 w-3" />
+                </button>
+              </Badge>
+            </div>
+            <TagManager
+                ref="tagManagerRef"
+                v-model:checkedTagIds="checkedTagIds"
+                :compact="true"
+                embedded
+                :rows="2"
+                :applied-tag-ids="new Set(form.tag_ids)"
+            >
+              <template #actions="{ checkedCount }">
+                <div class="flex items-center gap-2 px-4 py-2 border-t border-border">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-7 px-2 text-xs"
+                    :disabled="checkedCount === 0"
+                    @click="addCheckedTags"
+                  >
+                    <PlusCircle class="h-3 w-3 mr-1" />
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-7 px-2 text-xs"
+                    :disabled="checkedCount === 0"
+                    @click="removeCheckedTags"
+                  >
+                    <MinusCircle class="h-3 w-3 mr-1" />
+                    Remove
+                  </Button>
+                </div>
+              </template>
+            </TagManager>
+          </div>
+
+          <div>
             <label class="text-sm font-medium">Notes (optional)</label>
             <textarea
               v-model="form.notes"
@@ -233,11 +365,10 @@ const save = async () => {
             Cancel
           </Button>
           <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto" :disabled="saving || !form.amount" @click="save">
-            {{ saving ? 'Saving...' : 'Add Entry' }}
+            {{ saving ? 'Saving...' : (isEditing ? 'Update Entry' : 'Add Entry') }}
           </Button>
         </div>
       </div>
     </div>
   </Teleport>
 </template>
-

@@ -91,10 +91,7 @@ const getProgressColor = (progress: number) => {
           <p v-if="goal.description" class="text-muted-foreground mt-1">{{ goal.description }}</p>
           
           <div class="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-            <span v-if="goal.category || goal.goal_category" class="flex items-center gap-1.5">
-              <Flag class="h-4 w-4" />
-              {{ goal.goal_category ? (goal.goal_category.parent ? goal.goal_category.parent.name + ' / ' : '') + goal.goal_category.name : goal.category }}
-            </span>
+
             <span v-if="goal.target_date" class="flex items-center gap-1.5">
               <Calendar class="h-4 w-4" />
               Target: {{ format(new Date(goal.target_date), 'MMMM d, yyyy') }}

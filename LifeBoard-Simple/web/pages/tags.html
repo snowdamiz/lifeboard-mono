@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tags - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link active"><span
+                        class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Tags</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddTag()">+ New Tag</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div class="card">
+                    <div class="card-body" id="tags-container">
+                        <div class="empty-state">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Tag Modal -->
+    <div class="modal-overlay" id="tag-modal">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 class="modal-title">New Tag</h3>
+                <button class="modal-close" onclick="App.closeModal('tag-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="tag-name" class="form-input" placeholder="e.g., work">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" id="tag-color" class="form-input" value="#3B82F6">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('tag-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTag()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let tags = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadTags();
+        });
+
+        async function loadTags() {
+            try {
+                tags = await API.tags.list();
+                renderTags();
+            } catch (e) {
+                App.toast('Failed to load tags', 'error');
+            }
+        }
+
+        function renderTags() {
+            const container = document.getElementById('tags-container');
+            if (tags.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🏷️</div>
+                        <div class="empty-state-title">No tags yet</div>
+                        <div class="empty-state-text">Create tags to organize your tasks</div>
+                        <button class="btn btn-primary" onclick="openAddTag()">Create Tag</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="flex flex-wrap gap-md">
+                    ${tags.map(t => `
+                        <div class="flex items-center gap-sm p-sm rounded-lg" style="background: ${t.color}15; border: 1px solid ${t.color}40;">
+                            <span class="font-medium" style="color: ${t.color}">${App.escapeHtml(t.name)}</span>
+                            <span class="text-xs text-secondary">(${t.usageCount || 0} uses)</span>
+                            <button class="btn btn-ghost btn-sm" onclick="deleteTag(${t.id})">×</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function openAddTag() {
+            document.getElementById('tag-name').value = '';
+            document.getElementById('tag-color').value = '#3B82F6';
+            App.openModal('tag-modal');
+        }
+
+        async function saveTag() {
+            const name = document.getElementById('tag-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+            try {
+                await API.tags.create({
+                    name,
+                    color: document.getElementById('tag-color').value
+                });
+                App.closeModal('tag-modal');
+                loadTags();
+                App.toast('Tag created!', 'success');
+            } catch (e) {
+                App.toast(e.message || 'Failed to create tag', 'error');
+            }
+        }
+
+        async function deleteTag(id) {
+            if (!confirm('Delete this tag?')) return;
+            try {
+                await API.tags.delete(id);
+                loadTags();
+            } catch (e) {
+                App.toast('Failed to delete tag', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

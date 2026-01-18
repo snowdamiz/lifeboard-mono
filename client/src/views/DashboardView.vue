@@ -35,6 +35,9 @@ const localLayout = ref<Array<{ i: string; x: number; y: number; w: number; h: n
 // Track if we're currently dragging
 const isDragging = ref(false)
 
+// Store original layout when entering edit mode (for cancel functionality)
+const originalLayout = ref<Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }> | null>(null)
+
 // Initialize layout from store
 watch(() => preferencesStore.visibleWidgets, (widgets) => {
   // Only update local layout if not currently dragging
@@ -85,12 +88,31 @@ const handleDragStart = () => {
   isDragging.value = true
 }
 
-// Handle drag end - save the layout
+// Handle drag end - just mark as not dragging, don't save yet
 const handleDragEnd = () => {
   isDragging.value = false
-  if (isEditMode.value) {
-    debouncedSave(localLayout.value)
+}
+
+// Enter edit mode - save original layout for cancel
+const enterEditMode = () => {
+  originalLayout.value = JSON.parse(JSON.stringify(localLayout.value))
+  isEditMode.value = true
+}
+
+// Exit edit mode - save changes (Done button)
+const exitEditModeSave = () => {
+  preferencesStore.updateLayout(localLayout.value)
+  originalLayout.value = null
+  isEditMode.value = false
+}
+
+// Cancel edit mode - restore original layout (X button)
+const cancelEditMode = () => {
+  if (originalLayout.value) {
+    localLayout.value = originalLayout.value
   }
+  originalLayout.value = null
+  isEditMode.value = false
 }
 
 // Handle layout change from grid (just update local state, don't save)
@@ -106,9 +128,6 @@ const handleRemoveWidget = (widgetId: string) => {
 // Handle resize end
 const handleResized = () => {
   isDragging.value = false
-  if (isEditMode.value) {
-    debouncedSave(localLayout.value)
-  }
 }
 
 // Handle add widget
@@ -158,8 +177,8 @@ onMounted(async () => {
         <Button 
           :variant="isEditMode ? 'default' : 'ghost'"
           size="icon"
-          @click="isEditMode = !isEditMode"
-          :title="isEditMode ? 'Done editing' : 'Customize dashboard'"
+          @click="isEditMode ? cancelEditMode() : enterEditMode()"
+          :title="isEditMode ? 'Cancel changes' : 'Customize dashboard'"
         >
           <X v-if="isEditMode" class="h-4 w-4" />
           <Settings2 v-else class="h-4 w-4" />
@@ -183,7 +202,7 @@ onMounted(async () => {
           <span v-else>Drag to move, drag corners to resize</span>
         </p>
       </div>
-      <Button variant="ghost" size="sm" @click="isEditMode = false">
+      <Button variant="ghost" size="sm" @click="exitEditModeSave">
         Done
       </Button>
     </div>

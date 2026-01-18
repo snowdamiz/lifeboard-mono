@@ -11,15 +11,18 @@ export const useInventoryStore = defineStore('inventory', () => {
   const loading = ref(false)
 
   // Computed property for backwards compatibility
-  const shoppingList = computed(() => 
+  const shoppingList = computed(() =>
     shoppingLists.value.flatMap(l => l.items.filter(i => !i.purchased))
   )
+
+  const sheetFilterTags = ref<string[]>([])
+  const listFilterTags = ref<string[]>([])
 
   // Sheet functions
   async function fetchSheets() {
     loading.value = true
     try {
-      const response = await api.listSheets()
+      const response = await api.listSheets({ tag_ids: sheetFilterTags.value.length > 0 ? sheetFilterTags.value : undefined })
       sheets.value = response.data
     } finally {
       loading.value = false
@@ -37,20 +40,20 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function createSheet(name: string) {
-    const response = await api.createSheet({ name })
-    sheets.value.push(response.data)
+  async function createSheet(name: string, tag_ids?: string[]) {
+    const response = await api.createSheet({ name, tag_ids })
+    // Re-fetch to respect order and filters
+    await fetchSheets()
     return response.data
   }
 
-  async function updateSheet(id: string, updates: Partial<InventorySheet>) {
+  async function updateSheet(id: string, updates: Partial<InventorySheet> & { tag_ids?: string[] }) {
     const response = await api.updateSheet(id, updates)
-    const index = sheets.value.findIndex(s => s.id === id)
-    if (index !== -1) {
-      sheets.value[index] = response.data
-    }
+    await fetchSheets()
+    // Update current if selected
     if (currentSheet.value?.id === id) {
-      currentSheet.value = { ...currentSheet.value, ...response.data }
+      // Refresh current sheet to get updated tags
+      await fetchSheet(id)
     }
     return response.data
   }
@@ -94,7 +97,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function fetchShoppingLists() {
     loading.value = true
     try {
-      const response = await api.listShoppingLists()
+      const response = await api.listShoppingLists({ tag_ids: listFilterTags.value.length > 0 ? listFilterTags.value : undefined })
       shoppingLists.value = response.data
     } finally {
       loading.value = false
@@ -117,20 +120,18 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function createShoppingList(name: string, notes?: string) {
-    const response = await api.createShoppingList({ name, notes })
-    shoppingLists.value.push(response.data)
+  async function createShoppingList(name: string, notes?: string, tag_ids?: string[]) {
+    const response = await api.createShoppingList({ name, notes, tag_ids })
+    await fetchShoppingLists()
     return response.data
   }
 
-  async function updateShoppingList(id: string, updates: Partial<ShoppingList>) {
+  async function updateShoppingList(id: string, updates: Partial<ShoppingList> & { tag_ids?: string[] }) {
     const response = await api.updateShoppingList(id, updates)
-    const index = shoppingLists.value.findIndex(l => l.id === id)
-    if (index !== -1) {
-      shoppingLists.value[index] = response.data
-    }
+    await fetchShoppingLists()
     if (currentList.value?.id === id) {
-      currentList.value = response.data
+      // Refresh current list to get tags
+      await fetchShoppingList(id)
     }
     return response.data
   }
@@ -179,7 +180,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   async function updateShoppingItem(listId: string, itemId: string, updates: Partial<ShoppingListItem>) {
     const response = await api.updateShoppingItem(listId, itemId, updates)
-    
+
     const updateListItems = (list: ShoppingList) => {
       const index = list.items.findIndex(i => i.id === itemId)
       if (index !== -1) {
@@ -197,13 +198,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     const list = shoppingLists.value.find(l => l.id === listId)
     if (list) updateListItems(list)
     if (currentList.value?.id === listId) updateListItems(currentList.value)
-    
+
     return response.data
   }
 
   async function deleteShoppingItem(listId: string, itemId: string) {
     await api.deleteShoppingItem(listId, itemId)
-    
+
     const removeFromList = (list: ShoppingList) => {
       const index = list.items.findIndex(i => i.id === itemId)
       if (index !== -1) {
@@ -247,6 +248,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     addShoppingItem,
     updateShoppingItem,
     deleteShoppingItem,
-    markPurchased
+    markPurchased,
+    sheetFilterTags,
+    listFilterTags
   }
 })

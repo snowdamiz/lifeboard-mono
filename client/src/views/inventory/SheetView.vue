@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Plus, Minus, Trash, AlertTriangle, Check, Edit, Package } from 'lucide-vue-next'
+import { ArrowLeft, Plus, Minus, Trash, AlertTriangle, Check, Edit, Package, X, Filter, ChevronDown } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,6 +16,9 @@ const router = useRouter()
 const inventoryStore = useInventoryStore()
 const showNewItem = ref(false)
 const editingItem = ref<InventoryItem | null>(null)
+const selectedItems = ref<Set<string>>(new Set())
+const nameFilter = ref<Set<string>>(new Set())
+const showFilterDropdown = ref(false)
 
 const newItem = ref({
   name: '',
@@ -35,6 +38,33 @@ const lowItems = computed(() =>
     item => item.is_necessity && item.quantity < item.min_quantity
   ) || []
 )
+
+// Get unique names for filter dropdown
+const uniqueNames = computed(() => {
+  const names = inventoryStore.currentSheet?.items?.map(i => i.name) || []
+  return [...new Set(names)].sort()
+})
+
+// Filtered items based on name filter
+const filteredItems = computed(() => {
+  const items = inventoryStore.currentSheet?.items || []
+  if (nameFilter.value.size === 0) return items
+  return items.filter(item => nameFilter.value.has(item.name))
+})
+
+const toggleNameFilter = (name: string) => {
+  const newSet = new Set(nameFilter.value)
+  if (newSet.has(name)) {
+    newSet.delete(name)
+  } else {
+    newSet.add(name)
+  }
+  nameFilter.value = newSet
+}
+
+const clearNameFilter = () => {
+  nameFilter.value = new Set()
+}
 
 onMounted(() => {
   inventoryStore.fetchSheet(sheetId.value)
@@ -65,9 +95,35 @@ const updateQuantity = async (item: InventoryItem, delta: number) => {
 }
 
 const deleteItem = async (id: string) => {
-  if (confirm('Delete this item?')) {
+  await inventoryStore.deleteItem(id)
+  selectedItems.value.delete(id)
+}
+
+const toggleSelection = (id: string) => {
+  const newSet = new Set(selectedItems.value)
+  if (newSet.has(id)) {
+    newSet.delete(id)
+  } else {
+    newSet.add(id)
+  }
+  selectedItems.value = newSet
+}
+
+const selectAll = () => {
+  const allIds = inventoryStore.currentSheet?.items?.map(i => i.id) || []
+  selectedItems.value = new Set(allIds)
+}
+
+const clearSelection = () => {
+  selectedItems.value = new Set()
+}
+
+const bulkDelete = async () => {
+  const ids = Array.from(selectedItems.value)
+  for (const id of ids) {
     await inventoryStore.deleteItem(id)
   }
+  selectedItems.value = new Set()
 }
 
 const startEdit = (item: InventoryItem) => {
@@ -114,6 +170,73 @@ const saveEdit = async () => {
       </Button>
     </div>
 
+    <!-- Filter Dropdown -->
+    <div class="flex items-center gap-2">
+      <div class="relative">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          class="h-8 gap-1.5"
+          @click="showFilterDropdown = !showFilterDropdown"
+        >
+          <Filter class="h-3.5 w-3.5" />
+          Filter by name
+          <Badge v-if="nameFilter.size > 0" variant="secondary" class="ml-1 h-5 px-1.5">{{ nameFilter.size }}</Badge>
+          <ChevronDown class="h-3.5 w-3.5 ml-1" />
+        </Button>
+        
+        <div 
+          v-if="showFilterDropdown"
+          class="absolute left-0 top-full mt-1 w-56 origin-top-left bg-card border border-border/80 rounded-lg shadow-lg py-2 z-20 max-h-64 overflow-auto"
+        >
+          <div class="px-3 py-1.5 flex items-center justify-between border-b border-border/60 mb-1">
+            <span class="text-xs font-medium text-muted-foreground">Filter by name</span>
+            <Button v-if="nameFilter.size > 0" variant="ghost" size="sm" class="h-6 text-xs px-2" @click="clearNameFilter">
+              Clear
+            </Button>
+          </div>
+          <div 
+            v-for="name in uniqueNames" 
+            :key="name"
+            class="flex items-center gap-2 px-3 py-1.5 hover:bg-secondary/50 cursor-pointer transition-colors"
+            @click="toggleNameFilter(name)"
+          >
+            <Checkbox :model-value="nameFilter.has(name)" class="pointer-events-none" />
+            <span class="text-sm truncate">{{ name }}</span>
+          </div>
+        </div>
+      </div>
+      
+      <Button 
+        v-if="nameFilter.size > 0"
+        variant="ghost" 
+        size="sm" 
+        class="h-8 text-xs"
+        @click="clearNameFilter"
+      >
+        <X class="h-3 w-3 mr-1" />
+        Clear filter
+      </Button>
+    </div>
+
+    <!-- Bulk Action Bar -->
+    <div 
+      v-if="selectedItems.size > 0"
+      class="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-secondary/50"
+    >
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium">{{ selectedItems.size }} selected</span>
+        <Button variant="ghost" size="sm" class="h-7 text-xs" @click="clearSelection">
+          <X class="h-3 w-3 mr-1" />
+          Clear
+        </Button>
+      </div>
+      <Button variant="destructive" size="sm" class="h-7" @click="bulkDelete">
+        <Trash class="h-3.5 w-3.5 mr-1.5" />
+        Delete Selected
+      </Button>
+    </div>
+
     <!-- Desktop Table View -->
     <Card class="hidden md:block">
       <CardContent class="p-0">
@@ -121,6 +244,12 @@ const saveEdit = async () => {
           <table class="w-full">
             <thead class="bg-secondary/50">
               <tr>
+                <th class="w-10 p-3">
+                  <Checkbox 
+                    :model-value="selectedItems.size > 0 && selectedItems.size === inventoryStore.currentSheet?.items?.length"
+                    @update:model-value="$event ? selectAll() : clearSelection()"
+                  />
+                </th>
                 <th class="text-left p-3 text-sm font-medium text-muted-foreground">Name</th>
                 <th class="text-left p-3 text-sm font-medium text-muted-foreground w-28">Brand</th>
                 <th class="text-center p-3 text-sm font-medium text-muted-foreground w-28">Quantity</th>
@@ -133,13 +262,19 @@ const saveEdit = async () => {
             </thead>
             <tbody>
               <tr
-                v-for="item in inventoryStore.currentSheet?.items"
+                v-for="item in filteredItems"
                 :key="item.id"
                 :class="[
                   'border-t border-border hover:bg-secondary/30 transition-colors',
                   item.is_necessity && item.quantity < item.min_quantity && 'bg-destructive/5'
                 ]"
               >
+                <td class="p-3" @click.stop>
+                  <Checkbox 
+                    :model-value="selectedItems.has(item.id)"
+                    @update:model-value="toggleSelection(item.id)"
+                  />
+                </td>
                 <td class="p-3">
                   <div class="flex items-center gap-2">
                     <AlertTriangle 

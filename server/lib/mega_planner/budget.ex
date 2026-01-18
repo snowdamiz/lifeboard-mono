@@ -101,16 +101,32 @@ defmodule MegaPlanner.Budget do
   @doc """
   Returns the list of budget entries for a household within a date range.
   """
+  @doc """
+  Returns the list of budget entries for a household within a date range.
+  """
   def list_entries(household_id, opts \\ []) do
     query = from e in Entry,
       where: e.household_id == ^household_id,
       order_by: [asc: e.date],
-      preload: [:source]
+      preload: [:source, :tags]
 
     query
     |> filter_entries_by_date_range(opts)
     |> filter_entries_by_type(opts)
+    |> filter_entries_by_tags(opts)
     |> Repo.all()
+  end
+
+  defp filter_entries_by_tags(query, opts) do
+    case Keyword.get(opts, :tag_ids) do
+      nil -> query
+      [] -> query
+      tag_ids ->
+        from e in query,
+          join: t in assoc(e, :tags),
+          where: t.id in ^tag_ids,
+          distinct: true
+    end
   end
 
   defp filter_entries_by_date_range(query, opts) do
@@ -135,7 +151,7 @@ defmodule MegaPlanner.Budget do
   def get_entry(id) do
     Entry
     |> Repo.get(id)
-    |> Repo.preload(:source)
+    |> Repo.preload([:source, :tags])
   end
 
   @doc """
@@ -144,34 +160,52 @@ defmodule MegaPlanner.Budget do
   def get_household_entry(household_id, id) do
     Entry
     |> Repo.get_by(id: id, household_id: household_id)
-    |> Repo.preload(:source)
+    |> Repo.preload([:source, :tags])
   end
 
   @doc """
-  Creates an entry.
+  Creates an entry with optional tags.
   """
   def create_entry(attrs \\ %{}) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
     %Entry{}
     |> Entry.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, entry} -> {:ok, Repo.preload(entry, :source)}
+      {:ok, entry} ->
+        entry = update_entry_tags(entry, tag_ids)
+        {:ok, Repo.preload(entry, [:source, :tags])}
       error -> error
     end
   end
 
   @doc """
-  Updates an entry.
+  Updates an entry with optional tags.
   """
   def update_entry(%Entry{} = entry, attrs) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
     entry
     |> Entry.changeset(attrs)
     |> Repo.update()
     |> case do
-      {:ok, entry} -> {:ok, Repo.preload(entry, :source, force: true)}
+      {:ok, entry} ->
+        entry = if tag_ids != nil, do: update_entry_tags(entry, tag_ids), else: entry
+        {:ok, Repo.preload(entry, [:source, :tags], force: true)}
       error -> error
     end
   end
+
+  defp update_entry_tags(entry, tag_ids) when is_list(tag_ids) do
+    tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+    entry
+    |> Repo.preload(:tags)
+    |> Entry.tags_changeset(tags)
+    |> Repo.update!()
+  end
+
+  defp update_entry_tags(entry, _), do: entry
 
   @doc """
   Deletes an entry.

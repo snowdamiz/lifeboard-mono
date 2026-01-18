@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - LifeBoard</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-bg) 100%);
+            padding: var(--space-lg);
+        }
+        
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: var(--space-xl);
+        }
+        
+        .login-logo {
+            font-size: 48px;
+            margin-bottom: var(--space-md);
+        }
+        
+        .login-card {
+            background: var(--color-bg);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            padding: var(--space-xl);
+        }
+        
+        .tab-buttons {
+            display: flex;
+            margin-bottom: var(--space-lg);
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-md);
+            padding: 4px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: var(--space-sm) var(--space-md);
+            border: none;
+            background: none;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .tab-btn.active {
+            background: var(--color-bg);
+            color: var(--color-primary);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-logo">📋</div>
+                <h1 class="text-2xl font-bold">LifeBoard</h1>
+                <p class="text-secondary mt-sm">Your personal planning companion</p>
+            </div>
+            
+            <div class="login-card">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="showTab('login')">Login</button>
+                    <button class="tab-btn" onclick="showTab('register')">Register</button>
+                </div>
+                
+                <!-- Login Form -->
+                <div id="login-tab" class="tab-content active">
+                    <form id="login-form" onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label class="form-label" for="login-username">Username</label>
+                            <input type="text" id="login-username" class="form-input" 
+                                placeholder="Enter your username" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="login-password">Password</label>
+                            <input type="password" id="login-password" class="form-input" 
+                                placeholder="Enter your password" required>
+                        </div>
+                        
+                        <div id="login-error" class="form-error mb-md hidden"></div>
+                        
+                        <button type="submit" class="btn btn-primary w-full" id="login-btn">
+                            Login
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Register Form -->
+                <div id="register-tab" class="tab-content">
+                    <form id="register-form" onsubmit="handleRegister(event)">
+                        <div class="form-group">
+                            <label class="form-label" for="register-username">Username</label>
+                            <input type="text" id="register-username" class="form-input" 
+                                placeholder="Choose a username" required minlength="3">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="register-display">Display Name</label>
+                            <input type="text" id="register-display" class="form-input" 
+                                placeholder="Your name (optional)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="register-password">Password</label>
+                            <input type="password" id="register-password" class="form-input" 
+                                placeholder="Create a password" required minlength="4">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="register-confirm">Confirm Password</label>
+                            <input type="password" id="register-confirm" class="form-input" 
+                                placeholder="Confirm your password" required>
+                        </div>
+                        
+                        <div id="register-error" class="form-error mb-md hidden"></div>
+                        
+                        <button type="submit" class="btn btn-primary w-full" id="register-btn">
+                            Create Account
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <p class="text-center text-sm text-secondary mt-lg">
+                Simple, beautiful planning for your life.
+            </p>
+        </div>
+    </div>
+    
+    <script src="/js/api.js"></script>
+    <script>
+        // Check if already logged in
+        if (API.isLoggedIn()) {
+            window.location.href = '/';
+        }
+        
+        function showTab(tab) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tab + '-tab').classList.add('active');
+            
+            // Clear errors
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('register-error').classList.add('hidden');
+        }
+        
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            const btn = document.getElementById('login-btn');
+            const error = document.getElementById('login-error');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-sm"></span> Logging in...';
+            error.classList.add('hidden');
+            
+            try {
+                await API.login(username, password);
+                window.location.href = '/';
+            } catch (err) {
+                error.textContent = err.message || 'Login failed. Please try again.';
+                error.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Login';
+            }
+        }
+        
+        async function handleRegister(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('register-username').value.trim();
+            const displayName = document.getElementById('register-display').value.trim();
+            const password = document.getElementById('register-password').value;
+            const confirm = document.getElementById('register-confirm').value;
+            const btn = document.getElementById('register-btn');
+            const error = document.getElementById('register-error');
+            
+            // Validate passwords match
+            if (password !== confirm) {
+                error.textContent = 'Passwords do not match.';
+                error.classList.remove('hidden');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-sm"></span> Creating account...';
+            error.classList.add('hidden');
+            
+            try {
+                await API.register(username, password, displayName || username);
+                window.location.href = '/';
+            } catch (err) {
+                error.textContent = err.message || 'Registration failed. Please try again.';
+                error.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -15,6 +15,7 @@ const DEFAULT_NAV_ORDER = [
   'budget',
   'notes',
   'reports',
+  'tags',
   'settings'
 ]
 
@@ -54,7 +55,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
     return DEFAULT_WIDGETS
   })
 
-  const visibleWidgets = computed(() => 
+  const visibleWidgets = computed(() =>
     dashboardWidgets.value.filter(w => w.visible)
   )
 
@@ -67,13 +68,13 @@ export const usePreferencesStore = defineStore('preferences', () => {
       if (typeof w.x === 'number' && typeof w.y === 'number') {
         return w
       }
-      
+
       // Migrate from old format
       const size = w.size || 'small'
       const dims = sizeToDimensions[size]
       const col = index % GRID_COLS
       const row = Math.floor(index / GRID_COLS) * 2 // Approximate row based on position
-      
+
       return {
         ...w,
         x: col,
@@ -118,7 +119,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
 
   async function updateSettings(settings: Record<string, unknown>) {
     const currentSettings = preferences.value?.settings || {}
-    const response = await api.updatePreferences({ 
+    const response = await api.updatePreferences({
       settings: { ...currentSettings, ...settings }
     })
     preferences.value = response.data
@@ -128,10 +129,10 @@ export const usePreferencesStore = defineStore('preferences', () => {
   function addWidget(type: WidgetType, size: WidgetSize = 'medium') {
     const id = `${type}_${Date.now()}`
     const dims = sizeToDimensions[size]
-    
+
     // Find next available position
     const { x, y } = findNextPosition(dims.w, dims.h)
-    
+
     const widget: DashboardWidget = {
       id,
       type,
@@ -144,7 +145,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
       minW: dims.minW,
       minH: dims.minH,
     }
-    
+
     const widgets = [...dashboardWidgets.value, widget]
     return updateDashboardWidgets(widgets)
   }
@@ -152,7 +153,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   // Find next available position for a widget
   function findNextPosition(w: number, h: number): { x: number; y: number } {
     const occupied = new Set<string>()
-    
+
     // Mark occupied cells
     for (const widget of dashboardWidgets.value) {
       if (!widget.visible) continue
@@ -162,7 +163,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
         }
       }
     }
-    
+
     // Find first position that fits
     for (let y = 0; y < 100; y++) {
       for (let x = 0; x <= GRID_COLS - w; x++) {
@@ -177,7 +178,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
         if (fits) return { x, y }
       }
     }
-    
+
     return { x: 0, y: 0 }
   }
 
@@ -187,7 +188,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   }
 
   function toggleWidgetVisibility(widgetId: string) {
-    const widgets = dashboardWidgets.value.map(w => 
+    const widgets = dashboardWidgets.value.map(w =>
       w.id === widgetId ? { ...w, visible: !w.visible } : w
     )
     return updateDashboardWidgets(widgets)
@@ -196,9 +197,9 @@ export const usePreferencesStore = defineStore('preferences', () => {
   // Update widget size and recalculate grid dimensions
   function resizeWidget(widgetId: string, newSize: WidgetSize) {
     const dims = sizeToDimensions[newSize]
-    const widgets = dashboardWidgets.value.map(w => 
-      w.id === widgetId 
-        ? { ...w, size: newSize, w: dims.w, h: dims.h, minW: dims.minW, minH: dims.minH } 
+    const widgets = dashboardWidgets.value.map(w =>
+      w.id === widgetId
+        ? { ...w, size: newSize, w: dims.w, h: dims.h, minW: dims.minW, minH: dims.minH }
         : w
     )
     return updateDashboardWidgets(widgets)

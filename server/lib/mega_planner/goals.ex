@@ -409,47 +409,115 @@ defmodule MegaPlanner.Goals do
   # Habits
   # ============================================================================
 
+  @habit_preloads [:tags]
+
   @doc """
   Returns the list of habits for a household.
   """
-  def list_habits(household_id) do
-    from(h in Habit,
+  def list_habits(household_id, opts \\ []) do
+    tag_ids = Keyword.get(opts, :tag_ids)
+
+    query = from(h in Habit,
       where: h.household_id == ^household_id,
       order_by: [desc: h.inserted_at]
     )
+
+    query =
+      if tag_ids && length(tag_ids) > 0 do
+        from h in query,
+          join: t in assoc(h, :tags),
+          where: t.id in ^tag_ids,
+          distinct: true
+      else
+        query
+      end
+
+    query
     |> Repo.all()
+    |> Repo.preload(@habit_preloads)
   end
 
   @doc """
   Gets a single habit.
   """
   def get_habit(id) do
-    Repo.get(Habit, id)
+    Habit
+    |> Repo.get(id)
+    |> Repo.preload(@habit_preloads)
   end
 
   @doc """
   Gets a habit belonging to a household.
   """
   def get_household_habit(household_id, habit_id) do
-    Repo.get_by(Habit, id: habit_id, household_id: household_id)
+    Habit
+    |> Repo.get_by(id: habit_id, household_id: household_id)
+    |> Repo.preload(@habit_preloads)
   end
 
   @doc """
   Creates a habit.
   """
   def create_habit(attrs \\ %{}) do
-    %Habit{}
-    |> Habit.changeset(attrs)
-    |> Repo.insert()
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
+    result =
+      %Habit{}
+      |> Habit.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, habit} ->
+        habit = if tag_ids && length(tag_ids) > 0 do
+          update_habit_tags_internal(habit, tag_ids)
+        else
+          habit
+        end
+        {:ok, Repo.preload(habit, @habit_preloads, force: true)}
+      error ->
+        error
+    end
   end
 
   @doc """
   Updates a habit.
   """
   def update_habit(%Habit{} = habit, attrs) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
+    result =
+      habit
+      |> Habit.changeset(attrs)
+      |> Repo.update()
+
+    case result do
+      {:ok, habit} ->
+        habit = if tag_ids != nil do
+          update_habit_tags_internal(habit, tag_ids)
+        else
+          habit
+        end
+        {:ok, Repo.preload(habit, @habit_preloads, force: true)}
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Updates the tags on a habit.
+  """
+  def update_habit_tags(%Habit{} = habit, tag_ids) when is_list(tag_ids) do
+    habit = update_habit_tags_internal(habit, tag_ids)
+    {:ok, Repo.preload(habit, @habit_preloads, force: true)}
+  end
+
+  defp update_habit_tags_internal(habit, tag_ids) when is_list(tag_ids) do
+    tags = Repo.all(from t in Tag, where: t.id in ^tag_ids)
+
     habit
-    |> Habit.changeset(attrs)
-    |> Repo.update()
+    |> Repo.preload(:tags)
+    |> Habit.tags_changeset(tags)
+    |> Repo.update!()
   end
 
   @doc """

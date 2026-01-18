@@ -12,6 +12,7 @@ defmodule MegaPlanner.Notes.Page do
     belongs_to :notebook, MegaPlanner.Notes.Notebook
     belongs_to :user, MegaPlanner.Accounts.User
     has_many :links, MegaPlanner.Notes.PageLink
+    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "pages_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -23,5 +24,14 @@ defmodule MegaPlanner.Notes.Page do
     |> validate_required([:title, :notebook_id, :user_id])
     |> foreign_key_constraint(:notebook_id)
     |> foreign_key_constraint(:user_id)
+  end
+
+  @doc """
+  Changeset for updating page tags.
+  """
+  def tags_changeset(page, tags) do
+    page
+    |> change()
+    |> put_assoc(:tags, tags)
   end
 end

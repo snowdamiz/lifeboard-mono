@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link active"><span
+                        class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Notes</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddNotebook()">+ New Notebook</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div class="grid grid-cols-3 gap-md" id="notebooks-grid">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notebook Modal -->
+    <div class="modal-overlay" id="notebook-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">New Notebook</h3>
+                <button class="modal-close" onclick="App.closeModal('notebook-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="notebook-name" class="form-input" placeholder="e.g., Work Notes">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icon</label>
+                    <input type="text" id="notebook-icon" class="form-input" value="📓" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" id="notebook-color" class="form-input" value="#8B5CF6">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="notebook-desc" class="form-textarea" placeholder="Optional"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('notebook-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveNotebook()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let notebooks = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadNotebooks();
+        });
+
+        async function loadNotebooks() {
+            try {
+                notebooks = await API.notes.listNotebooks();
+                renderNotebooks();
+            } catch (e) {
+                App.toast('Failed to load notebooks', 'error');
+            }
+        }
+
+        function renderNotebooks() {
+            const container = document.getElementById('notebooks-grid');
+            if (notebooks.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: span 3;">
+                        <div class="empty-state-icon">📓</div>
+                        <div class="empty-state-title">No notebooks yet</div>
+                        <div class="empty-state-text">Create a notebook to start taking notes</div>
+                        <button class="btn btn-primary" onclick="openAddNotebook()">Create Notebook</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = notebooks.map(n => `
+                <div class="card card-clickable" onclick="openNotebook(${n.id})">
+                    <div class="card-body">
+                        <div class="flex items-center gap-md mb-md">
+                            <div class="list-item-icon" style="background: ${n.color}20; color: ${n.color}; font-size: 24px;">${n.icon}</div>
+                            <div class="flex-1">
+                                <div class="font-semibold">${App.escapeHtml(n.name)}</div>
+                                <div class="text-sm text-secondary">${n.pageCount || 0} pages</div>
+                            </div>
+                            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteNotebook(${n.id})">🗑️</button>
+                        </div>
+                        ${n.description ? `<div class="text-sm text-secondary line-clamp-2">${App.escapeHtml(n.description)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openAddNotebook() {
+            document.getElementById('notebook-name').value = '';
+            document.getElementById('notebook-icon').value = '📓';
+            document.getElementById('notebook-color').value = '#8B5CF6';
+            document.getElementById('notebook-desc').value = '';
+            App.openModal('notebook-modal');
+        }
+
+        async function saveNotebook() {
+            const name = document.getElementById('notebook-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+            try {
+                await API.notes.createNotebook({
+                    name,
+                    icon: document.getElementById('notebook-icon').value,
+                    color: document.getElementById('notebook-color').value,
+                    description: document.getElementById('notebook-desc').value
+                });
+                App.closeModal('notebook-modal');
+                loadNotebooks();
+                App.toast('Notebook created!', 'success');
+            } catch (e) {
+                App.toast('Failed to create notebook', 'error');
+            }
+        }
+
+        function openNotebook(id) {
+            window.location.href = `/pages/notebook.html?id=${id}`;
+        }
+
+        async function deleteNotebook(id) {
+            if (!confirm('Delete this notebook and all its pages?')) return;
+            try {
+                await API.notes.deleteNotebook(id);
+                loadNotebooks();
+                App.toast('Notebook deleted', 'success');
+            } catch (e) {
+                App.toast('Failed to delete notebook', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

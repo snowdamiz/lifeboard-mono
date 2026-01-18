@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeBoard - Personal Planning Dashboard</title>
+    <meta name="description" content="A personal planning application with calendar, inventory, budget, and notes.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <link rel="stylesheet" href="/css/widgets.css">
+
+    <!-- Favicon -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link active"><span class="nav-link-icon">🏠</span><span
+                        class="nav-link-text">Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span class="nav-link-icon">📅</span><span
+                        class="nav-link-text">Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span class="nav-link-icon">📦</span><span
+                        class="nav-link-text">Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span class="nav-link-icon">🛒</span><span
+                        class="nav-link-text">Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span class="nav-link-icon">💰</span><span
+                        class="nav-link-text">Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span
+                        class="nav-link-text">Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span
+                        class="nav-link-text">Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span class="nav-link-icon">✅</span><span
+                        class="nav-link-text">Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/search.html" class="nav-link"><span class="nav-link-icon">🔍</span><span
+                        class="nav-link-text">Search</span></a>
+                <a href="/pages/reports.html" class="nav-link"><span class="nav-link-icon">📊</span><span
+                        class="nav-link-text">Reports</span></a>
+                <a href="/pages/templates.html" class="nav-link"><span class="nav-link-icon">📝</span><span
+                        class="nav-link-text">Templates</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span
+                        class="nav-link-text">Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span class="nav-link-icon">⚙️</span><span
+                        class="nav-link-text">Settings</span></a>
+            </nav>
+
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span class="nav-link-text">Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error" id="logout-btn"><span
+                        class="nav-link-icon">🚪</span><span class="nav-link-text">Logout</span></button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle"><span>☰</span></button>
+                <h1 class="text-xl font-semibold ml-md">Dashboard</h1>
+                <div class="ml-auto flex items-center gap-md">
+                    <button class="btn btn-secondary" id="edit-mode-btn" onclick="toggleEditMode()">✏️ Edit
+                        Layout</button>
+                    <button class="btn btn-primary" id="add-widget-btn" onclick="openWidgetPicker()"
+                        style="display: none;">+ Add Widget</button>
+                    <div id="user-greeting" class="text-sm text-secondary"></div>
+                    <div class="avatar" id="user-avatar"></div>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <!-- Edit Mode Banner -->
+                <div class="edit-mode-banner" id="edit-banner" style="display: none;">
+                    <div class="edit-mode-banner-text">
+                        <span class="edit-mode-banner-title">Edit Mode</span>
+                        <span class="edit-mode-banner-hint">Drag widgets to move, drag corners to resize</span>
+                    </div>
+                    <div class="flex gap-sm">
+                        <button class="btn btn-secondary btn-sm" onclick="cancelEditMode()">Cancel</button>
+                        <button class="btn btn-primary btn-sm" onclick="toggleEditMode()">Done</button>
+                    </div>
+                </div>
+
+                <!-- Widget Grid -->
+                <div id="widget-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Widget Picker Modal -->
+    <div class="modal-overlay" id="widget-picker-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Widget</h3>
+                <button class="modal-close" onclick="App.closeModal('widget-picker-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="widget-picker-grid" id="widget-picker-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/widgets.js"></script>
+    <script>
+        // Dashboard data cache
+        let dashboardData = { tasks: [], habits: [], goals: [], notebooks: [], shopping: null };
+
+        // Widget definitions
+        const widgetDefs = [
+            { id: 'tasks_today', type: 'stat', icon: '📅', title: 'Tasks Today', x: 0, y: 0, w: 1, h: 1, visible: true },
+            { id: 'habits_done', type: 'stat', icon: '✅', title: 'Habits Done', x: 1, y: 0, w: 1, h: 1, visible: true },
+            { id: 'shopping_items', type: 'stat', icon: '🛒', title: 'Shopping', x: 2, y: 0, w: 1, h: 1, visible: true },
+            { id: 'active_goals', type: 'stat', icon: '🎯', title: 'Active Goals', x: 3, y: 0, w: 1, h: 1, visible: true },
+            { id: 'tasks_list', type: 'list', icon: '📋', title: "Today's Tasks", x: 0, y: 1, w: 2, h: 2, visible: true },
+            { id: 'habits_list', type: 'list', icon: '🔄', title: 'Daily Habits', x: 2, y: 1, w: 2, h: 2, visible: true },
+            { id: 'goals_list', type: 'list', icon: '🏆', title: 'Active Goals', x: 0, y: 3, w: 2, h: 2, visible: true },
+            { id: 'notes_list', type: 'list', icon: '📓', title: 'Recent Notes', x: 2, y: 3, w: 2, h: 2, visible: true }
+        ];
+
+        // Attach render functions to widget definitions
+        widgetDefs.forEach(w => {
+            w.render = (containerId) => renderWidget(w, containerId);
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+
+            // User greeting
+            if (App.user) {
+                document.getElementById('user-greeting').textContent = 'Welcome, ' + (App.user.displayName || App.user.username);
+                document.getElementById('user-avatar').textContent = App.getInitials(App.user.displayName || App.user.username);
+            }
+
+            // Initialize widget grid
+            WidgetGrid.init('widget-grid', widgetDefs);
+
+            // Load data and update widgets
+            await loadDashboardData();
+        });
+
+        async function loadDashboardData() {
+            const today = new Date().toISOString().split('T')[0];
+            try {
+                const [tasks, habits, goals, notebooks, shopping] = await Promise.all([
+                    API.tasks.list({ date: today }).catch(() => []),
+                    API.habits.list({ date: today }).catch(() => []),
+                    API.goals.list().catch(() => []),
+                    API.notes.listNotebooks().catch(() => []),
+                    API.shopping.list().catch(() => [])
+                ]);
+
+                dashboardData = {
+                    tasks,
+                    habits,
+                    goals: goals.filter(g => g.status === 'active'),
+                    notebooks,
+                    shopping: shopping.find(l => l.status === 'active')
+                };
+
+                // Re-render all widgets with new data
+                WidgetGrid.render();
+            } catch (e) {
+                console.error('Failed to load dashboard:', e);
+            }
+        }
+
+        function renderWidget(widget, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            let html = '';
+
+            switch (widget.id) {
+                case 'tasks_today':
+                    html = `
+                        <div class="widget-stat">
+                            <div class="widget-stat-value">${dashboardData.tasks.length}</div>
+                            <div class="widget-stat-label">Tasks Today</div>
+                        </div>`;
+                    break;
+
+                case 'habits_done':
+                    const done = dashboardData.habits.filter(h => h.completedToday).length;
+                    html = `
+                        <div class="widget-stat">
+                            <div class="widget-stat-value">${done}/${dashboardData.habits.length}</div>
+                            <div class="widget-stat-label">Habits Done</div>
+                        </div>`;
+                    break;
+
+                case 'shopping_items':
+                    const itemCount = dashboardData.shopping ? (dashboardData.shopping.items?.length || 0) : 0;
+                    html = `
+                        <div class="widget-stat">
+                            <div class="widget-stat-value">${itemCount}</div>
+                            <div class="widget-stat-label">Shopping Items</div>
+                        </div>`;
+                    break;
+
+                case 'active_goals':
+                    html = `
+                        <div class="widget-stat">
+                            <div class="widget-stat-value">${dashboardData.goals.length}</div>
+                            <div class="widget-stat-label">Active Goals</div>
+                        </div>`;
+                    break;
+
+                case 'tasks_list':
+                    html = `
+                        <div class="widget-header">
+                            <span class="widget-title"><span class="widget-title-icon">📋</span> Today's Tasks</span>
+                            <a href="/pages/calendar.html" class="btn btn-ghost btn-sm">View All →</a>
+                        </div>
+                        ${dashboardData.tasks.length === 0 ? `
+                            <div class="widget-empty">
+                                <span class="widget-empty-icon">📅</span>
+                                <span>No tasks for today</span>
+                            </div>
+                        ` : `
+                            <div class="widget-list">
+                                ${dashboardData.tasks.slice(0, 5).map(t => `
+                                    <div class="widget-list-item">
+                                        <input type="checkbox" ${t.status === 'completed' ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)">
+                                        <span class="${t.status === 'completed' ? 'text-muted' : ''}" style="${t.status === 'completed' ? 'text-decoration: line-through' : ''}">${App.escapeHtml(t.title)}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}`;
+                    break;
+
+                case 'habits_list':
+                    html = `
+                        <div class="widget-header">
+                            <span class="widget-title"><span class="widget-title-icon">✅</span> Daily Habits</span>
+                            <a href="/pages/habits.html" class="btn btn-ghost btn-sm">View All →</a>
+                        </div>
+                        ${dashboardData.habits.length === 0 ? `
+                            <div class="widget-empty">
+                                <span class="widget-empty-icon">✅</span>
+                                <span>No habits yet</span>
+                            </div>
+                        ` : `
+                            <div class="widget-list">
+                                ${dashboardData.habits.slice(0, 5).map(h => `
+                                    <div class="widget-list-item">
+                                        <span style="color: ${h.color}">${h.icon || '✓'}</span>
+                                        <span class="flex-1">${App.escapeHtml(h.name)}</span>
+                                        <button class="btn btn-sm ${h.completedToday ? 'btn-success' : 'btn-outline'}" onclick="toggleHabit(${h.id}, ${h.completedToday})">
+                                            ${h.completedToday ? '✓' : '○'}
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}`;
+                    break;
+
+                case 'goals_list':
+                    html = `
+                        <div class="widget-header">
+                            <span class="widget-title"><span class="widget-title-icon">🎯</span> Active Goals</span>
+                            <a href="/pages/goals.html" class="btn btn-ghost btn-sm">View All →</a>
+                        </div>
+                        ${dashboardData.goals.length === 0 ? `
+                            <div class="widget-empty">
+                                <span class="widget-empty-icon">🎯</span>
+                                <span>No active goals</span>
+                            </div>
+                        ` : `
+                            <div class="widget-list">
+                                ${dashboardData.goals.slice(0, 5).map(g => `
+                                    <a href="/pages/goal.html?id=${g.id}" class="widget-list-item">
+                                        <span class="flex-1">${App.escapeHtml(g.title)}</span>
+                                        <span class="text-sm text-secondary">${g.progress}%</span>
+                                    </a>
+                                `).join('')}
+                            </div>
+                        `}`;
+                    break;
+
+                case 'notes_list':
+                    html = `
+                        <div class="widget-header">
+                            <span class="widget-title"><span class="widget-title-icon">📓</span> Recent Notes</span>
+                            <a href="/pages/notes.html" class="btn btn-ghost btn-sm">View All →</a>
+                        </div>
+                        ${dashboardData.notebooks.length === 0 ? `
+                            <div class="widget-empty">
+                                <span class="widget-empty-icon">📓</span>
+                                <span>No notebooks yet</span>
+                            </div>
+                        ` : `
+                            <div class="widget-list">
+                                ${dashboardData.notebooks.slice(0, 5).map(n => `
+                                    <a href="/pages/notebook.html?id=${n.id}" class="widget-list-item">
+                                        <span style="color: ${n.color || 'inherit'}">${n.icon || '📓'}</span>
+                                        <span class="flex-1">${App.escapeHtml(n.name)}</span>
+                                        <span class="text-sm text-secondary">${n.pageCount || 0} pages</span>
+                                    </a>
+                                `).join('')}
+                            </div>
+                        `}`;
+                    break;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function toggleEditMode() {
+            const isEdit = WidgetGrid.toggleEditMode();
+            document.getElementById('edit-banner').style.display = isEdit ? '' : 'none';
+            document.getElementById('edit-mode-btn').style.display = isEdit ? 'none' : '';
+            document.getElementById('add-widget-btn').style.display = isEdit ? '' : 'none';
+        }
+
+        function cancelEditMode() {
+            // Revert changes by reloading from localStorage and reinitializing
+            WidgetGrid.cancelEdit(widgetDefs);
+            document.getElementById('edit-banner').style.display = 'none';
+            document.getElementById('edit-mode-btn').style.display = '';
+            document.getElementById('add-widget-btn').style.display = 'none';
+            App.toast('Changes discarded', 'info');
+        }
+
+        function openWidgetPicker() {
+            const hidden = WidgetGrid.getHiddenWidgets();
+            const container = document.getElementById('widget-picker-list');
+
+            if (hidden.length === 0) {
+                container.innerHTML = '<div class="text-center text-secondary p-lg">All widgets are visible</div>';
+            } else {
+                container.innerHTML = hidden.map(w => `
+                    <div class="widget-picker-item" onclick="addHiddenWidget('${w.id}')">
+                        <div class="widget-picker-icon">${w.icon}</div>
+                        <div class="widget-picker-name">${w.title}</div>
+                    </div>
+                `).join('');
+            }
+
+            App.openModal('widget-picker-modal');
+        }
+
+        function addHiddenWidget(id) {
+            WidgetGrid.showWidget(id);
+            App.closeModal('widget-picker-modal');
+        }
+
+        async function toggleTask(id, completed) {
+            try {
+                await API.tasks.update(id, { status: completed ? 'completed' : 'pending' });
+                loadDashboardData();
+            } catch (e) {
+                App.toast('Failed to update task', 'error');
+            }
+        }
+
+        async function toggleHabit(id, currentlyCompleted) {
+            try {
+                if (currentlyCompleted) {
+                    await API.habits.uncomplete(id);
+                } else {
+                    await API.habits.complete(id);
+                }
+                loadDashboardData();
+            } catch (e) {
+                App.toast('Failed to update habit', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

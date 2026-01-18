@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { BudgetSource, BudgetEntry, BudgetSummary } from '@/types'
 import { api } from '@/services/api'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns'
 
 export const useBudgetStore = defineStore('budget', () => {
   const sources = ref<BudgetSource[]>([])
@@ -10,12 +10,14 @@ export const useBudgetStore = defineStore('budget', () => {
   const summary = ref<BudgetSummary | null>(null)
   const loading = ref(false)
   const currentMonth = ref(new Date())
+  const currentWeek = ref(new Date())
+  const viewMode = ref<'week' | 'month'>('month')
 
-  const incomeSources = computed(() => 
+  const incomeSources = computed(() =>
     sources.value.filter(s => s.type === 'income')
   )
 
-  const expenseSources = computed(() => 
+  const expenseSources = computed(() =>
     sources.value.filter(s => s.type === 'expense')
   )
 
@@ -27,6 +29,8 @@ export const useBudgetStore = defineStore('budget', () => {
     }
     return grouped
   })
+
+  const filterTags = ref<string[]>([])
 
   async function fetchSources() {
     loading.value = true
@@ -61,10 +65,11 @@ export const useBudgetStore = defineStore('budget', () => {
   async function fetchEntries(startDate?: Date, endDate?: Date) {
     loading.value = true
     try {
-      const params: { start_date?: string; end_date?: string } = {}
+      const params: { start_date?: string; end_date?: string; tag_ids?: string[] } = {}
       if (startDate) params.start_date = format(startDate, 'yyyy-MM-dd')
       if (endDate) params.end_date = format(endDate, 'yyyy-MM-dd')
-      
+      if (filterTags.value.length > 0) params.tag_ids = filterTags.value
+
       const response = await api.listEntries(params)
       entries.value = response.data
     } finally {
@@ -78,7 +83,21 @@ export const useBudgetStore = defineStore('budget', () => {
     await fetchEntries(start, end)
   }
 
-  async function createEntry(entry: Partial<BudgetEntry>) {
+  async function fetchWeekEntries() {
+    const start = startOfWeek(currentWeek.value, { weekStartsOn: 1 })
+    const end = endOfWeek(currentWeek.value, { weekStartsOn: 1 })
+    await fetchEntries(start, end)
+  }
+
+  async function fetchCurrentViewEntries() {
+    if (viewMode.value === 'week') {
+      await fetchWeekEntries()
+    } else {
+      await fetchMonthEntries()
+    }
+  }
+
+  async function createEntry(entry: Partial<BudgetEntry> & { tag_ids?: string[] }) {
     const response = await api.createEntry(entry)
     entries.value.push(response.data)
     // Refresh summary
@@ -86,7 +105,7 @@ export const useBudgetStore = defineStore('budget', () => {
     return response.data
   }
 
-  async function updateEntry(id: string, updates: Partial<BudgetEntry>) {
+  async function updateEntry(id: string, updates: Partial<BudgetEntry> & { tag_ids?: string[] }) {
     const response = await api.updateEntry(id, updates)
     const index = entries.value.findIndex(e => e.id === id)
     if (index !== -1) {
@@ -105,7 +124,7 @@ export const useBudgetStore = defineStore('budget', () => {
   async function fetchSummary(year?: number, month?: number) {
     const y = year || currentMonth.value.getFullYear()
     const m = month || currentMonth.value.getMonth() + 1
-    
+
     const response = await api.getBudgetSummary(y, m)
     summary.value = response.data
     return response.data
@@ -127,28 +146,54 @@ export const useBudgetStore = defineStore('budget', () => {
     currentMonth.value = prev
   }
 
+  function nextWeek() {
+    currentWeek.value = addWeeks(currentWeek.value, 1)
+  }
+
+  function prevWeek() {
+    currentWeek.value = subWeeks(currentWeek.value, 1)
+  }
+
+  function goToTodayWeek() {
+    currentWeek.value = new Date()
+  }
+
+  function toggleViewMode() {
+    viewMode.value = viewMode.value === 'week' ? 'month' : 'week'
+  }
+
   return {
     sources,
     entries,
     summary,
     loading,
     currentMonth,
+    currentWeek,
+    viewMode,
     incomeSources,
     expenseSources,
     entriesByDate,
+    filterTags,
     fetchSources,
     createSource,
     updateSource,
     deleteSource,
     fetchEntries,
     fetchMonthEntries,
+    fetchWeekEntries,
+    fetchCurrentViewEntries,
     createEntry,
     updateEntry,
     deleteEntry,
     fetchSummary,
     setCurrentMonth,
     nextMonth,
-    prevMonth
+    prevMonth,
+    nextWeek,
+    prevWeek,
+    goToTodayWeek,
+    toggleViewMode
   }
 })
+
 

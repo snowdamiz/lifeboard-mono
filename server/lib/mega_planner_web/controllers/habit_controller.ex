@@ -6,9 +6,18 @@ defmodule MegaPlannerWeb.HabitController do
 
   action_fallback MegaPlannerWeb.FallbackController
 
-  def index(conn, _params) do
+  def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    habits = Goals.list_habits(user.household_id)
+
+    opts = []
+    opts = case params["tag_ids"] do
+      nil -> opts
+      "" -> opts
+      tag_ids when is_binary(tag_ids) -> Keyword.put(opts, :tag_ids, String.split(tag_ids, ","))
+      tag_ids when is_list(tag_ids) -> Keyword.put(opts, :tag_ids, tag_ids)
+    end
+
+    habits = Goals.list_habits(user.household_id, opts)
 
     # Get today's completions
     today = Date.utc_today()
@@ -147,8 +156,17 @@ defmodule MegaPlannerWeb.HabitController do
       streak_count: habit.streak_count,
       longest_streak: habit.longest_streak,
       completed_today: completed_today,
+      tags: Enum.map(habit.tags || [], &tag_to_json/1),
       inserted_at: habit.inserted_at,
       updated_at: habit.updated_at
+    }
+  end
+
+  defp tag_to_json(tag) do
+    %{
+      id: tag.id,
+      name: tag.name,
+      color: tag.color
     }
   end
 

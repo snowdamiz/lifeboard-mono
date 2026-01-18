@@ -91,6 +91,11 @@ const router = createRouter({
           component: () => import('@/views/goals/HabitsView.vue')
         },
         {
+          path: 'tags',
+          name: 'tags',
+          component: () => import('@/views/tags/TagsView.vue')
+        },
+        {
           path: 'reports',
           name: 'reports',
           component: () => import('@/views/reports/ReportsView.vue')
@@ -107,22 +112,22 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+
   if (to.meta.public) {
     next()
     return
   }
-  
+
   // Wait for auth to initialize if we have tokens but haven't checked them yet
   if (!authStore.initialized && authStore.hasTokens) {
     await authStore.checkAuth()
   }
-  
+
   if (!authStore.isAuthenticated) {
     next({ name: 'login' })
     return
   }
-  
+
   next()
 })
 

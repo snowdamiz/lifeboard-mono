@@ -23,7 +23,7 @@ defmodule MegaPlanner.Calendar.Task do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :parent_task, __MODULE__
-    has_many :steps, MegaPlanner.Calendar.TaskStep
+    has_many :steps, MegaPlanner.Calendar.TaskStep, on_replace: :delete
     many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "tasks_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -36,6 +36,7 @@ defmodule MegaPlanner.Calendar.Task do
                     :priority, :status, :is_recurring, :recurrence_rule, :task_type,
                     :user_id, :household_id, :parent_task_id])
     |> validate_required([:title, :user_id, :household_id])
+    |> cast_assoc(:steps, with: &MegaPlanner.Calendar.TaskStep.changeset/2, sort_param: :position)
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:task_type, @task_types)
     |> validate_number(:duration_minutes, greater_than: 0)

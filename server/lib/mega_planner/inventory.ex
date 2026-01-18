@@ -13,18 +13,30 @@ defmodule MegaPlanner.Inventory do
   @doc """
   Returns the list of inventory sheets for a household.
   """
-  def list_sheets(household_id) do
-    from(s in Sheet, where: s.household_id == ^household_id, order_by: [asc: s.name])
+  def list_sheets(household_id, tag_ids \\ nil) do
+    query = from(s in Sheet, where: s.household_id == ^household_id, order_by: [asc: s.name])
+
+    query = if tag_ids && length(tag_ids) > 0 do
+      from s in query,
+        join: t in assoc(s, :tags),
+        where: t.id in ^tag_ids,
+        distinct: true
+    else
+      query
+    end
+
+    query
     |> Repo.all()
+    |> Repo.preload(:tags)
   end
 
   @doc """
-  Gets a single sheet with items.
+  Gets a single sheet with items and tags.
   """
   def get_sheet(id) do
     case Repo.get(Sheet, id) do
       nil -> nil
-      sheet -> Repo.preload(sheet, items: :tags)
+      sheet -> Repo.preload(sheet, [:tags, items: :tags])
     end
   end
 
@@ -34,27 +46,59 @@ defmodule MegaPlanner.Inventory do
   def get_household_sheet(household_id, id) do
     case Repo.get_by(Sheet, id: id, household_id: household_id) do
       nil -> nil
-      sheet -> Repo.preload(sheet, items: :tags)
+      sheet -> Repo.preload(sheet, [:tags, items: :tags])
     end
   end
 
   @doc """
-  Creates a sheet.
+  Creates a sheet with optional tags.
   """
   def create_sheet(attrs \\ %{}) do
-    %Sheet{}
-    |> Sheet.changeset(attrs)
-    |> Repo.insert()
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
+    result =
+      %Sheet{}
+      |> Sheet.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, sheet} ->
+        sheet = update_sheet_tags(sheet, tag_ids)
+        {:ok, Repo.preload(sheet, :tags, force: true)}
+      error ->
+        error
+    end
   end
 
   @doc """
-  Updates a sheet.
+  Updates a sheet with optional tags.
   """
   def update_sheet(%Sheet{} = sheet, attrs) do
-    sheet
-    |> Sheet.changeset(attrs)
-    |> Repo.update()
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
+    result =
+      sheet
+      |> Sheet.changeset(attrs)
+      |> Repo.update()
+
+    case result do
+      {:ok, sheet} ->
+        sheet = if tag_ids != nil, do: update_sheet_tags(sheet, tag_ids), else: sheet
+        {:ok, Repo.preload(sheet, :tags, force: true)}
+      error ->
+        error
+    end
   end
+
+  defp update_sheet_tags(sheet, tag_ids) when is_list(tag_ids) do
+    tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+    sheet
+    |> Repo.preload(:tags)
+    |> Sheet.tags_changeset(tags)
+    |> Repo.update!()
+  end
+
+  defp update_sheet_tags(sheet, _), do: sheet
 
   @doc """
   Deletes a sheet.
@@ -136,24 +180,35 @@ defmodule MegaPlanner.Inventory do
   # Shopping Lists
 
   @doc """
-  Returns all shopping lists for a household.
+  Returns all shopping lists for a household, optionally filtered by tags.
   """
-  def list_shopping_lists(household_id) do
-    from(l in ShoppingList,
+  def list_shopping_lists(household_id, tag_ids \\ nil) do
+    query = from(l in ShoppingList,
       where: l.household_id == ^household_id,
-      preload: [items: [inventory_item: :sheet]],
       order_by: [desc: l.is_auto_generated, asc: l.name]
     )
+
+    query = if tag_ids && length(tag_ids) > 0 do
+      from l in query,
+        join: t in assoc(l, :tags),
+        where: t.id in ^tag_ids,
+        distinct: true
+    else
+      query
+    end
+
+    query
     |> Repo.all()
+    |> Repo.preload([:tags, items: [inventory_item: :sheet]])
   end
 
   @doc """
-  Gets a shopping list with items.
+  Gets a shopping list with items and tags.
   """
   def get_shopping_list(id) do
     case Repo.get(ShoppingList, id) do
       nil -> nil
-      list -> Repo.preload(list, items: [inventory_item: :sheet])
+      list -> Repo.preload(list, [:tags, items: [inventory_item: :sheet]])
     end
   end
 
@@ -163,7 +218,7 @@ defmodule MegaPlanner.Inventory do
   def get_household_shopping_list(household_id, id) do
     case Repo.get_by(ShoppingList, id: id, household_id: household_id) do
       nil -> nil
-      list -> Repo.preload(list, items: [inventory_item: :sheet])
+      list -> Repo.preload(list, [:tags, items: [inventory_item: :sheet]])
     end
   end
 
@@ -181,7 +236,7 @@ defmodule MegaPlanner.Inventory do
         })
         list
       list ->
-        Repo.preload(list, items: [inventory_item: :sheet])
+        Repo.preload(list, [:tags, items: [inventory_item: :sheet]])
     end
   end
 
@@ -189,11 +244,15 @@ defmodule MegaPlanner.Inventory do
   Creates a shopping list.
   """
   def create_shopping_list(attrs \\ %{}) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
     %ShoppingList{}
     |> ShoppingList.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, list} -> {:ok, Repo.preload(list, items: [inventory_item: :sheet])}
+      {:ok, list} ->
+        list = update_list_tags(list, tag_ids)
+        {:ok, Repo.preload(list, [:tags, items: [inventory_item: :sheet]])}
       error -> error
     end
   end
@@ -202,14 +261,28 @@ defmodule MegaPlanner.Inventory do
   Updates a shopping list.
   """
   def update_shopping_list(%ShoppingList{} = list, attrs) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
     list
     |> ShoppingList.changeset(attrs)
     |> Repo.update()
     |> case do
-      {:ok, list} -> {:ok, Repo.preload(list, [items: [inventory_item: :sheet]], force: true)}
+      {:ok, list} ->
+        list = if tag_ids != nil, do: update_list_tags(list, tag_ids), else: list
+        {:ok, Repo.preload(list, [:tags, items: [inventory_item: :sheet]], force: true)}
       error -> error
     end
   end
+
+  defp update_list_tags(list, tag_ids) when is_list(tag_ids) do
+    tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+    list
+    |> Repo.preload(:tags)
+    |> ShoppingList.tags_changeset(tags)
+    |> Repo.update!()
+  end
+
+  defp update_list_tags(list, _), do: list
 
   @doc """
   Deletes a shopping list.

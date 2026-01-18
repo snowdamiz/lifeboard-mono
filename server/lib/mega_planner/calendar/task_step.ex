@@ -19,7 +19,7 @@ defmodule MegaPlanner.Calendar.TaskStep do
   def changeset(step, attrs) do
     step
     |> cast(attrs, [:content, :completed, :position, :task_id])
-    |> validate_required([:content, :task_id])
+    |> validate_required([:content])
     |> foreign_key_constraint(:task_id)
   end
 end

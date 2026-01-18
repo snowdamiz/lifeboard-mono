@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habits - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .habit-card {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-md);
+            background: var(--color-bg);
+        }
+
+        .habit-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .habit-info {
+            flex: 1;
+        }
+
+        .habit-streak {
+            text-align: center;
+            padding: 0 var(--space-md);
+        }
+
+        .streak-number {
+            font-size: var(--text-2xl);
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link active"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Habits</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddHabit()">+ New Habit</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h2 class="card-title">Today's Habits</h2>
+                        <span class="text-secondary" id="today-date"></span>
+                    </div>
+                    <div class="card-body" id="habits-list">
+                        <div class="empty-state">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Habit Modal -->
+    <div class="modal-overlay" id="habit-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">New Habit</h3>
+                <button class="modal-close" onclick="App.closeModal('habit-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="habit-name" class="form-input" placeholder="e.g., Exercise">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icon</label>
+                    <input type="text" id="habit-icon" class="form-input" value="✅" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" id="habit-color" class="form-input" value="#EC4899">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Frequency</label>
+                    <select id="habit-frequency" class="form-select">
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (optional)</label>
+                    <textarea id="habit-desc" class="form-textarea"
+                        placeholder="Why is this habit important?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('habit-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveHabit()">Create Habit</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let habits = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            await loadHabits();
+        });
+
+        async function loadHabits() {
+            try {
+                habits = await API.habits.list();
+                renderHabits();
+            } catch (e) {
+                App.toast('Failed to load habits', 'error');
+            }
+        }
+
+        function renderHabits() {
+            const container = document.getElementById('habits-list');
+            if (habits.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✅</div>
+                        <div class="empty-state-title">No habits yet</div>
+                        <div class="empty-state-text">Create your first habit to start tracking!</div>
+                        <button class="btn btn-primary" onclick="openAddHabit()">Create Habit</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = habits.map(h => `
+                <div class="habit-card">
+                    <div class="habit-icon" style="background: ${h.color}20; color: ${h.color}">${h.icon}</div>
+                    <div class="habit-info">
+                        <div class="font-semibold">${App.escapeHtml(h.name)}</div>
+                        <div class="text-sm text-secondary">${h.frequency} • ${h.totalCompletions} total completions</div>
+                    </div>
+                    <div class="habit-streak">
+                        <div class="streak-number">${h.totalCompletions}</div>
+                        <div class="text-xs text-secondary">Total</div>
+                    </div>
+                    <button class="btn ${h.completedToday ? 'btn-success' : 'btn-outline'}" onclick="toggleHabit(${h.id}, ${h.completedToday})">
+                        ${h.completedToday ? '✓ Done' : 'Mark Done'}
+                    </button>
+                    <button class="btn btn-ghost btn-icon" onclick="deleteHabit(${h.id})">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        function openAddHabit() {
+            document.getElementById('habit-name').value = '';
+            document.getElementById('habit-icon').value = '✅';
+            document.getElementById('habit-color').value = '#EC4899';
+            document.getElementById('habit-frequency').value = 'daily';
+            document.getElementById('habit-desc').value = '';
+            App.openModal('habit-modal');
+        }
+
+        async function saveHabit() {
+            const name = document.getElementById('habit-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+
+            try {
+                await API.habits.create({
+                    name,
+                    icon: document.getElementById('habit-icon').value,
+                    color: document.getElementById('habit-color').value,
+                    frequency: document.getElementById('habit-frequency').value,
+                    description: document.getElementById('habit-desc').value
+                });
+                App.closeModal('habit-modal');
+                loadHabits();
+                App.toast('Habit created!', 'success');
+            } catch (e) {
+                App.toast('Failed to create habit', 'error');
+            }
+        }
+
+        async function toggleHabit(id, completed) {
+            try {
+                if (completed) {
+                    await API.habits.uncomplete(id);
+                } else {
+                    await API.habits.complete(id);
+                }
+                loadHabits();
+            } catch (e) {
+                App.toast('Failed to update habit', 'error');
+            }
+        }
+
+        async function deleteHabit(id) {
+            if (!confirm('Delete this habit?')) return;
+            try {
+                await API.habits.delete(id);
+                loadHabits();
+                App.toast('Habit deleted', 'success');
+            } catch (e) {
+                App.toast('Failed to delete habit', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

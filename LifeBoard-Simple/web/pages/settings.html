@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link active"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Settings</h1>
+            </header>
+
+            <div class="app-content">
+                <!-- Theme -->
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h2 class="card-title">Appearance</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Theme</label>
+                            <select id="pref-theme" class="form-select"
+                                onchange="updatePreference('theme', this.value)">
+                                <option value="system">System</option>
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar -->
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h2 class="card-title">Calendar</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Default View</label>
+                            <select id="pref-calendar-view" class="form-select"
+                                onchange="updatePreference('defaultCalendarView', this.value)">
+                                <option value="day">Day</option>
+                                <option value="week">Week</option>
+                                <option value="month">Month</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Week Starts On</label>
+                            <select id="pref-week-start" class="form-select"
+                                onchange="updatePreference('weekStartsOn', parseInt(this.value))">
+                                <option value="0">Sunday</option>
+                                <option value="1">Monday</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formats -->
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h2 class="card-title">Formats</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Time Format</label>
+                            <select id="pref-time-format" class="form-select"
+                                onchange="updatePreference('timeFormat', this.value)">
+                                <option value="12h">12-hour (1:30 PM)</option>
+                                <option value="24h">24-hour (13:30)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Date Format</label>
+                            <select id="pref-date-format" class="form-select"
+                                onchange="updatePreference('dateFormat', this.value)">
+                                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Management -->
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h2 class="card-title">Data Management</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary mb-md">Export all your data as a JSON file for backup, or import data
+                            from a previous export.</p>
+
+                        <div class="grid grid-cols-2 gap-md">
+                            <div class="p-lg border rounded-lg text-center">
+                                <div class="text-3xl mb-md">📤</div>
+                                <h3 class="font-semibold mb-sm">Export Data</h3>
+                                <p class="text-sm text-secondary mb-md">Download all your tasks, habits, goals, notes,
+                                    inventory, and budget data.</p>
+                                <button class="btn btn-primary" onclick="exportData()">Download Backup</button>
+                            </div>
+
+                            <div class="p-lg border rounded-lg text-center">
+                                <div class="text-3xl mb-md">📥</div>
+                                <h3 class="font-semibold mb-sm">Import Data</h3>
+                                <p class="text-sm text-secondary mb-md">Restore data from a previously exported backup
+                                    file.</p>
+                                <input type="file" id="import-file" accept=".json" style="display: none;"
+                                    onchange="importData(this.files[0])">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('import-file').click()">Choose File</button>
+                            </div>
+                        </div>
+
+                        <div class="mt-lg p-md bg-warning-light rounded-lg text-warning-dark text-sm">
+                            ⚠️ <strong>Warning:</strong> Importing data will merge with existing data. If items have the
+                            same IDs, they will be overwritten.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Info -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Account</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="flex items-center gap-lg">
+                            <div class="avatar avatar-xl" id="user-avatar"></div>
+                            <div>
+                                <div class="text-lg font-semibold" id="user-name"></div>
+                                <div class="text-secondary" id="user-username"></div>
+                            </div>
+                        </div>
+                        <div class="mt-lg">
+                            <button class="btn btn-danger" onclick="logout()">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let preferences = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadSettings();
+        });
+
+        async function loadSettings() {
+            try {
+                preferences = await API.preferences.get();
+                const user = await API.me();
+
+                // Apply preferences to form
+                document.getElementById('pref-theme').value = preferences.theme || 'system';
+                document.getElementById('pref-calendar-view').value = preferences.defaultCalendarView || 'week';
+                document.getElementById('pref-week-start').value = preferences.weekStartsOn || 0;
+                document.getElementById('pref-time-format').value = preferences.timeFormat || '12h';
+                document.getElementById('pref-date-format').value = preferences.dateFormat || 'MM/DD/YYYY';
+
+                // Display user info
+                document.getElementById('user-name').textContent = user.displayName || user.username;
+                document.getElementById('user-username').textContent = '@' + user.username;
+                document.getElementById('user-avatar').textContent = App.getInitials(user.displayName || user.username);
+            } catch (e) {
+                App.toast('Failed to load settings', 'error');
+            }
+        }
+
+        async function updatePreference(key, value) {
+            try {
+                await API.preferences.update({ [key]: value });
+
+                // Apply theme immediately
+                if (key === 'theme') {
+                    App.applyTheme(value);
+                }
+
+                App.toast('Setting saved', 'success');
+            } catch (e) {
+                App.toast('Failed to save setting', 'error');
+            }
+        }
+
+        function logout() {
+            API.logout();
+            window.location.href = '/pages/login.html';
+        }
+
+        async function exportData() {
+            App.toast('Exporting data...', 'info');
+            try {
+                const [tasks, habits, goals, notebooks, sheets, tags, budget, preferences] = await Promise.all([
+                    API.tasks.list({}).catch(() => []),
+                    API.habits.list().catch(() => []),
+                    API.goals.list().catch(() => []),
+                    API.notes.listNotebooks().catch(() => []),
+                    API.inventory.listSheets().catch(() => []),
+                    API.tags.list().catch(() => []),
+                    API.budget.listSources().catch(() => []),
+                    API.preferences.get().catch(() => ({}))
+                ]);
+
+                // Fetch full details for notebooks and sheets
+                const fullNotebooks = [];
+                for (const nb of notebooks) {
+                    try {
+                        const full = await API.notes.getNotebook(nb.id);
+                        fullNotebooks.push(full);
+                    } catch (e) { fullNotebooks.push(nb); }
+                }
+
+                const fullSheets = [];
+                for (const s of sheets) {
+                    try {
+                        const full = await API.inventory.getSheet(s.id);
+                        fullSheets.push(full);
+                    } catch (e) { fullSheets.push(s); }
+                }
+
+                const exportData = {
+                    version: 1,
+                    exportedAt: new Date().toISOString(),
+                    tasks,
+                    habits,
+                    goals,
+                    notebooks: fullNotebooks,
+                    inventorySheets: fullSheets,
+                    tags,
+                    budgetSources: budget,
+                    preferences
+                };
+
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `lifeboard-backup-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                App.toast('Data exported successfully!', 'success');
+            } catch (e) {
+                console.error('Export failed:', e);
+                App.toast('Failed to export data', 'error');
+            }
+        }
+
+        async function importData(file) {
+            if (!file) return;
+            if (!confirm('This will merge imported data with your existing data. Items with matching IDs will be overwritten. Continue?')) {
+                document.getElementById('import-file').value = '';
+                return;
+            }
+
+            App.toast('Importing data...', 'info');
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+
+                if (!data.version) {
+                    throw new Error('Invalid backup file format');
+                }
+
+                let imported = { tasks: 0, habits: 0, goals: 0, notebooks: 0, sheets: 0, tags: 0 };
+
+                // Import tags first (other items may reference them)
+                if (data.tags) {
+                    for (const tag of data.tags) {
+                        try {
+                            await API.tags.create({ name: tag.name, color: tag.color });
+                            imported.tags++;
+                        } catch (e) { }
+                    }
+                }
+
+                // Import tasks
+                if (data.tasks) {
+                    for (const task of data.tasks) {
+                        try {
+                            const newTask = await API.tasks.create({
+                                title: task.title,
+                                description: task.description,
+                                dueDate: task.dueDate || task.date,
+                                dueTime: task.dueTime || task.startTime,
+                                taskType: task.taskType || 'todo',
+                                priority: task.priority,
+                                status: task.status
+                            });
+                            if (task.steps) {
+                                for (const step of task.steps) {
+                                    await API.tasks.addStep(newTask.id, step.content);
+                                }
+                            }
+                            imported.tasks++;
+                        } catch (e) { }
+                    }
+                }
+
+                // Import habits
+                if (data.habits) {
+                    for (const habit of data.habits) {
+                        try {
+                            await API.habits.create({
+                                name: habit.name,
+                                description: habit.description,
+                                frequency: habit.frequency,
+                                icon: habit.icon,
+                                color: habit.color
+                            });
+                            imported.habits++;
+                        } catch (e) { }
+                    }
+                }
+
+                // Import goals
+                if (data.goals) {
+                    for (const goal of data.goals) {
+                        try {
+                            const newGoal = await API.goals.create({
+                                title: goal.title,
+                                description: goal.description,
+                                targetDate: goal.targetDate,
+                                priority: goal.priority
+                            });
+                            if (goal.milestones) {
+                                for (const m of goal.milestones) {
+                                    await API.goals.createMilestone(newGoal.id, {
+                                        title: m.title,
+                                        description: m.description
+                                    });
+                                }
+                            }
+                            imported.goals++;
+                        } catch (e) { }
+                    }
+                }
+
+                // Import notebooks
+                if (data.notebooks) {
+                    for (const nb of data.notebooks) {
+                        try {
+                            const newNb = await API.notes.createNotebook({
+                                name: nb.name,
+                                icon: nb.icon,
+                                color: nb.color
+                            });
+                            if (nb.pages) {
+                                for (const page of nb.pages) {
+                                    await API.notes.createPage(newNb.id, {
+                                        title: page.title,
+                                        content: page.content
+                                    });
+                                }
+                            }
+                            imported.notebooks++;
+                        } catch (e) { }
+                    }
+                }
+
+                // Import inventory sheets
+                if (data.inventorySheets) {
+                    for (const sheet of data.inventorySheets) {
+                        try {
+                            const newSheet = await API.inventory.createSheet({
+                                name: sheet.name,
+                                icon: sheet.icon,
+                                color: sheet.color
+                            });
+                            if (sheet.items) {
+                                for (const item of sheet.items) {
+                                    await API.inventory.createItem(newSheet.id, {
+                                        name: item.name,
+                                        quantity: item.quantity,
+                                        minQuantity: item.minQuantity,
+                                        unit: item.unit,
+                                        isEssential: item.isEssential
+                                    });
+                                }
+                            }
+                            imported.sheets++;
+                        } catch (e) { }
+                    }
+                }
+
+                document.getElementById('import-file').value = '';
+                App.toast(`Imported: ${imported.tasks} tasks, ${imported.habits} habits, ${imported.goals} goals, ${imported.notebooks} notebooks, ${imported.sheets} sheets, ${imported.tags} tags`, 'success');
+            } catch (e) {
+                console.error('Import failed:', e);
+                App.toast('Failed to import data: ' + e.message, 'error');
+                document.getElementById('import-file').value = '';
+            }
+        }
+    </script>
+</body>
+
+</html>

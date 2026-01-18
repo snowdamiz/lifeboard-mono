@@ -13,6 +13,7 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :user, MegaPlanner.Accounts.User
     has_many :items, MegaPlanner.Inventory.ShoppingListItem, on_delete: :delete_all
+    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "shopping_lists_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -28,6 +29,12 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     |> unique_constraint([:household_id, :is_auto_generated],
         name: :shopping_lists_household_auto_generated_unique,
         message: "only one auto-generated list per household")
+  end
+
+  def tags_changeset(list, tags) do
+    list
+    |> change()
+    |> put_assoc(:tags, tags)
   end
 end
 

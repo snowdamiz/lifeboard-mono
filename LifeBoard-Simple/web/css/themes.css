@@ -1,0 +1,128 @@
+/*
+ * LifeBoard Theme Styles
+ * 
+ * Light and dark theme variables.
+ * Theme is controlled by adding 'theme-dark' class to <html>
+ */
+
+/* ============================================================
+   DARK THEME
+   ============================================================ */
+
+.theme-dark {
+    --color-bg: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-tertiary: #334155;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-border: #334155;
+    --color-border-light: #1e293b;
+
+    /* Adjusted shadows for dark mode */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6);
+}
+
+.theme-dark .card {
+    background: var(--color-bg-secondary);
+}
+
+.theme-dark .modal {
+    background: var(--color-bg-secondary);
+}
+
+.theme-dark .form-input,
+.theme-dark .form-select,
+.theme-dark .form-textarea {
+    background: var(--color-bg);
+    border-color: var(--color-border);
+}
+
+.theme-dark .dropdown-menu {
+    background: var(--color-bg-secondary);
+    border-color: var(--color-border);
+}
+
+.theme-dark .table th {
+    background: var(--color-bg);
+}
+
+/* System preference detection */
+@media (prefers-color-scheme: dark) {
+    .theme-system {
+        --color-bg: #0f172a;
+        --color-bg-secondary: #1e293b;
+        --color-bg-tertiary: #334155;
+        --color-text: #f1f5f9;
+        --color-text-secondary: #94a3b8;
+        --color-text-muted: #64748b;
+        --color-border: #334155;
+        --color-border-light: #1e293b;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+        --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6);
+    }
+
+    .theme-system .card,
+    .theme-system .modal,
+    .theme-system .dropdown-menu {
+        background: var(--color-bg-secondary);
+    }
+
+    .theme-system .form-input,
+    .theme-system .form-select,
+    .theme-system .form-textarea {
+        background: var(--color-bg);
+        border-color: var(--color-border);
+    }
+
+    .theme-system .table th {
+        background: var(--color-bg);
+    }
+}
+
+/* ============================================================
+   ACCENT COLORS
+   You can customize the primary color by changing these
+   ============================================================ */
+
+.accent-blue {
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-primary-light: #dbeafe;
+}
+
+.accent-purple {
+    --color-primary: #8b5cf6;
+    --color-primary-hover: #7c3aed;
+    --color-primary-light: #ede9fe;
+}
+
+.accent-green {
+    --color-primary: #10b981;
+    --color-primary-hover: #059669;
+    --color-primary-light: #d1fae5;
+}
+
+.accent-orange {
+    --color-primary: #f59e0b;
+    --color-primary-hover: #d97706;
+    --color-primary-light: #fef3c7;
+}
+
+.accent-pink {
+    --color-primary: #ec4899;
+    --color-primary-hover: #db2777;
+    --color-primary-light: #fce7f3;
+}
+
+.accent-teal {
+    --color-primary: #14b8a6;
+    --color-primary-hover: #0d9488;
+    --color-primary-light: #ccfbf1;
+}

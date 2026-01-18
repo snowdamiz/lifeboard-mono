@@ -17,12 +17,15 @@ import {
   Heading1,
   Heading2,
   Heading3,
-  Minus
+  Minus,
+  Tag as TagIcon
 } from 'lucide-vue-next'
 import { marked } from 'marked'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useNotesStore } from '@/stores/notes'
 import { debounce } from '@/lib/utils'
+import TagManager from '@/components/shared/TagManager.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +37,8 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const title = ref('')
 const content = ref('')
+const tagIds = ref<Set<string>>(new Set())
+const isTagsOpen = ref(false)
 
 const pageId = () => route.params.id as string
 
@@ -56,6 +61,7 @@ onMounted(async () => {
   if (notesStore.currentPage) {
     title.value = notesStore.currentPage.title
     content.value = notesStore.currentPage.content || ''
+    tagIds.value = new Set(notesStore.currentPage.tags.map(t => t.id))
   }
   // Mark as initialized after loading to enable auto-save
   initialized.value = true
@@ -69,7 +75,8 @@ const debouncedSave = debounce(async () => {
   try {
     await notesStore.updatePage(id, {
       title: title.value,
-      content: content.value
+      content: content.value,
+      tag_ids: Array.from(tagIds.value)
     })
     lastSaved.value = new Date()
   } finally {
@@ -80,14 +87,28 @@ const debouncedSave = debounce(async () => {
 // Only start watching after mount (when page data is loaded)
 const initialized = ref(false)
 
-watch([title, content], () => {
+watch([title, content, tagIds], () => {
   if (initialized.value) {
     debouncedSave()
   }
+}, { deep: true })
+
+// Auto-resize textarea to fit content
+const autoResizeTextarea = () => {
+  const textarea = textareaRef.value
+  if (!textarea) return
+  // Reset height to allow shrinking
+  textarea.style.height = 'auto'
+  // Set height to scrollHeight to fit content
+  textarea.style.height = `${Math.max(textarea.scrollHeight, 300)}px`
+}
+
+watch(content, () => {
+  setTimeout(autoResizeTextarea, 0)
 })
 
 const deletePage = async () => {
-  if (confirm('Delete this page?')) {
+  if (confirm('Are you sure you want to delete this page?')) {
     await notesStore.deletePage(pageId())
     router.push('/notes')
   }
@@ -158,10 +179,43 @@ const toolbarActions = [
             class="text-xl font-semibold tracking-tight bg-transparent outline-none border-none focus:ring-0 w-full"
             placeholder="Page title"
           />
-          <p class="text-xs text-muted-foreground mt-0.5">
-            <span v-if="saving">Saving...</span>
-            <span v-else-if="lastSaved">{{ formatLastSaved() }}</span>
-          </p>
+          <div class="flex items-center gap-3 mt-1">
+             <p class="text-xs text-muted-foreground">
+              <span v-if="saving">Saving...</span>
+              <span v-else-if="lastSaved">{{ formatLastSaved() }}</span>
+            </p>
+
+            <!-- Tags Dropdown -->
+            <div class="relative">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                class="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                @click="isTagsOpen = !isTagsOpen"
+              >
+                <TagIcon class="h-3 w-3 mr-1" />
+                {{ tagIds.size > 0 ? `${tagIds.size} tags` : 'Add tags' }}
+              </Button>
+              
+              <div 
+                v-if="isTagsOpen"
+                class="absolute left-0 top-full mt-2 w-80 bg-popover text-popover-foreground border rounded-lg shadow-lg z-50 overflow-hidden"
+              >
+                <div class="p-3 border-b">
+                  <h4 class="font-medium leading-none">Manage Tags</h4>
+                </div>
+                <div class="p-2">
+                  <TagManager
+                    v-model:checkedTagIds="tagIds"
+                    mode="select"
+                    embedded
+                    :rows="4"
+                  />
+                </div>
+              </div>
+              <div v-if="isTagsOpen" class="fixed inset-0 z-40 bg-transparent" @click="isTagsOpen = false" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -225,7 +279,7 @@ const toolbarActions = [
         v-if="viewMode === 'edit'"
         ref="textareaRef"
         v-model="content"
-        class="w-full h-full p-6 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed"
+        class="w-full p-6 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed min-h-[300px]"
         placeholder="Start writing in markdown...
 
 # Heading 1

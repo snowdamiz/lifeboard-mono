@@ -2,12 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { format } from 'date-fns'
 import { X, Plus, Trash, GripVertical } from 'lucide-vue-next'
-import type { Task, TaskStep } from '@/types'
+import type { Task, TaskStep, Tag } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import { useCalendarStore } from '@/stores/calendar'
+import TagSelector from '@/components/shared/TagSelector.vue'
 
 interface Props {
   task?: Task
@@ -23,23 +24,62 @@ const emit = defineEmits<{
 const calendarStore = useCalendarStore()
 const saving = ref(false)
 
+// Form state - initialized by initForm
 const form = ref({
-  title: props.task?.title || '',
-  description: props.task?.description || '',
-  date: props.task?.date || (props.initialDate ? format(props.initialDate, 'yyyy-MM-dd') : ''),
-  start_time: props.task?.start_time || '',
-  duration_minutes: props.task?.duration_minutes || 30,
-  task_type: props.task?.task_type || 'todo',
-  status: props.task?.status || 'not_started'
+  title: '',
+  description: '',
+  date: '',
+  start_time: '',
+  duration_minutes: 30,
+  task_type: 'todo' as 'todo' | 'timed' | 'floating',
+  status: 'not_started' as 'not_started' | 'in_progress' | 'completed'
 })
 
-const steps = ref<Array<{ id?: string; content: string; completed: boolean; isNew?: boolean }>>(
-  props.task?.steps.map(s => ({ ...s })) || []
-)
+const steps = ref<Array<{ id?: string; content: string; completed: boolean; isNew?: boolean }>>([])
+const selectedTags = ref<Tag[]>([])
 
 const newStepContent = ref('')
 
 const isEditing = computed(() => !!props.task)
+
+// Initialize form with task data or fresh values
+const initForm = () => {
+  if (props.task) {
+    form.value = {
+      title: props.task.title || '',
+      description: props.task.description || '',
+      date: props.task.date || '',
+      start_time: props.task.start_time || '',
+      duration_minutes: props.task.duration_minutes || 30,
+      task_type: props.task.task_type || 'todo',
+      status: props.task.status || 'not_started'
+    }
+    steps.value = props.task.steps.map(s => ({ ...s }))
+  } else {
+    // Fresh form for new task
+    form.value = {
+      title: '',
+      description: '',
+      date: props.initialDate ? format(props.initialDate, 'yyyy-MM-dd') : '',
+      start_time: '',
+      duration_minutes: 30,
+      task_type: 'todo',
+      status: 'not_started'
+    }
+    steps.value = []
+    selectedTags.value = []
+  }
+  newStepContent.value = ''
+}
+
+// Initialize on mount
+onMounted(() => {
+  initForm()
+  // Load tags from task if editing
+  if (props.task && props.task.tags) {
+    selectedTags.value = [...props.task.tags]
+  }
+})
 
 const addStep = () => {
   if (!newStepContent.value.trim()) return
@@ -56,60 +96,49 @@ const removeStep = (index: number) => {
 }
 
 const save = async () => {
+  // Auto-add pending step if exists
+  if (newStepContent.value.trim()) {
+    addStep()
+  }
+
   if (!form.value.title.trim()) return
   
+  if (saving.value) return
   saving.value = true
   
   try {
+    console.log('Saving task...', { isEditing: isEditing.value, steps: steps.value })
     let savedTask: Task
     
-    if (isEditing.value) {
-      savedTask = await calendarStore.updateTask(props.task!.id, {
-        ...form.value,
-        duration_minutes: form.value.task_type === 'timed' ? form.value.duration_minutes : null,
-        start_time: form.value.task_type === 'timed' ? form.value.start_time : null
-      })
+    // Prepare steps with positions
+    const taskSteps = steps.value.map((step, index) => ({
+      ...step,
+      position: index,
+      isNew: undefined // Remove helper prop
+    }))
 
-      // Handle steps
-      for (const step of steps.value) {
-        if (step.isNew) {
-          // New step - create it
-          await calendarStore.addStep(savedTask.id, step.content)
-        } else if (step.id) {
-          // Existing step - check if completion status or content changed
-          const originalStep = props.task!.steps.find(s => s.id === step.id)
-          if (originalStep && (originalStep.completed !== step.completed || originalStep.content !== step.content)) {
-            await calendarStore.updateStep(savedTask.id, step.id, {
-              content: step.content,
-              completed: step.completed
-            })
-          }
-        }
-      }
-
-      // Handle deleted steps
-      const existingStepIds = steps.value.filter(s => s.id).map(s => s.id)
-      for (const originalStep of props.task!.steps) {
-        if (!existingStepIds.includes(originalStep.id)) {
-          await calendarStore.deleteStep(savedTask.id, originalStep.id)
-        }
-      }
-    } else {
-      savedTask = await calendarStore.createTask({
-        ...form.value,
-        duration_minutes: form.value.task_type === 'timed' ? form.value.duration_minutes : null,
-        start_time: form.value.task_type === 'timed' ? form.value.start_time : null
-      })
-
-      // Add steps
-      for (const step of steps.value) {
-        await calendarStore.addStep(savedTask.id, step.content)
-      }
+    const taskPayload = {
+      ...form.value,
+      duration_minutes: (form.value.task_type === 'timed' || form.value.task_type === 'floating') ? form.value.duration_minutes : null,
+      start_time: form.value.task_type === 'timed' ? form.value.start_time : null,
+      tag_ids: selectedTags.value.map(t => t.id),
+      steps: taskSteps as unknown as TaskStep[]
     }
 
-    // Refresh to get updated task with steps
-    await calendarStore.fetchWeekTasks()
+    if (isEditing.value) {
+      // Backend handles nested update/delete via cast_assoc + on_replace: :delete
+      // Note: we must include existing steps with their IDs to update them, 
+      // and new steps without IDs to create them.
+      // Missing IDs will be deleted by backend.
+      savedTask = await calendarStore.updateTask(props.task!.id, taskPayload)
+    } else {
+      savedTask = await calendarStore.createTask(taskPayload)
+    }
+
     emit('saved', savedTask)
+  } catch (e) {
+    console.error('Failed to save task:', e)
+    // Here we could add a toast notification
   } finally {
     saving.value = false
   }
@@ -119,7 +148,7 @@ const save = async () => {
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div class="w-full sm:max-w-lg bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[90vh] sm:max-h-[85vh] flex flex-col">
+      <div class="w-full sm:max-w-lg bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[95vh] sm:max-h-[92vh] flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-border shrink-0">
           <h2 class="text-lg font-semibold">
@@ -166,15 +195,25 @@ const save = async () => {
             </div>
           </div>
 
-          <div v-if="form.task_type === 'timed'" class="grid grid-cols-2 gap-3">
-            <div>
+          <div v-if="form.task_type === 'timed' || form.task_type === 'floating'" class="grid grid-cols-2 gap-3">
+            <div v-if="form.task_type === 'timed'">
               <label class="text-sm font-medium">Start Time</label>
               <Input v-model="form.start_time" type="time" class="mt-1.5" />
             </div>
-            <div>
+            <div class="">
               <label class="text-sm font-medium">Duration (min)</label>
               <Input v-model.number="form.duration_minutes" type="number" min="5" step="5" class="mt-1.5" />
             </div>
+          </div>
+
+          <div>
+            <label class="text-sm font-medium">Tags</label>
+            <TagSelector 
+              v-model="selectedTags" 
+              placeholder="Add tags..." 
+              class="mt-1.5" 
+              @tags-deleted="calendarStore.fetchWeekTasks()"
+            />
           </div>
 
           <div>

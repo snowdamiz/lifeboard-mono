@@ -1,90 +1,134 @@
+```
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { format } from 'date-fns'
 import { 
   Target, Plus, ChevronRight, Calendar, CheckCircle2, Circle, 
-  Trash2, Edit2, MoreVertical, Trophy, Flag, Settings2, Tags, 
-  Filter, ArrowUpDown, X
+  Trash2, Edit2, Trophy, Flag, Settings2, Tags, 
+  Filter, ArrowUpDown, X, PlusCircle, MinusCircle
 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import TagSelector from '@/components/shared/TagSelector.vue'
+import { Checkbox } from '@/components/ui/checkbox'
+import TagManager from '@/components/shared/TagManager.vue'
 import { useGoalsStore } from '@/stores/goals'
-import type { Goal, Tag, GoalCategory } from '@/types'
+import { useTagsStore } from '@/stores/tags'
+import type { Goal, Tag } from '@/types'
 
 const goalsStore = useGoalsStore()
+const tagsStore = useTagsStore()
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showCategoryModal = ref(false)
 const editingGoal = ref<Goal | null>(null)
-const editingGoalTags = ref<Tag[]>([])
+// TagManager expects Set<string>
+const editingGoalTagIds = ref<Set<string>>(new Set())
 
 const newGoal = ref({
   title: '',
   description: '',
   target_date: '',
-  goal_category_id: '',
-  tags: [] as Tag[]
+  tag_ids: new Set<string>()
 })
 
-const newCategory = ref({
-  name: '',
-  color: '#6366f1',
-  parent_id: ''
-})
+// Tag selection state
+const tempSelectedTags = ref<Set<string>>(new Set())
 
-// Fallback categories for when no custom categories exist
-const defaultCategories = ['Personal', 'Career', 'Health', 'Finance', 'Learning', 'Relationships']
+// Helper to resolve tag objects from IDs
+const resolveTags = (tagIds: Set<string>): Tag[] => {
+  return Array.from(tagIds).map(id => tagsStore.tags.find(t => t.id === id)).filter(Boolean) as Tag[]
+}
 
-// Build category options for select
-const categoryOptions = computed(() => {
-  const options = [{ value: '', label: 'Select category' }]
-  
-  if (goalsStore.categories.length === 0) {
-    // Use default categories as strings (legacy support)
-    defaultCategories.forEach(cat => options.push({ value: cat, label: cat }))
-  } else {
-    // Use custom categories
-    goalsStore.flatCategories.forEach(cat => {
-      const label = cat.isSubcategory ? `  └ ${cat.name}` : cat.name
-      options.push({ value: cat.id, label })
+const addCheckedTags = (targetSet: Set<string>) => {
+  tempSelectedTags.value.forEach(id => targetSet.add(id))
+  tempSelectedTags.value = new Set()
+}
+
+const removeCheckedTags = (targetSet: Set<string>) => {
+  tempSelectedTags.value.forEach(id => targetSet.delete(id))
+  tempSelectedTags.value = new Set()
+}
+
+const removeTag = (targetSet: Set<string>, tagId: string) => {
+  targetSet.delete(tagId)
+}
+
+// Milestones state
+const newGoalMilestones = ref<Array<{ title: string; completed: boolean }>>([])
+const editingGoalMilestones = ref<Array<{ id?: string; title: string; completed: boolean; position: number; completed_at?: string | null }>>([])
+const newMilestoneInput = ref('')
+const editMilestoneInput = ref('')
+
+const addMilestone = (isEditing: boolean) => {
+  if (isEditing) {
+    if (!editMilestoneInput.value.trim()) return
+    editingGoalMilestones.value.push({
+      title: editMilestoneInput.value,
+      completed: false,
+      position: editingGoalMilestones.value.length
     })
+    editMilestoneInput.value = ''
+  } else {
+    if (!newMilestoneInput.value.trim()) return
+    newGoalMilestones.value.push({
+      title: newMilestoneInput.value,
+      completed: false
+    })
+    newMilestoneInput.value = ''
   }
-  
-  return options
-})
+}
+
+const removeMilestone = (index: number, isEditing: boolean) => {
+  if (isEditing) {
+    editingGoalMilestones.value.splice(index, 1)
+  } else {
+    newGoalMilestones.value.splice(index, 1)
+  }
+}
 
 const activeTab = ref<'active' | 'completed'>('active')
 
 // Filtering and sorting
-const filterCategory = ref('')
-const filterTags = ref<Tag[]>([])
+const isFilterOpen = ref(false)
+const filterCheckedTagIds = ref<Set<string>>(new Set())
+
+// Sync filter tags from store to local state when store changes
+watch(() => goalsStore.filterTags, (newTags) => {
+  filterCheckedTagIds.value = new Set(newTags)
+}, { immediate: true })
+
+const activeFilterCount = computed(() => goalsStore.filterTags.length)
 const sortBy = ref<'date' | 'progress' | 'title' | 'category'>('date')
 const sortOrder = ref<'asc' | 'desc'>('asc')
 
+const toggleFilterTag = (tagId: string) => {
+  const index = goalsStore.filterTags.indexOf(tagId)
+  if (index === -1) {
+    goalsStore.filterTags.push(tagId)
+  } else {
+    goalsStore.filterTags.splice(index, 1)
+  }
+}
+
+const applyFilters = () => {
+  goalsStore.filterTags = Array.from(filterCheckedTagIds.value)
+  goalsStore.fetchGoals()
+  isFilterOpen.value = false
+}
+
+const clearFilters = () => {
+  goalsStore.filterTags = []
+  goalsStore.fetchGoals()
+  isFilterOpen.value = false
+}
+
 const displayedGoals = computed(() => {
+  // Goals are already filtered by backend (fetchGoals called on mount and filter apply)
   let goals = activeTab.value === 'active' ? goalsStore.activeGoals : goalsStore.completedGoals
-  
-  // Filter by category
-  if (filterCategory.value) {
-    goals = goals.filter(g => 
-      g.goal_category_id === filterCategory.value || 
-      g.category === filterCategory.value ||
-      g.goal_category?.parent?.id === filterCategory.value
-    )
-  }
-  
-  // Filter by tags
-  if (filterTags.value.length > 0) {
-    const tagIds = filterTags.value.map(t => t.id)
-    goals = goals.filter(g => 
-      g.tags && g.tags.some(t => tagIds.includes(t.id))
-    )
-  }
   
   // Sort
   goals = [...goals].sort((a, b) => {
@@ -97,15 +141,21 @@ const displayedGoals = computed(() => {
         comparison = dateA - dateB
         break
       case 'progress':
-        comparison = a.progress - b.progress
+        comparison = (a.progress || 0) - (b.progress || 0)
+        if (comparison === 0) {
+          const statusPriority: Record<string, number> = {
+            'completed': 3,
+            'in_progress': 2,
+            'not_started': 1,
+            'abandoned': 0
+          }
+          const statusA = statusPriority[a.status] || 0
+          const statusB = statusPriority[b.status] || 0
+          comparison = statusA - statusB
+        }
         break
       case 'title':
         comparison = a.title.localeCompare(b.title)
-        break
-      case 'category':
-        const catA = getCategoryDisplay(a) || ''
-        const catB = getCategoryDisplay(b) || ''
-        comparison = catA.localeCompare(catB)
         break
     }
     
@@ -115,18 +165,10 @@ const displayedGoals = computed(() => {
   return goals
 })
 
-const clearFilters = () => {
-  filterCategory.value = ''
-  filterTags.value = []
-}
-
-const hasActiveFilters = computed(() => filterCategory.value || filterTags.value.length > 0)
-
 onMounted(async () => {
-  await Promise.all([
-    goalsStore.fetchGoals(),
-    goalsStore.fetchCategories()
-  ])
+  // Reset filters
+  goalsStore.filterTags = []
+  await goalsStore.fetchGoals()
 })
 
 const handleCreateGoal = async () => {
@@ -136,86 +178,34 @@ const handleCreateGoal = async () => {
     title: newGoal.value.title,
     description: newGoal.value.description || null,
     target_date: newGoal.value.target_date || null,
-    status: 'not_started'
-  }
-  
-  // Handle category - could be UUID (new) or string (legacy)
-  if (newGoal.value.goal_category_id) {
-    // Check if it's a valid UUID or legacy category name
-    if (newGoal.value.goal_category_id.includes('-')) {
-      goalData.goal_category_id = newGoal.value.goal_category_id
-    } else {
-      goalData.category = newGoal.value.goal_category_id
-    }
+    status: 'not_started',
+    milestones: newGoalMilestones.value.map((m, index) => ({
+      ...m,
+      position: index,
+      id: undefined as unknown as string, // Type hack, backend will generate
+      completed_at: m.completed ? new Date().toISOString() : null
+    }))
   }
   
   const goal = await goalsStore.createGoal(goalData)
   
   // Update tags if any selected
-  if (newGoal.value.tags.length > 0) {
-    await goalsStore.updateGoalTags(goal.id, newGoal.value.tags.map(t => t.id))
+  if (newGoal.value.tag_ids.size > 0) {
+    await goalsStore.updateGoalTags(goal.id, Array.from(newGoal.value.tag_ids))
   }
   
-  newGoal.value = { title: '', description: '', target_date: '', goal_category_id: '', tags: [] }
+  newGoal.value = { title: '', description: '', target_date: '', tag_ids: new Set() }
+  newGoalMilestones.value = []
+  tempSelectedTags.value = new Set()
+  newMilestoneInput.value = ''
   showCreateModal.value = false
 }
 
-const handleUpdateGoal = async () => {
-  if (!editingGoal.value) return
-  
-  const goalData: Partial<Goal> = {
-    title: editingGoal.value.title,
-    description: editingGoal.value.description,
-    target_date: editingGoal.value.target_date,
-    status: editingGoal.value.status
+watch(showCreateModal, (val) => {
+  if (!val) {
+    tempSelectedTags.value = new Set()
   }
-  
-  // Handle category
-  if (editingGoal.value.goal_category_id) {
-    goalData.goal_category_id = editingGoal.value.goal_category_id
-  } else if (editingGoal.value.category) {
-    goalData.category = editingGoal.value.category
-  }
-  
-  await goalsStore.updateGoal(editingGoal.value.id, goalData)
-  
-  // Update tags
-  await goalsStore.updateGoalTags(editingGoal.value.id, editingGoalTags.value.map(t => t.id))
-  
-  showEditModal.value = false
-  editingGoal.value = null
-  editingGoalTags.value = []
-}
-
-const handleDeleteGoal = async (id: string) => {
-  if (confirm('Are you sure you want to delete this goal?')) {
-    await goalsStore.deleteGoal(id)
-  }
-}
-
-const openEditModal = (goal: Goal) => {
-  editingGoal.value = { ...goal }
-  editingGoalTags.value = [...(goal.tags || [])]
-  showEditModal.value = true
-}
-
-const handleCreateCategory = async () => {
-  if (!newCategory.value.name.trim()) return
-  
-  await goalsStore.createCategory({
-    name: newCategory.value.name,
-    color: newCategory.value.color,
-    parent_id: newCategory.value.parent_id || null
-  })
-  
-  newCategory.value = { name: '', color: '#6366f1', parent_id: '' }
-}
-
-const handleDeleteCategory = async (id: string) => {
-  if (confirm('Delete this category? Goals using it will be uncategorized.')) {
-    await goalsStore.deleteCategory(id)
-  }
-}
+})
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -233,19 +223,58 @@ const getProgressColor = (progress: number) => {
   return 'bg-muted-foreground/30'
 }
 
-const getCategoryDisplay = (goal: Goal) => {
-  if (goal.goal_category) {
-    if (goal.goal_category.parent) {
-      return `${goal.goal_category.parent.name} / ${goal.goal_category.name}`
-    }
-    return goal.goal_category.name
+const handleUpdateGoal = async () => {
+  if (!editingGoal.value) return
+  
+  const goalData: Partial<Goal> = {
+    title: editingGoal.value.title,
+    description: editingGoal.value.description,
+    target_date: editingGoal.value.target_date,
+    status: editingGoal.value.status,
+    milestones: editingGoalMilestones.value.map((m, index) => ({
+      ...m,
+      position: index,
+      id: m.id || undefined as unknown as string,
+      completed_at: m.completed ? (m.completed_at || new Date().toISOString()) : null
+    }))
   }
-  return goal.category
+  
+  await goalsStore.updateGoal(editingGoal.value.id, goalData)
+  
+  // Update tags
+  await goalsStore.updateGoalTags(editingGoal.value.id, Array.from(editingGoalTagIds.value))
+  
+  showEditModal.value = false
+  editingGoal.value = null
+  editingGoalTagIds.value = new Set()
+  editingGoalMilestones.value = []
+  tempSelectedTags.value = new Set()
+  editMilestoneInput.value = ''
 }
+
+watch(showEditModal, (val) => {
+  if (!val) {
+    tempSelectedTags.value = new Set()
+  }
+})
+
+const handleDeleteGoal = async (id: string) => {
+  await goalsStore.deleteGoal(id)
+}
+
+const openEditModal = (goal: Goal) => {
+  editingGoal.value = { ...goal }
+  editingGoalTagIds.value = new Set(goal.tags ? goal.tags.map(t => t.id) : [])
+  editingGoalMilestones.value = goal.milestones 
+    ? [...goal.milestones].sort((a, b) => a.position - b.position)
+    : []
+  showEditModal.value = true
+}
+
 </script>
 
 <template>
-  <div class="space-y-4 sm:space-y-6 animate-fade-in">
+  <div class="space-y-4 sm:space-y-6 animate-fade-in pb-20 sm:pb-0">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -258,9 +287,6 @@ const getCategoryDisplay = (goal: Goal) => {
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="icon" @click="showCategoryModal = true" title="Manage Categories">
-          <Settings2 class="h-4 w-4" />
-        </Button>
         <Button @click="showCreateModal = true">
           <Plus class="h-4 w-4 mr-1.5" />
           New Goal
@@ -300,26 +326,15 @@ const getCategoryDisplay = (goal: Goal) => {
 
       <!-- Filter & Sort Controls -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Category Filter -->
-        <Select 
-          v-model="filterCategory"
-          :options="[
-            { value: '', label: 'All Categories' },
-            ...categoryOptions.slice(1)
-          ]"
-          class="w-40 text-xs"
-        />
-        
         <!-- Sort -->
         <Select 
           v-model="sortBy"
           :options="[
             { value: 'date', label: 'Sort by Date' },
             { value: 'progress', label: 'Sort by Progress' },
-            { value: 'title', label: 'Sort by Title' },
-            { value: 'category', label: 'Sort by Category' }
+            { value: 'title', label: 'Sort by Title' }
           ]"
-          class="w-36 text-xs"
+          class="w-[160px] text-xs"
         />
         
         <Button 
@@ -331,25 +346,79 @@ const getCategoryDisplay = (goal: Goal) => {
         >
           <ArrowUpDown class="h-4 w-4" :class="sortOrder === 'desc' && 'rotate-180'" />
         </Button>
-        
-        <Button 
-          v-if="hasActiveFilters"
-          variant="ghost" 
-          size="sm"
-          class="h-8 text-xs"
-          @click="clearFilters"
-        >
-          <X class="h-3 w-3 mr-1" />
-          Clear
-        </Button>
+
+        <!-- Filter Button -->
+        <div class="relative">
+          <Button 
+            :variant="activeFilterCount > 0 ? 'default' : 'outline'" 
+            size="sm" 
+            class="h-9 gap-2"
+            @click="isFilterOpen = !isFilterOpen"
+          >
+            <Filter class="h-4 w-4" />
+            <span class="hidden sm:inline">Filter</span>
+            <Badge v-if="activeFilterCount > 0" variant="secondary" class="ml-0.5 h-5 px-1.5 min-w-[20px] justify-center bg-background/20 text-current border-0">
+              {{ activeFilterCount }}
+            </Badge>
+          </Button>
+
+          <!-- Filter Dropdown -->
+          <div
+            v-if="isFilterOpen"
+            class="absolute top-full right-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+          >
+            <div class="p-3 border-b border-border bg-secondary/30 flex items-center justify-between">
+               <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter by Tags</span>
+               <button class="text-xs text-primary hover:underline" @click="clearFilters" v-if="activeFilterCount > 0">
+                Clear all
+              </button>
+            </div>
+            
+             <div class="p-2">
+              <TagManager
+                v-model:checkedTagIds="filterCheckedTagIds"
+                mode="select"
+                embedded
+                :rows="3"
+              />
+            </div>
+             <div class="p-3 border-t bg-muted/20 flex justify-between gap-2">
+              <Button variant="ghost" size="sm" @click="clearFilters" :disabled="activeFilterCount === 0">
+                Clear
+              </Button>
+              <Button size="sm" @click="applyFilters">
+                Apply
+              </Button>
+            </div>
+          </div>
+          <!-- Backdrop to close -->
+          <div v-if="isFilterOpen" class="fixed inset-0 z-40 bg-transparent" @click="isFilterOpen = false" />
+        </div>
       </div>
     </div>
-
-    <!-- Tag Filter -->
-    <div class="flex items-center gap-2">
-      <Filter class="h-4 w-4 text-muted-foreground" />
-      <span class="text-sm text-muted-foreground">Filter by tags:</span>
-      <TagSelector v-model="filterTags" class="flex-1" />
+    
+    <!-- Active Filters Display -->
+    <div v-if="activeFilterCount > 0" class="flex flex-wrap gap-2 items-center">
+      <span class="text-xs text-muted-foreground">Active filters:</span>
+      <Badge 
+        v-for="tagId in goalsStore.filterTags" 
+        :key="tagId"
+        variant="secondary"
+        class="gap-1 pl-2 pr-1 py-0.5"
+      >
+        <span class="truncate max-w-[100px]">Tag selected</span>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          class="h-3 w-3 sm:h-4 sm:w-4 ml-1 rounded-full -mr-0.5 hover:bg-transparent hover:text-destructive"
+          @click.stop="toggleFilterTag(tagId); applyFilters()"
+        >
+          <X class="h-2 w-2 sm:h-3 sm:w-3" />
+        </Button>
+      </Badge>
+      <Button variant="link" size="sm" class="h-auto p-0 text-xs text-muted-foreground" @click="clearFilters">
+        Clear all
+      </Button>
     </div>
 
     <!-- Goals List -->
@@ -362,10 +431,12 @@ const getCategoryDisplay = (goal: Goal) => {
         <Trophy class="h-8 w-8 text-primary/60" />
       </div>
       <h3 class="font-semibold text-lg">{{ activeTab === 'active' ? 'No active goals' : 'No completed goals yet' }}</h3>
-      <p class="text-muted-foreground mt-1">{{ activeTab === 'active' ? 'Create a goal to start tracking your progress' : 'Complete some goals to see them here' }}</p>
-      <Button v-if="activeTab === 'active'" variant="outline" class="mt-4" @click="showCreateModal = true">
-        <Plus class="h-4 w-4 mr-1.5" />
-        Create your first goal
+      <p class="text-muted-foreground mt-1">
+         {{ activeFilterCount > 0 ? "Try adjusting your filters" : (activeTab === 'active' ? 'Create a goal to start tracking your progress' : 'Complete some goals to see them here') }}
+      </p>
+      <Button v-if="activeTab === 'active' || activeFilterCount > 0" variant="outline" class="mt-4" @click="activeFilterCount > 0 ? clearFilters() : (showCreateModal = true)">
+        <component :is="activeFilterCount > 0 ? X : Plus" class="h-4 w-4 mr-1.5" />
+        {{ activeFilterCount > 0 ? "Clear Filters" : "Create your first goal" }}
       </Button>
     </div>
 
@@ -409,10 +480,7 @@ const getCategoryDisplay = (goal: Goal) => {
               
               <!-- Meta info -->
               <div class="flex items-center flex-wrap gap-x-4 gap-y-2 mt-3 text-xs text-muted-foreground">
-                <span v-if="getCategoryDisplay(goal)" class="flex items-center gap-1">
-                  <Flag class="h-3 w-3" />
-                  {{ getCategoryDisplay(goal) }}
-                </span>
+
                 <span v-if="goal.target_date" class="flex items-center gap-1">
                   <Calendar class="h-3 w-3" />
                   {{ format(new Date(goal.target_date), 'MMM d, yyyy') }}
@@ -478,13 +546,16 @@ const getCategoryDisplay = (goal: Goal) => {
           @click="showCreateModal = false"
         >
           <div 
-            class="w-full max-w-md bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden"
+            class="w-full max-w-md bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             @click.stop
           >
-            <div class="px-5 py-4 border-b border-border/60">
+            <div class="px-5 py-4 border-b border-border/60 flex items-center justify-between shrink-0">
               <h2 class="text-lg font-semibold">Create New Goal</h2>
+              <Button variant="ghost" size="icon" @click="showCreateModal = false">
+                <X class="h-4 w-4" />
+              </Button>
             </div>
-            <div class="p-5 space-y-4">
+            <div class="p-5 space-y-4 flex-1 overflow-y-auto">
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Title</label>
                 <Input v-model="newGoal.title" placeholder="What do you want to achieve?" />
@@ -499,22 +570,99 @@ const getCategoryDisplay = (goal: Goal) => {
                 />
               </div>
               <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="text-sm font-medium mb-1.5 block">Category</label>
-                  <Select 
-                    v-model="newGoal.goal_category_id"
-                    :options="categoryOptions"
-                    placeholder="Select category"
-                  />
-                </div>
-                <div>
+                <div class="col-span-2">
                   <label class="text-sm font-medium mb-1.5 block">Target Date</label>
                   <Input v-model="newGoal.target_date" type="date" />
                 </div>
               </div>
+
+              <!-- Milestones -->
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Milestones</label>
+                <div class="space-y-2">
+                  <div
+                    v-for="(milestone, index) in newGoalMilestones"
+                    :key="index"
+                    class="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg"
+                  >
+                    <Checkbox v-model="milestone.completed" class="shrink-0" />
+                    <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
+                    <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="removeMilestone(index, false)">
+                      <Trash2 class="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input 
+                      v-model="newMilestoneInput" 
+                      placeholder="Add a milestone..."
+                      class="flex-1 h-9"
+                      @keydown.enter.prevent="addMilestone(false)"
+                    />
+                    <Button variant="outline" size="sm" @click="addMilestone(false)">
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Tags</label>
-                <TagSelector v-model="newGoal.tags" />
+                <!-- Selected Tags List -->
+                <div class="flex flex-wrap gap-1.5 mb-2" v-if="newGoal.tag_ids.size > 0">
+                  <Badge
+                    v-for="tag in resolveTags(newGoal.tag_ids)"
+                    :key="tag.id"
+                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
+                    variant="outline"
+                    class="gap-1 pr-1"
+                  >
+                    <div 
+                      class="h-1.5 w-1.5 rounded-full" 
+                      :style="{ backgroundColor: tag.color }"
+                    />
+                    {{ tag.name }}
+                    <button
+                      type="button"
+                      class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
+                      @click="removeTag(newGoal.tag_ids, tag.id)"
+                    >
+                      <X class="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+
+                <TagManager
+                    v-model:checkedTagIds="tempSelectedTags"
+                    :applied-tag-ids="newGoal.tag_ids"
+                    mode="select"
+                    embedded
+                >
+                  <template #actions="{ checkedCount }">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="h-7 px-2 text-xs flex-1"
+                      :disabled="checkedCount === 0"
+                      @click="addCheckedTags(newGoal.tag_ids)"
+                    >
+                      <PlusCircle class="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="h-7 px-2 text-xs flex-1"
+                      :disabled="checkedCount === 0"
+                      @click="removeCheckedTags(newGoal.tag_ids)"
+                    >
+                      <MinusCircle class="h-3 w-3 mr-1" />
+                      Remove
+                    </Button>
+                  </template>
+                </TagManager>
               </div>
             </div>
             <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2">
@@ -542,13 +690,16 @@ const getCategoryDisplay = (goal: Goal) => {
           @click="showEditModal = false"
         >
           <div 
-            class="w-full max-w-md bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden"
+            class="w-full max-w-md bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             @click.stop
           >
-            <div class="px-5 py-4 border-b border-border/60">
+            <div class="px-5 py-4 border-b border-border/60 flex items-center justify-between shrink-0">
               <h2 class="text-lg font-semibold">Edit Goal</h2>
+              <Button variant="ghost" size="icon" @click="showEditModal = false">
+                <X class="h-4 w-4" />
+              </Button>
             </div>
-            <div class="p-5 space-y-4">
+            <div class="p-5 space-y-4 flex-1 overflow-y-auto">
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Title</label>
                 <Input v-model="editingGoal.title" />
@@ -562,23 +713,99 @@ const getCategoryDisplay = (goal: Goal) => {
                 />
               </div>
               <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="text-sm font-medium mb-1.5 block">Category</label>
-                  <Select 
-                    :model-value="editingGoal.goal_category_id ?? editingGoal.category ?? ''"
-                    @update:model-value="editingGoal.goal_category_id = String($event) || null; editingGoal.category = null"
-                    :options="categoryOptions"
-                    placeholder="Select category"
-                  />
-                </div>
-                <div>
+                <div class="col-span-2">
                   <label class="text-sm font-medium mb-1.5 block">Target Date</label>
                   <Input :model-value="editingGoal.target_date ?? ''" @update:model-value="editingGoal.target_date = String($event) || null" type="date" />
                 </div>
               </div>
+
+              <!-- Milestones -->
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Milestones</label>
+                <div class="space-y-2">
+                  <div
+                    v-for="(milestone, index) in editingGoalMilestones"
+                    :key="milestone.id || index"
+                    class="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg"
+                  >
+                    <Checkbox v-model="milestone.completed" class="shrink-0" />
+                    <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
+                    <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="removeMilestone(index, true)">
+                      <Trash2 class="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input 
+                      v-model="editMilestoneInput" 
+                      placeholder="Add a milestone..."
+                      class="flex-1 h-9"
+                      @keydown.enter.prevent="addMilestone(true)"
+                    />
+                    <Button variant="outline" size="sm" @click="addMilestone(true)">
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Tags</label>
-                <TagSelector v-model="editingGoalTags" />
+                <!-- Selected Tags List -->
+                <div class="flex flex-wrap gap-1.5 mb-2" v-if="editingGoalTagIds.size > 0">
+                  <Badge
+                    v-for="tag in resolveTags(editingGoalTagIds)"
+                    :key="tag.id"
+                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
+                    variant="outline"
+                    class="gap-1 pr-1"
+                  >
+                    <div 
+                      class="h-1.5 w-1.5 rounded-full" 
+                      :style="{ backgroundColor: tag.color }"
+                    />
+                    {{ tag.name }}
+                    <button
+                      type="button"
+                      class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
+                      @click="removeTag(editingGoalTagIds, tag.id)"
+                    >
+                      <X class="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+
+                <TagManager
+                    v-model:checkedTagIds="tempSelectedTags"
+                    :applied-tag-ids="editingGoalTagIds"
+                    mode="select"
+                    embedded
+                >
+                  <template #actions="{ checkedCount }">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="h-7 px-2 text-xs flex-1"
+                      :disabled="checkedCount === 0"
+                      @click="addCheckedTags(editingGoalTagIds)"
+                    >
+                      <PlusCircle class="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="h-7 px-2 text-xs flex-1"
+                      :disabled="checkedCount === 0"
+                      @click="removeCheckedTags(editingGoalTagIds)"
+                    >
+                      <MinusCircle class="h-3 w-3 mr-1" />
+                      Remove
+                    </Button>
+                  </template>
+                </TagManager>
               </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Status</label>
@@ -597,120 +824,6 @@ const getCategoryDisplay = (goal: Goal) => {
             <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2">
               <Button variant="ghost" @click="showEditModal = false">Cancel</Button>
               <Button @click="handleUpdateGoal">Save Changes</Button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- Category Management Modal -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div 
-          v-if="showCategoryModal"
-          class="fixed inset-0 bg-background/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          @click="showCategoryModal = false"
-        >
-          <div 
-            class="w-full max-w-lg bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden"
-            @click.stop
-          >
-            <div class="px-5 py-4 border-b border-border/60">
-              <h2 class="text-lg font-semibold">Manage Categories</h2>
-              <p class="text-sm text-muted-foreground mt-0.5">Create and organize your goal categories</p>
-            </div>
-            <div class="p-5 space-y-4 max-h-[60vh] overflow-auto">
-              <!-- Add new category -->
-              <div class="p-3 bg-secondary/50 rounded-lg space-y-3">
-                <h3 class="text-sm font-medium">Add Category</h3>
-                <div class="flex gap-2">
-                  <Input 
-                    v-model="newCategory.name" 
-                    placeholder="Category name"
-                    class="flex-1"
-                  />
-                  <input 
-                    type="color" 
-                    v-model="newCategory.color"
-                    class="w-10 h-9 rounded-md border border-input cursor-pointer"
-                  />
-                  <Button size="sm" @click="handleCreateCategory" :disabled="!newCategory.name.trim()">
-                    <Plus class="h-4 w-4" />
-                  </Button>
-                </div>
-                <div v-if="goalsStore.categories.length > 0">
-                  <label class="text-xs text-muted-foreground">Parent (optional - for subcategory)</label>
-                  <Select 
-                    v-model="newCategory.parent_id"
-                    :options="[
-                      { value: '', label: 'None (top level)' },
-                      ...goalsStore.categories.map(c => ({ value: c.id, label: c.name }))
-                    ]"
-                    class="mt-1"
-                  />
-                </div>
-              </div>
-              
-              <!-- Existing categories -->
-              <div v-if="goalsStore.categories.length === 0" class="text-center py-8 text-muted-foreground">
-                <Flag class="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p class="text-sm">No custom categories yet</p>
-              </div>
-              <div v-else class="space-y-2">
-                <div 
-                  v-for="category in goalsStore.categories" 
-                  :key="category.id"
-                  class="border border-border rounded-lg overflow-hidden"
-                >
-                  <div class="flex items-center gap-3 p-3 bg-card">
-                    <div 
-                      class="w-4 h-4 rounded-full shrink-0"
-                      :style="{ backgroundColor: category.color }"
-                    />
-                    <span class="flex-1 font-medium">{{ category.name }}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      class="h-7 w-7 text-destructive"
-                      @click="handleDeleteCategory(category.id)"
-                    >
-                      <Trash2 class="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  <!-- Subcategories -->
-                  <div v-if="category.subcategories && category.subcategories.length > 0" class="bg-secondary/30">
-                    <div 
-                      v-for="sub in category.subcategories" 
-                      :key="sub.id"
-                      class="flex items-center gap-3 p-2 pl-8 border-t border-border/50"
-                    >
-                      <div 
-                        class="w-3 h-3 rounded-full shrink-0"
-                        :style="{ backgroundColor: sub.color }"
-                      />
-                      <span class="flex-1 text-sm">{{ sub.name }}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        class="h-6 w-6 text-destructive"
-                        @click="handleDeleteCategory(sub.id)"
-                      >
-                        <Trash2 class="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="px-5 py-4 border-t border-border/60 flex justify-end">
-              <Button variant="ghost" @click="showCategoryModal = false">Close</Button>
             </div>
           </div>
         </div>

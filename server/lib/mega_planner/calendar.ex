@@ -6,6 +6,9 @@ defmodule MegaPlanner.Calendar do
   import Ecto.Query, warn: false
   alias MegaPlanner.Repo
   alias MegaPlanner.Calendar.{Task, TaskStep, TaskTemplate}
+  alias MegaPlanner.Tags.Tag
+
+  @task_preloads [:steps, :tags]
 
   # Tasks
 
@@ -15,13 +18,14 @@ defmodule MegaPlanner.Calendar do
   def list_tasks(household_id, opts \\ []) do
     query = from t in Task,
       where: t.household_id == ^household_id,
-      order_by: [asc: t.date, asc: t.start_time, asc: t.priority],
-      preload: [:steps, :tags]
+      order_by: [asc: t.date, asc: t.start_time, asc: t.priority]
 
     query
     |> filter_by_date_range(opts)
     |> filter_by_status(opts)
+    |> filter_by_tags(opts)
     |> Repo.all()
+    |> Repo.preload(@task_preloads)
   end
 
   defp filter_by_date_range(query, opts) do
@@ -36,7 +40,20 @@ defmodule MegaPlanner.Calendar do
   defp filter_by_status(query, opts) do
     case Keyword.get(opts, :status) do
       nil -> query
+      statuses when is_list(statuses) -> from t in query, where: t.status in ^statuses
       status -> from t in query, where: t.status == ^status
+    end
+  end
+
+  defp filter_by_tags(query, opts) do
+    case Keyword.get(opts, :tag_ids) do
+      nil -> query
+      [] -> query
+      tag_ids when is_list(tag_ids) ->
+        from t in query,
+          join: tag in assoc(t, :tags),
+          where: tag.id in ^tag_ids,
+          distinct: true
     end
   end
 
@@ -46,7 +63,7 @@ defmodule MegaPlanner.Calendar do
   def get_task(id) do
     Task
     |> Repo.get(id)
-    |> Repo.preload([:steps, :tags])
+    |> Repo.preload(@task_preloads)
   end
 
   @doc """
@@ -55,19 +72,30 @@ defmodule MegaPlanner.Calendar do
   def get_household_task(household_id, id) do
     Task
     |> Repo.get_by(id: id, household_id: household_id)
-    |> Repo.preload([:steps, :tags])
+    |> Repo.preload(@task_preloads)
   end
 
   @doc """
   Creates a task.
   """
   def create_task(attrs \\ %{}) do
-    %Task{}
-    |> Task.changeset(attrs)
-    |> Repo.insert()
-    |> case do
-      {:ok, task} -> {:ok, Repo.preload(task, [:steps, :tags])}
-      error -> error
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
+    result =
+      %Task{}
+      |> Task.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, task} ->
+        task = if tag_ids && length(tag_ids) > 0 do
+          update_task_tags_internal(task, tag_ids)
+        else
+          task
+        end
+        {:ok, Repo.preload(task, @task_preloads, force: true)}
+      error ->
+        error
     end
   end
 
@@ -75,13 +103,42 @@ defmodule MegaPlanner.Calendar do
   Updates a task.
   """
   def update_task(%Task{} = task, attrs) do
-    task
-    |> Task.changeset(attrs)
-    |> Repo.update()
-    |> case do
-      {:ok, task} -> {:ok, Repo.preload(task, [:steps, :tags], force: true)}
-      error -> error
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
+    result =
+      task
+      |> Task.changeset(attrs)
+      |> Repo.update()
+
+    case result do
+      {:ok, task} ->
+        task = if tag_ids != nil do
+          update_task_tags_internal(task, tag_ids)
+        else
+          task
+        end
+        {:ok, Repo.preload(task, @task_preloads, force: true)}
+      error ->
+        error
     end
+  end
+
+  @doc """
+  Updates the tags on a task.
+  """
+  def update_task_tags(%Task{} = task, tag_ids) when is_list(tag_ids) do
+    task = update_task_tags_internal(task, tag_ids)
+    {:ok, Repo.preload(task, @task_preloads, force: true)}
+  end
+
+  defp update_task_tags_internal(task, tag_ids) when is_list(tag_ids) do
+    tags = Repo.all(from t in Tag, where: t.id in ^tag_ids)
+
+    task
+    |> Repo.preload(:tags)
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.put_assoc(:tags, tags)
+    |> Repo.update!()
   end
 
   @doc """

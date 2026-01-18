@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .summary-card {
+            text-align: center;
+            padding: var(--space-lg);
+        }
+
+        .summary-amount {
+            font-size: var(--text-3xl);
+            font-weight: 700;
+        }
+
+        .income {
+            color: var(--color-success);
+        }
+
+        .expense {
+            color: var(--color-error);
+        }
+
+        .balance {
+            color: var(--color-primary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link active"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Budget</h1>
+                <div class="ml-auto flex gap-sm">
+                    <button class="btn btn-secondary" onclick="openAddSource()">+ Add Source</button>
+                    <button class="btn btn-primary" onclick="openAddEntry()">+ Add Entry</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-3 gap-md mb-lg">
+                    <div class="card summary-card">
+                        <div class="text-secondary mb-sm">Total Income</div>
+                        <div class="summary-amount income" id="total-income">$0.00</div>
+                    </div>
+                    <div class="card summary-card">
+                        <div class="text-secondary mb-sm">Total Expenses</div>
+                        <div class="summary-amount expense" id="total-expenses">$0.00</div>
+                    </div>
+                    <div class="card summary-card">
+                        <div class="text-secondary mb-sm">Balance</div>
+                        <div class="summary-amount balance" id="balance">$0.00</div>
+                    </div>
+                </div>
+
+                <!-- Sources and Entries -->
+                <div class="grid grid-cols-2 gap-lg">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Budget Sources</h2>
+                        </div>
+                        <div class="card-body p-0" id="sources-list">
+                            <div class="empty-state">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Recent Entries</h2>
+                        </div>
+                        <div class="card-body p-0" id="entries-list">
+                            <div class="empty-state">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Source Modal -->
+    <div class="modal-overlay" id="source-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Budget Source</h3>
+                <button class="modal-close" onclick="App.closeModal('source-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="source-name" class="form-input" placeholder="e.g., Salary">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type</label>
+                    <select id="source-type" class="form-select">
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expected Amount</label>
+                    <input type="number" id="source-amount" class="form-input" placeholder="0.00" step="0.01">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('source-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSource()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Entry Modal -->
+    <div class="modal-overlay" id="entry-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Entry</h3>
+                <button class="modal-close" onclick="App.closeModal('entry-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Source</label>
+                    <select id="entry-source" class="form-select"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Amount</label>
+                    <input type="number" id="entry-amount" class="form-input" placeholder="0.00" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input type="date" id="entry-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" id="entry-desc" class="form-input" placeholder="Optional">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('entry-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveEntry()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let sources = [];
+        let entries = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadData();
+        });
+
+        async function loadData() {
+            try {
+                [sources, entries] = await Promise.all([
+                    API.budget.listSources(),
+                    API.budget.listEntries()
+                ]);
+                const summary = await API.budget.getSummary();
+                renderSummary(summary);
+                renderSources();
+                renderEntries();
+            } catch (e) {
+                App.toast('Failed to load budget data', 'error');
+            }
+        }
+
+        function renderSummary(summary) {
+            document.getElementById('total-income').textContent = '$' + (summary.totalIncome || 0).toFixed(2);
+            document.getElementById('total-expenses').textContent = '$' + (summary.totalExpenses || 0).toFixed(2);
+            document.getElementById('balance').textContent = '$' + (summary.balance || 0).toFixed(2);
+        }
+
+        function renderSources() {
+            const container = document.getElementById('sources-list');
+            if (sources.length === 0) {
+                container.innerHTML = '<div class="p-lg text-center text-secondary">No sources yet</div>';
+                return;
+            }
+            container.innerHTML = sources.map(s => `
+                <div class="list-item">
+                    <div class="list-item-icon" style="background: ${s.color}20; color: ${s.color}">${s.icon}</div>
+                    <div class="list-item-content">
+                        <div class="list-item-title">${App.escapeHtml(s.name)}</div>
+                        <div class="list-item-subtitle">${s.type} • ${s.frequency}</div>
+                    </div>
+                    <span class="${s.type === 'income' ? 'text-success' : 'text-error'}">$${s.amount.toFixed(2)}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderEntries() {
+            const container = document.getElementById('entries-list');
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="p-lg text-center text-secondary">No entries yet</div>';
+                return;
+            }
+            container.innerHTML = entries.slice(0, 10).map(e => `
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-title">${App.escapeHtml(e.sourceName || 'Unknown')}</div>
+                        <div class="list-item-subtitle">${e.date}${e.description ? ' • ' + e.description : ''}</div>
+                    </div>
+                    <span class="${e.sourceType === 'income' ? 'text-success' : 'text-error'}">$${e.amount.toFixed(2)}</span>
+                </div>
+            `).join('');
+        }
+
+        function openAddSource() {
+            document.getElementById('source-name').value = '';
+            document.getElementById('source-type').value = 'income';
+            document.getElementById('source-amount').value = '';
+            App.openModal('source-modal');
+        }
+
+        function openAddEntry() {
+            document.getElementById('entry-source').innerHTML = sources.map(s =>
+                `<option value="${s.id}">${App.escapeHtml(s.name)} (${s.type})</option>`
+            ).join('');
+            document.getElementById('entry-amount').value = '';
+            document.getElementById('entry-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('entry-desc').value = '';
+            App.openModal('entry-modal');
+        }
+
+        async function saveSource() {
+            const name = document.getElementById('source-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+            try {
+                await API.budget.createSource({
+                    name,
+                    type: document.getElementById('source-type').value,
+                    amount: parseFloat(document.getElementById('source-amount').value) || 0
+                });
+                App.closeModal('source-modal');
+                loadData();
+                App.toast('Source created!', 'success');
+            } catch (e) {
+                App.toast('Failed to create source', 'error');
+            }
+        }
+
+        async function saveEntry() {
+            const sourceId = document.getElementById('entry-source').value;
+            const amount = parseFloat(document.getElementById('entry-amount').value);
+            if (!sourceId || !amount) { App.toast('Source and amount required', 'error'); return; }
+            try {
+                await API.budget.createEntry({
+                    sourceId: parseInt(sourceId),
+                    amount,
+                    date: document.getElementById('entry-date').value,
+                    description: document.getElementById('entry-desc').value
+                });
+                App.closeModal('entry-modal');
+                loadData();
+                App.toast('Entry added!', 'success');
+            } catch (e) {
+                App.toast('Failed to add entry', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

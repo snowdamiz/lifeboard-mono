@@ -12,48 +12,48 @@ export const useHabitsStore = defineStore('habits', () => {
   const completions = ref<Map<string, HabitCompletion[]>>(new Map())
   const loading = ref(false)
 
-  const dailyHabits = computed(() => 
+  const dailyHabits = computed(() =>
     habits.value.filter(h => h.frequency === 'daily')
   )
 
-  const weeklyHabits = computed(() => 
+  const weeklyHabits = computed(() =>
     habits.value.filter(h => h.frequency === 'weekly')
   )
 
-  const completedToday = computed(() => 
+  const completedToday = computed(() =>
     habits.value.filter(h => h.completed_today)
   )
 
-  const pendingToday = computed(() => 
+  const pendingToday = computed(() =>
     habits.value.filter(h => !h.completed_today)
   )
 
-  const totalStreak = computed(() => 
+  const totalStreak = computed(() =>
     habits.value.reduce((sum, h) => sum + h.streak_count, 0)
   )
+
+  const filterTags = ref<string[]>([])
 
   async function fetchHabits() {
     loading.value = true
     try {
-      const response = await api.listHabits()
+      const response = await api.listHabits({ tag_ids: filterTags.value.length > 0 ? filterTags.value : undefined })
       habits.value = response.data as HabitWithStatus[]
     } finally {
       loading.value = false
     }
   }
 
-  async function createHabit(habit: Partial<Habit>) {
+  async function createHabit(habit: Partial<Habit> & { tag_ids?: string[] }) {
     const response = await api.createHabit(habit)
-    habits.value.unshift(response.data as HabitWithStatus)
+    // We re-fetch to ensure order and consistency, or push
+    await fetchHabits()
     return response.data
   }
 
-  async function updateHabit(id: string, updates: Partial<Habit>) {
+  async function updateHabit(id: string, updates: Partial<Habit> & { tag_ids?: string[] }) {
     const response = await api.updateHabit(id, updates)
-    const index = habits.value.findIndex(h => h.id === id)
-    if (index !== -1) {
-      habits.value[index] = response.data as HabitWithStatus
-    }
+    await fetchHabits()
     return response.data
   }
 
@@ -132,7 +132,8 @@ export const useHabitsStore = defineStore('habits', () => {
     completeHabit,
     uncompleteHabit,
     fetchCompletions,
-    getCompletions
+    getCompletions,
+    filterTags
   }
 })
 

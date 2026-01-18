@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+        }
+
+        .stat-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        .stat-label {
+            font-size: var(--text-sm);
+            color: var(--color-text-secondary);
+            margin-top: var(--space-xs);
+        }
+
+        .chart-container {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        .chart-title {
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: var(--space-sm);
+            height: 200px;
+            padding-bottom: var(--space-lg);
+        }
+
+        .bar {
+            flex: 1;
+            background: var(--color-primary);
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            min-width: 30px;
+            position: relative;
+            transition: height 0.3s ease;
+        }
+
+        .bar:hover {
+            opacity: 0.8;
+        }
+
+        .bar-label {
+            position: absolute;
+            bottom: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: var(--text-xs);
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+        }
+
+        .bar-value {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: var(--text-xs);
+            font-weight: 600;
+        }
+
+        .pie-chart {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            margin: 0 auto var(--space-md);
+            background: conic-gradient(var(--color-success) 0deg var(--completed-deg), var(--color-warning) var(--completed-deg) var(--in-progress-deg), var(--color-text-secondary) var(--in-progress-deg) 360deg);
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-lg);
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: var(--text-sm);
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/reports.html" class="nav-link active"><span
+                        class="nav-link-icon">📊</span><span>Reports</span></a>
+                <a href="/pages/search.html" class="nav-link"><span
+                        class="nav-link-icon">🔍</span><span>Search</span></a>
+                <a href="/pages/templates.html" class="nav-link"><span
+                        class="nav-link-icon">📝</span><span>Templates</span></a>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Reports</h1>
+                <div class="ml-auto flex gap-sm">
+                    <select id="time-range" class="form-select" onchange="loadReports()">
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <!-- Summary Stats -->
+                <div class="stat-grid" id="stats-grid">
+                    <div class="stat-card">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-lg">
+                    <!-- Task Completion Chart -->
+                    <div class="chart-container">
+                        <h3 class="chart-title">📅 Tasks by Day</h3>
+                        <div class="bar-chart" id="tasks-chart">
+                            <div class="text-center text-secondary w-full">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Task Status Pie -->
+                    <div class="chart-container">
+                        <h3 class="chart-title">📊 Task Status</h3>
+                        <div class="pie-chart" id="status-chart"
+                            style="--completed-deg: 0deg; --in-progress-deg: 0deg;"></div>
+                        <div class="legend" id="status-legend">
+                            <div class="legend-item">
+                                <div class="legend-dot" style="background: var(--color-success);"></div>Completed
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-dot" style="background: var(--color-warning);"></div>In Progress
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-dot" style="background: var(--color-text-secondary);"></div>Not
+                                Started
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Habits Progress -->
+                <div class="chart-container">
+                    <h3 class="chart-title">✅ Habit Completion Rate</h3>
+                    <div class="bar-chart" id="habits-chart">
+                        <div class="text-center text-secondary w-full">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- Budget Summary -->
+                <div class="chart-container">
+                    <h3 class="chart-title">💰 Budget Overview</h3>
+                    <div id="budget-summary" class="grid grid-cols-3 gap-md">
+                        <div class="text-center">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadReports();
+        });
+
+        async function loadReports() {
+            const range = document.getElementById('time-range').value;
+            const { startDate, endDate } = getDateRange(range);
+
+            try {
+                const [tasks, habits, budgetSummary, goals] = await Promise.all([
+                    API.tasks.list({ startDate, endDate }).catch(() => []),
+                    API.habits.list().catch(() => []),
+                    API.budget.getSummary({ startDate, endDate }).catch(() => ({ income: 0, expenses: 0, balance: 0 })),
+                    API.goals.list().catch(() => [])
+                ]);
+
+                renderStats(tasks, habits, goals, budgetSummary);
+                renderTasksChart(tasks, range);
+                renderStatusChart(tasks);
+                renderHabitsChart(habits);
+                renderBudgetSummary(budgetSummary);
+            } catch (e) {
+                console.error('Failed to load reports:', e);
+            }
+        }
+
+        function getDateRange(range) {
+            const now = new Date();
+            let startDate, endDate;
+
+            if (range === 'week') {
+                const start = new Date(now);
+                start.setDate(now.getDate() - now.getDay());
+                startDate = start.toISOString().split('T')[0];
+                const end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                endDate = end.toISOString().split('T')[0];
+            } else if (range === 'month') {
+                startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+            } else {
+                startDate = `${now.getFullYear()}-01-01`;
+                endDate = `${now.getFullYear()}-12-31`;
+            }
+
+            return { startDate, endDate };
+        }
+
+        function renderStats(tasks, habits, goals, budget) {
+            const completed = tasks.filter(t => t.status === 'completed').length;
+            const activeGoals = goals.filter(g => g.status === 'active').length;
+            const completedGoals = goals.filter(g => g.status === 'completed').length;
+
+            document.getElementById('stats-grid').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${tasks.length}</div>
+                    <div class="stat-label">Total Tasks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--color-success);">${completed}</div>
+                    <div class="stat-label">Completed Tasks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${tasks.length ? Math.round((completed / tasks.length) * 100) : 0}%</div>
+                    <div class="stat-label">Completion Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${activeGoals}</div>
+                    <div class="stat-label">Active Goals</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${habits.length}</div>
+                    <div class="stat-label">Total Habits</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: ${budget.balance >= 0 ? 'var(--color-success)' : 'var(--color-error)'};">$${Math.abs(budget.balance || 0).toFixed(0)}</div>
+                    <div class="stat-label">${budget.balance >= 0 ? 'Net Savings' : 'Net Deficit'}</div>
+                </div>
+            `;
+        }
+
+        function renderTasksChart(tasks, range) {
+            const container = document.getElementById('tasks-chart');
+            const labels = range === 'week' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] :
+                range === 'month' ? Array.from({ length: 4 }, (_, i) => `Week ${i + 1}`) :
+                    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            const counts = new Array(labels.length).fill(0);
+            tasks.forEach(t => {
+                const date = new Date(t.dueDate || t.date);
+                let idx;
+                if (range === 'week') idx = date.getDay();
+                else if (range === 'month') idx = Math.floor((date.getDate() - 1) / 7);
+                else idx = date.getMonth();
+                if (idx >= 0 && idx < counts.length) counts[idx]++;
+            });
+
+            const max = Math.max(...counts, 1);
+            container.innerHTML = counts.map((count, i) => `
+                <div class="bar" style="height: ${(count / max) * 100}%;">
+                    <span class="bar-value">${count}</span>
+                    <span class="bar-label">${labels[i]}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderStatusChart(tasks) {
+            const total = tasks.length || 1;
+            const completed = tasks.filter(t => t.status === 'completed').length;
+            const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+
+            const completedDeg = (completed / total) * 360;
+            const inProgressDeg = completedDeg + (inProgress / total) * 360;
+
+            document.getElementById('status-chart').style.setProperty('--completed-deg', `${completedDeg}deg`);
+            document.getElementById('status-chart').style.setProperty('--in-progress-deg', `${inProgressDeg}deg`);
+        }
+
+        function renderHabitsChart(habits) {
+            const container = document.getElementById('habits-chart');
+            if (habits.length === 0) {
+                container.innerHTML = '<div class="text-center text-secondary w-full p-lg">No habits tracked</div>';
+                return;
+            }
+
+            const max = Math.max(...habits.map(h => h.currentStreak || 0), 1);
+            container.innerHTML = habits.slice(0, 7).map(h => `
+                <div class="bar" style="height: ${((h.currentStreak || 0) / max) * 100}%; background: var(--color-success);">
+                    <span class="bar-value">${h.currentStreak || 0}d</span>
+                    <span class="bar-label">${App.escapeHtml((h.name || '').slice(0, 8))}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderBudgetSummary(summary) {
+            document.getElementById('budget-summary').innerHTML = `
+                <div class="text-center p-md">
+                    <div class="text-2xl font-bold" style="color: var(--color-success);">+$${(summary.income || 0).toFixed(2)}</div>
+                    <div class="text-sm text-secondary">Income</div>
+                </div>
+                <div class="text-center p-md">
+                    <div class="text-2xl font-bold" style="color: var(--color-error);">-$${(summary.expenses || 0).toFixed(2)}</div>
+                    <div class="text-sm text-secondary">Expenses</div>
+                </div>
+                <div class="text-center p-md">
+                    <div class="text-2xl font-bold" style="color: ${(summary.balance || 0) >= 0 ? 'var(--color-success)' : 'var(--color-error)'};">$${(summary.balance || 0).toFixed(2)}</div>
+                    <div class="text-sm text-secondary">Balance</div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+
+</html>

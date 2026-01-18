@@ -16,6 +16,7 @@ defmodule MegaPlanner.Budget.Entry do
     belongs_to :source, MegaPlanner.Budget.Source
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
+    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "budget_entries_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -30,5 +31,11 @@ defmodule MegaPlanner.Budget.Entry do
     |> foreign_key_constraint(:source_id)
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:household_id)
+  end
+
+  def tags_changeset(entry, tags) do
+    entry
+    |> change()
+    |> put_assoc(:tags, tags)
   end
 end

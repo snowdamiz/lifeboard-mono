@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goal Details - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+    <style>
+        .goal-header {
+            padding: var(--space-xl);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+            color: white;
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-lg);
+        }
+
+        .milestone-item {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-sm);
+        }
+
+        .milestone-item.completed {
+            background: var(--color-success-light);
+            border-color: var(--color-success);
+        }
+
+        .milestone-check {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--color-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all var(--transition-fast);
+        }
+
+        .milestone-check:hover {
+            border-color: var(--color-primary);
+        }
+
+        .milestone-check.checked {
+            background: var(--color-success);
+            border-color: var(--color-success);
+            color: white;
+        }
+
+        .progress-ring {
+            width: 120px;
+            height: 120px;
+        }
+
+        .progress-ring-circle {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.5s ease;
+        }
+
+        .progress-ring-bg {
+            stroke: rgba(255, 255, 255, 0.2);
+        }
+
+        .progress-ring-fg {
+            stroke: white;
+            transform: rotate(-90deg);
+            transform-origin: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link active"><span
+                        class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <a href="/pages/goals.html" class="btn btn-ghost">← Back</a>
+                <h1 class="text-xl font-semibold ml-md">Goal Details</h1>
+            </header>
+
+            <div class="app-content">
+                <!-- Goal Header -->
+                <div class="goal-header" id="goal-header">
+                    <div class="flex items-start gap-lg">
+                        <div class="flex-1">
+                            <h1 class="text-2xl font-bold" id="goal-title">Loading...</h1>
+                            <p class="text-white/80 mt-sm" id="goal-description"></p>
+                            <div class="flex items-center gap-md mt-md">
+                                <span id="goal-status" class="tag"></span>
+                                <span id="goal-target" class="text-white/70 text-sm"></span>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <svg class="progress-ring" viewBox="0 0 120 120" id="progress-ring">
+                                <circle class="progress-ring-circle progress-ring-bg" cx="60" cy="60" r="52" />
+                                <circle class="progress-ring-circle progress-ring-fg" cx="60" cy="60" r="52"
+                                    id="progress-circle" />
+                            </svg>
+                            <div class="text-2xl font-bold mt-sm" id="progress-text">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-sm mb-lg">
+                    <button class="btn btn-primary" onclick="openAddMilestone()">+ Add Milestone</button>
+                    <button class="btn btn-secondary" onclick="openEditGoal()">✏️ Edit Goal</button>
+                    <button class="btn btn-success" id="complete-btn" onclick="markComplete()">✓ Mark Complete</button>
+                </div>
+
+                <!-- Milestones -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Milestones</h2>
+                        <span class="text-secondary text-sm" id="milestone-count">0 milestones</span>
+                    </div>
+                    <div class="card-body" id="milestones-container">
+                        <div class="empty-state">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Milestone Modal -->
+    <div class="modal-overlay" id="milestone-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="milestone-modal-title">Add Milestone</h3>
+                <button class="modal-close" onclick="App.closeModal('milestone-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="milestone-id">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <input type="text" id="milestone-title" class="form-input"
+                        placeholder="e.g., Complete course module 1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (optional)</label>
+                    <textarea id="milestone-desc" class="form-textarea"
+                        placeholder="Details about this milestone"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Date (optional)</label>
+                    <input type="date" id="milestone-date" class="form-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('milestone-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveMilestone()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Goal Modal -->
+    <div class="modal-overlay" id="goal-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Goal</h3>
+                <button class="modal-close" onclick="App.closeModal('goal-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <input type="text" id="edit-title" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="edit-desc" class="form-textarea"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Date</label>
+                    <input type="date" id="edit-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select id="edit-priority" class="form-select">
+                        <option value="1">Low</option>
+                        <option value="2">Medium</option>
+                        <option value="3">High</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-error" onclick="deleteGoal()">Delete Goal</button>
+                <button class="btn btn-primary" onclick="saveGoal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let goalId = new URLSearchParams(window.location.search).get('id');
+        let goal = null;
+        let milestones = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            if (!goalId) { window.location.href = '/pages/goals.html'; return; }
+            await loadGoal();
+        });
+
+        async function loadGoal() {
+            try {
+                goal = await API.goals.get(goalId);
+                milestones = goal.milestones || [];
+                renderGoal();
+                renderMilestones();
+            } catch (e) {
+                App.toast('Failed to load goal', 'error');
+            }
+        }
+
+        function renderGoal() {
+            document.getElementById('goal-title').textContent = goal.title;
+            document.getElementById('goal-description').textContent = goal.description || '';
+            document.getElementById('goal-status').textContent = goal.status;
+            document.getElementById('goal-status').className = `tag ${goal.status === 'completed' ? 'tag-success' : 'tag-primary'}`;
+            document.getElementById('goal-target').textContent = goal.targetDate ? `Target: ${goal.targetDate}` : '';
+            document.getElementById('progress-text').textContent = `${goal.progress}%`;
+            document.title = `${goal.title} - LifeBoard`;
+
+            // Update progress ring
+            const circle = document.getElementById('progress-circle');
+            const circumference = 2 * Math.PI * 52;
+            const offset = circumference - (goal.progress / 100) * circumference;
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = offset;
+
+            document.getElementById('complete-btn').style.display = goal.status === 'completed' ? 'none' : '';
+        }
+
+        function renderMilestones() {
+            const container = document.getElementById('milestones-container');
+            document.getElementById('milestone-count').textContent = `${milestones.length} milestone${milestones.length !== 1 ? 's' : ''}`;
+
+            if (milestones.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <div class="empty-state-title">No milestones yet</div>
+                        <div class="empty-state-text">Break down your goal into smaller milestones</div>
+                        <button class="btn btn-primary mt-md" onclick="openAddMilestone()">Add Milestone</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = milestones.map(m => `
+                <div class="milestone-item ${m.completed ? 'completed' : ''}">
+                    <div class="milestone-check ${m.completed ? 'checked' : ''}" onclick="toggleMilestone(${m.id}, ${!m.completed})">
+                        ${m.completed ? '✓' : ''}
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-medium ${m.completed ? 'text-muted' : ''}" style="${m.completed ? 'text-decoration: line-through' : ''}">${App.escapeHtml(m.title)}</div>
+                        ${m.description ? `<div class="text-sm text-secondary mt-xs">${App.escapeHtml(m.description)}</div>` : ''}
+                        ${m.targetDate ? `<div class="text-xs text-secondary mt-xs">📅 ${m.targetDate}</div>` : ''}
+                    </div>
+                    <div class="flex gap-xs">
+                        <button class="btn btn-ghost btn-sm" onclick="editMilestone(${m.id})">✏️</button>
+                        <button class="btn btn-ghost btn-sm text-error" onclick="deleteMilestone(${m.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openAddMilestone() {
+            document.getElementById('milestone-modal-title').textContent = 'Add Milestone';
+            document.getElementById('milestone-id').value = '';
+            document.getElementById('milestone-title').value = '';
+            document.getElementById('milestone-desc').value = '';
+            document.getElementById('milestone-date').value = '';
+            App.openModal('milestone-modal');
+        }
+
+        function editMilestone(id) {
+            const m = milestones.find(x => x.id === id);
+            if (!m) return;
+            document.getElementById('milestone-modal-title').textContent = 'Edit Milestone';
+            document.getElementById('milestone-id').value = m.id;
+            document.getElementById('milestone-title').value = m.title;
+            document.getElementById('milestone-desc').value = m.description || '';
+            document.getElementById('milestone-date').value = m.targetDate || '';
+            App.openModal('milestone-modal');
+        }
+
+        async function saveMilestone() {
+            const id = document.getElementById('milestone-id').value;
+            const data = {
+                title: document.getElementById('milestone-title').value.trim(),
+                description: document.getElementById('milestone-desc').value.trim(),
+                targetDate: document.getElementById('milestone-date').value || null
+            };
+            if (!data.title) { App.toast('Title is required', 'error'); return; }
+
+            try {
+                if (id) {
+                    await API.goals.updateMilestone(goalId, id, data);
+                } else {
+                    await API.goals.createMilestone(goalId, data);
+                }
+                App.closeModal('milestone-modal');
+                loadGoal();
+                App.toast('Milestone saved!', 'success');
+            } catch (e) {
+                App.toast('Failed to save milestone', 'error');
+            }
+        }
+
+        async function toggleMilestone(id, completed) {
+            try {
+                await API.goals.updateMilestone(goalId, id, { completed });
+                loadGoal();
+            } catch (e) {
+                App.toast('Failed to update milestone', 'error');
+            }
+        }
+
+        async function deleteMilestone(id) {
+            if (!confirm('Delete this milestone?')) return;
+            try {
+                await API.goals.deleteMilestone(goalId, id);
+                loadGoal();
+            } catch (e) {
+                App.toast('Failed to delete milestone', 'error');
+            }
+        }
+
+        function openEditGoal() {
+            document.getElementById('edit-title').value = goal.title;
+            document.getElementById('edit-desc').value = goal.description || '';
+            document.getElementById('edit-date').value = goal.targetDate || '';
+            document.getElementById('edit-priority').value = goal.priority || 2;
+            App.openModal('goal-modal');
+        }
+
+        async function saveGoal() {
+            try {
+                await API.goals.update(goalId, {
+                    title: document.getElementById('edit-title').value.trim(),
+                    description: document.getElementById('edit-desc').value.trim(),
+                    targetDate: document.getElementById('edit-date').value || null,
+                    priority: parseInt(document.getElementById('edit-priority').value)
+                });
+                App.closeModal('goal-modal');
+                loadGoal();
+                App.toast('Goal updated!', 'success');
+            } catch (e) {
+                App.toast('Failed to update goal', 'error');
+            }
+        }
+
+        async function deleteGoal() {
+            if (!confirm('Delete this goal and all its milestones?')) return;
+            try {
+                await API.goals.delete(goalId);
+                window.location.href = '/pages/goals.html';
+            } catch (e) {
+                App.toast('Failed to delete goal', 'error');
+            }
+        }
+
+        async function markComplete() {
+            try {
+                await API.goals.update(goalId, { status: 'completed', progress: 100 });
+                loadGoal();
+                App.toast('🎉 Goal completed!', 'success');
+            } catch (e) {
+                App.toast('Failed to complete goal', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

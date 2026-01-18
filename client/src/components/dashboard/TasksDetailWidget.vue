@@ -47,6 +47,7 @@ const todaysTasks = computed(() => calendarStore.todaysTasks)
           v-for="task in todaysTasks.slice(0, 5)"
           :key="task.id"
           class="flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-lg hover:bg-secondary/60 active:bg-secondary transition-colors cursor-pointer touch-manipulation"
+          @click="!isEditMode && router.push(`/calendar?date=${task.scheduled_date}`)"
         >
           <div 
             :class="[

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link active"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link"><span class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Inventory</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddSheet()">+ New Sheet</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div class="grid grid-cols-3 gap-md" id="sheets-grid">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Sheet Modal -->
+    <div class="modal-overlay" id="sheet-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="sheet-modal-title">New Sheet</h3>
+                <button class="modal-close" onclick="App.closeModal('sheet-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="sheet-name" class="form-input" placeholder="e.g., Pantry">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icon</label>
+                    <input type="text" id="sheet-icon" class="form-input" value="📦" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <input type="color" id="sheet-color" class="form-input" value="#3B82F6">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('sheet-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSheet()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let sheets = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadSheets();
+        });
+
+        async function loadSheets() {
+            try {
+                sheets = await API.inventory.listSheets();
+                renderSheets();
+            } catch (e) {
+                App.toast('Failed to load inventory', 'error');
+            }
+        }
+
+        function renderSheets() {
+            const container = document.getElementById('sheets-grid');
+            if (sheets.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: span 3;">
+                        <div class="empty-state-icon">📦</div>
+                        <div class="empty-state-title">No inventory sheets</div>
+                        <div class="empty-state-text">Create sheets to organize your inventory</div>
+                        <button class="btn btn-primary" onclick="openAddSheet()">Create Sheet</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = sheets.map(s => `
+                <a href="/pages/sheet.html?id=${s.id}" class="card card-clickable">
+                    <div class="card-body flex items-center gap-md">
+                        <div class="list-item-icon" style="background: ${s.color}20; color: ${s.color}; font-size: 24px;">${s.icon}</div>
+                        <div class="flex-1">
+                            <div class="font-semibold">${App.escapeHtml(s.name)}</div>
+                            <div class="text-sm text-secondary">${s.itemCount || 0} items</div>
+                        </div>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        function openAddSheet() {
+            document.getElementById('sheet-modal-title').textContent = 'New Sheet';
+            document.getElementById('sheet-name').value = '';
+            document.getElementById('sheet-icon').value = '📦';
+            document.getElementById('sheet-color').value = '#3B82F6';
+            App.openModal('sheet-modal');
+        }
+
+        async function saveSheet() {
+            const name = document.getElementById('sheet-name').value.trim();
+            if (!name) { App.toast('Name is required', 'error'); return; }
+
+            try {
+                await API.inventory.createSheet({
+                    name,
+                    icon: document.getElementById('sheet-icon').value,
+                    color: document.getElementById('sheet-color').value
+                });
+                App.closeModal('sheet-modal');
+                loadSheets();
+                App.toast('Sheet created!', 'success');
+            } catch (e) {
+                App.toast('Failed to create sheet', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

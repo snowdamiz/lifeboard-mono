@@ -6,6 +6,9 @@ defmodule MegaPlanner.Notes do
   import Ecto.Query, warn: false
   alias MegaPlanner.Repo
   alias MegaPlanner.Notes.{Notebook, Page, PageLink}
+  alias MegaPlanner.Tags.Tag
+
+  @page_preloads [:links, :tags]
 
   # Notebooks
 
@@ -13,7 +16,11 @@ defmodule MegaPlanner.Notes do
   Returns the list of notebooks for a household.
   """
   def list_notebooks(household_id) do
-    from(n in Notebook, where: n.household_id == ^household_id, order_by: [asc: n.name])
+    from(n in Notebook,
+      where: n.household_id == ^household_id,
+      order_by: [asc: n.name],
+      preload: [:tags]
+    )
     |> Repo.all()
   end
 
@@ -21,33 +28,63 @@ defmodule MegaPlanner.Notes do
   Gets a single notebook.
   """
   def get_notebook(id) do
-    Repo.get(Notebook, id)
+    Notebook
+    |> Repo.get(id)
+    |> Repo.preload(:tags)
   end
 
   @doc """
   Gets a notebook for a specific household.
   """
   def get_household_notebook(household_id, id) do
-    Repo.get_by(Notebook, id: id, household_id: household_id)
+    Notebook
+    |> Repo.get_by(id: id, household_id: household_id)
+    |> Repo.preload(:tags)
   end
 
   @doc """
-  Creates a notebook.
+  Creates a notebook with optional tags.
   """
   def create_notebook(attrs \\ %{}) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
     %Notebook{}
     |> Notebook.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, notebook} ->
+        notebook = update_notebook_tags(notebook, tag_ids)
+        {:ok, Repo.preload(notebook, :tags)}
+      error -> error
+    end
   end
 
   @doc """
-  Updates a notebook.
+  Updates a notebook with optional tags.
   """
   def update_notebook(%Notebook{} = notebook, attrs) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
     notebook
     |> Notebook.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, notebook} ->
+        notebook = if tag_ids != nil, do: update_notebook_tags(notebook, tag_ids), else: notebook
+        {:ok, Repo.preload(notebook, :tags, force: true)}
+      error -> error
+    end
   end
+
+  defp update_notebook_tags(notebook, tag_ids) when is_list(tag_ids) do
+    tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+    notebook
+    |> Repo.preload(:tags)
+    |> Notebook.tags_changeset(tags)
+    |> Repo.update!()
+  end
+
+  defp update_notebook_tags(notebook, _), do: notebook
 
   @doc """
   Deletes a notebook.
@@ -61,10 +98,27 @@ defmodule MegaPlanner.Notes do
   @doc """
   Returns the list of pages for a notebook.
   """
-  def list_pages(notebook_id) do
-    from(p in Page, where: p.notebook_id == ^notebook_id, order_by: [desc: p.updated_at])
+  def list_pages(notebook_id, opts \\ []) do
+    tag_ids = Keyword.get(opts, :tag_ids)
+
+    query = from(p in Page,
+      where: p.notebook_id == ^notebook_id,
+      order_by: [desc: p.updated_at]
+    )
+
+    query =
+      if tag_ids && length(tag_ids) > 0 do
+        from p in query,
+          join: t in assoc(p, :tags),
+          where: t.id in ^tag_ids,
+          distinct: true
+      else
+        query
+      end
+
+    query
     |> Repo.all()
-    |> Repo.preload(:links)
+    |> Repo.preload(@page_preloads)
   end
 
   @doc """
@@ -73,33 +127,42 @@ defmodule MegaPlanner.Notes do
   def get_page(id) do
     Page
     |> Repo.get(id)
-    |> Repo.preload(:links)
+    |> Repo.preload(@page_preloads)
   end
 
   @doc """
   Gets a page that belongs to a notebook in the household.
   """
   def get_household_page(household_id, id) do
-    result = from(p in Page,
+    from(p in Page,
       join: n in Notebook, on: p.notebook_id == n.id,
       where: p.id == ^id and n.household_id == ^household_id,
-      preload: [:links]
+      preload: ^@page_preloads
     )
     |> Repo.one()
-
-    result
   end
 
   @doc """
   Creates a page.
   """
   def create_page(attrs \\ %{}) do
-    %Page{}
-    |> Page.changeset(attrs)
-    |> Repo.insert()
-    |> case do
-      {:ok, page} -> {:ok, Repo.preload(page, :links)}
-      error -> error
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+
+    result =
+      %Page{}
+      |> Page.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, page} ->
+        page = if tag_ids && length(tag_ids) > 0 do
+          update_page_tags_internal(page, tag_ids)
+        else
+          page
+        end
+        {:ok, Repo.preload(page, @page_preloads, force: true)}
+      error ->
+        error
     end
   end
 
@@ -107,13 +170,41 @@ defmodule MegaPlanner.Notes do
   Updates a page.
   """
   def update_page(%Page{} = page, attrs) do
-    page
-    |> Page.changeset(attrs)
-    |> Repo.update()
-    |> case do
-      {:ok, page} -> {:ok, Repo.preload(page, :links, force: true)}
-      error -> error
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
+    result =
+      page
+      |> Page.changeset(attrs)
+      |> Repo.update()
+
+    case result do
+      {:ok, page} ->
+        page = if tag_ids != nil do
+          update_page_tags_internal(page, tag_ids)
+        else
+          page
+        end
+        {:ok, Repo.preload(page, @page_preloads, force: true)}
+      error ->
+        error
     end
+  end
+
+  @doc """
+  Updates the tags on a page.
+  """
+  def update_page_tags(%Page{} = page, tag_ids) when is_list(tag_ids) do
+    page = update_page_tags_internal(page, tag_ids)
+    {:ok, Repo.preload(page, @page_preloads, force: true)}
+  end
+
+  defp update_page_tags_internal(page, tag_ids) when is_list(tag_ids) do
+    tags = Repo.all(from t in Tag, where: t.id in ^tag_ids)
+
+    page
+    |> Repo.preload(:tags)
+    |> Page.tags_changeset(tags)
+    |> Repo.update!()
   end
 
   @doc """

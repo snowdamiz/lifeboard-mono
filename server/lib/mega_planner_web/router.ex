@@ -98,7 +98,11 @@ defmodule MegaPlannerWeb.Router do
     get "/search", SearchController, :index
 
     # Tags
-    resources "/tags", TagController, except: [:new, :edit]
+    get "/tags/search", TagController, :search
+    post "/tags/create-tasks", TagController, :create_tasks
+    resources "/tags", TagController, except: [:new, :edit] do
+      get "/items", TagController, :items
+    end
 
     # Goal Categories
     resources "/goal-categories", GoalCategoryController, except: [:new, :edit]

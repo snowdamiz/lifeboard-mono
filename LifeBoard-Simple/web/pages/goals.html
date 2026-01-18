@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-system">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals - LifeBoard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/themes.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="app-sidebar" id="sidebar">
+            <div class="sidebar-header p-md flex items-center gap-sm">
+                <span class="text-2xl">📋</span>
+                <span class="sidebar-title text-lg font-semibold">LifeBoard</span>
+            </div>
+            <nav class="sidebar-nav flex-1 p-sm">
+                <a href="/" class="nav-link"><span class="nav-link-icon">🏠</span><span>Dashboard</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/calendar.html" class="nav-link"><span
+                        class="nav-link-icon">📅</span><span>Calendar</span></a>
+                <a href="/pages/inventory.html" class="nav-link"><span
+                        class="nav-link-icon">📦</span><span>Inventory</span></a>
+                <a href="/pages/shopping.html" class="nav-link"><span
+                        class="nav-link-icon">🛒</span><span>Shopping</span></a>
+                <a href="/pages/budget.html" class="nav-link"><span
+                        class="nav-link-icon">💰</span><span>Budget</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/notes.html" class="nav-link"><span class="nav-link-icon">📓</span><span>Notes</span></a>
+                <a href="/pages/goals.html" class="nav-link active"><span
+                        class="nav-link-icon">🎯</span><span>Goals</span></a>
+                <a href="/pages/habits.html" class="nav-link"><span
+                        class="nav-link-icon">✅</span><span>Habits</span></a>
+                <div class="nav-divider"></div>
+                <a href="/pages/tags.html" class="nav-link"><span class="nav-link-icon">🏷️</span><span>Tags</span></a>
+                <a href="/pages/settings.html" class="nav-link"><span
+                        class="nav-link-icon">⚙️</span><span>Settings</span></a>
+            </nav>
+            <div class="sidebar-footer p-sm">
+                <button class="btn btn-ghost w-full justify-start" id="theme-toggle"><span
+                        id="theme-icon">💻</span><span>Theme</span></button>
+                <button class="btn btn-ghost w-full justify-start text-error"
+                    id="logout-btn"><span>🚪</span><span>Logout</span></button>
+            </div>
+        </aside>
+
+        <main class="app-main">
+            <header class="app-header">
+                <button class="btn btn-icon btn-ghost" id="sidebar-toggle">☰</button>
+                <h1 class="text-xl font-semibold ml-md">Goals</h1>
+                <div class="ml-auto">
+                    <button class="btn btn-primary" onclick="openAddGoal()">+ New Goal</button>
+                </div>
+            </header>
+
+            <div class="app-content">
+                <div id="goals-container">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Goal Modal -->
+    <div class="modal-overlay" id="goal-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">New Goal</h3>
+                <button class="modal-close" onclick="App.closeModal('goal-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <input type="text" id="goal-title" class="form-input" placeholder="e.g., Learn Spanish">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="goal-desc" class="form-textarea" placeholder="Why is this goal important?"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target Date</label>
+                    <input type="date" id="goal-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select id="goal-priority" class="form-select">
+                        <option value="1">Low</option>
+                        <option value="2" selected>Medium</option>
+                        <option value="3">High</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="App.closeModal('goal-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveGoal()">Create Goal</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let goals = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!API.isLoggedIn()) return;
+            await loadGoals();
+        });
+
+        async function loadGoals() {
+            try {
+                goals = await API.goals.list();
+                renderGoals();
+            } catch (e) {
+                App.toast('Failed to load goals', 'error');
+            }
+        }
+
+        function renderGoals() {
+            const container = document.getElementById('goals-container');
+            if (goals.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <div class="empty-state-title">No goals yet</div>
+                        <div class="empty-state-text">Set goals to track your progress</div>
+                        <button class="btn btn-primary" onclick="openAddGoal()">Create Goal</button>
+                    </div>`;
+                return;
+            }
+
+            const active = goals.filter(g => g.status === 'active');
+            const completed = goals.filter(g => g.status === 'completed');
+
+            container.innerHTML = `
+                ${active.length > 0 ? `
+                    <h2 class="text-lg font-semibold mb-md">Active Goals</h2>
+                    <div class="grid grid-cols-2 gap-md mb-lg">
+                        ${active.map(renderGoalCard).join('')}
+                    </div>
+                ` : ''}
+                ${completed.length > 0 ? `
+                    <h2 class="text-lg font-semibold mb-md text-secondary">Completed</h2>
+                    <div class="grid grid-cols-2 gap-md">
+                        ${completed.map(renderGoalCard).join('')}
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function renderGoalCard(goal) {
+            const priorityColors = { 1: 'tag', 2: 'tag tag-warning', 3: 'tag tag-error' };
+            const priorityLabels = { 1: 'Low', 2: 'Medium', 3: 'High' };
+            return `
+                <div class="card card-clickable" onclick="window.location.href='/pages/goal.html?id=${goal.id}'">
+                    <div class="card-body">
+                        <div class="flex items-start justify-between mb-md">
+                            <div>
+                                <h3 class="font-semibold ${goal.status === 'completed' ? 'text-muted' : ''}">${App.escapeHtml(goal.title)}</h3>
+                                ${goal.targetDate ? `<div class="text-sm text-secondary">Due: ${goal.targetDate}</div>` : ''}
+                            </div>
+                            <span class="${priorityColors[goal.priority]}">${priorityLabels[goal.priority]}</span>
+                        </div>
+                        ${goal.description ? `<p class="text-sm text-secondary mb-md line-clamp-2">${App.escapeHtml(goal.description)}</p>` : ''}
+                        <div class="mb-sm">
+                            <div class="flex justify-between text-sm mb-xs">
+                                <span>Progress</span>
+                                <span>${goal.progress}%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" style="width: ${goal.progress}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openAddGoal() {
+            document.getElementById('goal-title').value = '';
+            document.getElementById('goal-desc').value = '';
+            document.getElementById('goal-date').value = '';
+            document.getElementById('goal-priority').value = '2';
+            App.openModal('goal-modal');
+        }
+
+        async function saveGoal() {
+            const title = document.getElementById('goal-title').value.trim();
+            if (!title) { App.toast('Title is required', 'error'); return; }
+            try {
+                await API.goals.create({
+                    title,
+                    description: document.getElementById('goal-desc').value,
+                    targetDate: document.getElementById('goal-date').value || null,
+                    priority: parseInt(document.getElementById('goal-priority').value)
+                });
+                App.closeModal('goal-modal');
+                loadGoals();
+                App.toast('Goal created!', 'success');
+            } catch (e) {
+                App.toast('Failed to create goal', 'error');
+            }
+        }
+
+        async function completeGoal(id) {
+            try {
+                await API.goals.update(id, { status: 'completed', progress: 100 });
+                loadGoals();
+                App.toast('🎉 Goal completed!', 'success');
+            } catch (e) {
+                App.toast('Failed to update goal', 'error');
+            }
+        }
+
+        async function deleteGoal(id) {
+            if (!confirm('Delete this goal?')) return;
+            try {
+                await API.goals.delete(id);
+                loadGoals();
+            } catch (e) {
+                App.toast('Failed to delete goal', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>
