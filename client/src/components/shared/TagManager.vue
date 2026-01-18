@@ -45,10 +45,6 @@ interface TagUsageInfo {
     habits: number
     inventory_items: number
     budget_sources: number
-    inventory_sheets: number
-    shopping_lists: number
-    budget_entries: number
-    notebooks: number
     total: number
   }
 }
@@ -206,10 +202,6 @@ const initiateDelete = async () => {
           habits: items.habits?.length || 0,
           inventory_items: items.inventory_items?.length || 0,
           budget_sources: items.budget_sources?.length || 0,
-          inventory_sheets: items.inventory_sheets?.length || 0,
-          shopping_lists: items.shopping_lists?.length || 0,
-          budget_entries: items.budget_entries?.length || 0,
-          notebooks: items.notebooks?.length || 0,
           total: 0
         }
         usage.total = Object.values(usage).reduce((a, b) => a + b, 0)
@@ -220,8 +212,7 @@ const initiateDelete = async () => {
         tagUsageInfo.value[tagId] = { 
           tag, 
           usage: { 
-            tasks: 0, goals: 0, pages: 0, habits: 0, inventory_items: 0, budget_sources: 0,
-            inventory_sheets: 0, shopping_lists: 0, budget_entries: 0, notebooks: 0, total: 0 
+            tasks: 0, goals: 0, pages: 0, habits: 0, inventory_items: 0, budget_sources: 0, total: 0 
           }
         }
       }
@@ -434,11 +425,7 @@ defineExpose({
                   <span v-if="info.usage.habits">{{ info.usage.habits }} habits, </span>
                   <span v-if="info.usage.pages">{{ info.usage.pages }} notes, </span>
                   <span v-if="info.usage.inventory_items">{{ info.usage.inventory_items }} inventory items, </span>
-                  <span v-if="info.usage.inventory_sheets">{{ info.usage.inventory_sheets }} sheets, </span>
-                  <span v-if="info.usage.shopping_lists">{{ info.usage.shopping_lists }} lists, </span>
-                  <span v-if="info.usage.budget_sources">{{ info.usage.budget_sources }} budget sources, </span>
-                  <span v-if="info.usage.budget_entries">{{ info.usage.budget_entries }} budget entries, </span>
-                  <span v-if="info.usage.notebooks">{{ info.usage.notebooks }} notebooks</span>
+                  <span v-if="info.usage.budget_sources">{{ info.usage.budget_sources }} budget sources</span>
                 </div>
               </div>
             </div>
