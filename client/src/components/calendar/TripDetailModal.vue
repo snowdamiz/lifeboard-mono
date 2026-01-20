@@ -285,7 +285,7 @@ onMounted(() => {
 
                   <Input
                     :model-value="stop.notes || ''"
-                    @blur="(e) => updateStop(stop, { notes: (e.target as HTMLInputElement).value })"
+                    @blur="(e: FocusEvent) => updateStop(stop, { notes: (e.target as HTMLInputElement).value })"
                     placeholder="Notes for this stop..."
                     class="text-sm"
                   />
