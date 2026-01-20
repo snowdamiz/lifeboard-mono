@@ -13,7 +13,20 @@ defmodule MegaPlanner.Inventory.Item do
     field :store, :string
     field :unit_of_measure, :string
     field :brand, :string
+    field :count, :decimal
+    field :price_per_count, :decimal
+    field :price_per_unit, :decimal
+    field :taxable, :boolean, default: false
+    field :total_price, :decimal
+    field :store_code, :string
+    field :item_name, :string
     field :custom_fields, :map, default: %{}
+
+    field :purchase_date, :utc_datetime
+
+    belongs_to :purchase, MegaPlanner.Receipts.Purchase
+    belongs_to :trip, MegaPlanner.Receipts.Trip
+    belongs_to :stop, MegaPlanner.Receipts.Stop
 
     belongs_to :sheet, MegaPlanner.Inventory.Sheet
     has_many :shopping_list_items, MegaPlanner.Inventory.ShoppingListItem, foreign_key: :inventory_item_id
@@ -28,7 +41,11 @@ defmodule MegaPlanner.Inventory.Item do
   @doc false
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:name, :quantity, :min_quantity, :is_necessity, :store, :unit_of_measure, :brand, :custom_fields, :sheet_id])
+    |> cast(attrs, [
+      :name, :quantity, :min_quantity, :is_necessity, :store, :unit_of_measure, :brand,
+      :count, :price_per_count, :price_per_unit, :taxable, :total_price, :store_code, :item_name,
+      :custom_fields, :sheet_id, :purchase_id, :trip_id, :stop_id, :purchase_date
+    ])
     |> validate_required([:name, :sheet_id])
     |> validate_number(:quantity, greater_than_or_equal_to: 0)
     |> validate_number(:min_quantity, greater_than_or_equal_to: 0)

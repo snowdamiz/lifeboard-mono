@@ -13,6 +13,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  manageTrip: [tripId: string]
+}>()
 const calendarStore = useCalendarStore()
 const showEditForm = ref(false)
 const isDeleting = ref(false)
@@ -106,6 +109,7 @@ const deleteTask = async () => {
       :task="task"
       @close="showEditForm = false"
       @saved="showEditForm = false"
+      @manage-trip="(tripId) => $emit('manageTrip', tripId)"
     />
   </div>
 </template>

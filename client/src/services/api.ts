@@ -10,6 +10,13 @@ import type {
   BudgetSource,
   BudgetEntry,
   BudgetSummary,
+  Store,
+  Trip,
+  Stop,
+  Brand,
+  Unit,
+  Purchase,
+  BrandSuggestion,
   Notebook,
   Page,
   SearchResults,
@@ -23,7 +30,8 @@ import type {
   HabitCompletion,
   TaskTemplate,
   UserPreferences,
-  ApiResponse
+  ApiResponse,
+  Driver
 } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
@@ -406,6 +414,207 @@ class ApiClient {
     const query = searchParams.toString()
     return this.request(`/budget/summary${query ? `?${query}` : ''}`)
   }
+
+  // Stores
+  async listStores(): Promise<ApiResponse<Store[]>> {
+    return this.request('/receipts/stores')
+  }
+
+  async getStore(id: string): Promise<ApiResponse<Store>> {
+    return this.request(`/receipts/stores/${id}`)
+  }
+
+  async createStore(store: Partial<Store>): Promise<ApiResponse<Store>> {
+    return this.request('/receipts/stores', {
+      method: 'POST',
+      body: JSON.stringify({ store })
+    })
+  }
+
+  async updateStore(id: string, store: Partial<Store>): Promise<ApiResponse<Store>> {
+    return this.request(`/receipts/stores/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ store })
+    })
+  }
+
+  async deleteStore(id: string): Promise<void> {
+    return this.request(`/receipts/stores/${id}`, { method: 'DELETE' })
+  }
+
+  async getStoreInventory(id: string): Promise<ApiResponse<Array<{ id: string; source: string; brand: string | null; name: string; unit: string | null; price: string | null; date: string }>>> {
+    return this.request(`/receipts/stores/${id}/inventory`)
+  }
+
+  async updateStoreInventoryItem(storeId: string, itemId: string, payload: { source: string; propagate: boolean;[key: string]: any }): Promise<ApiResponse<Array<any>>> {
+    return this.request(`/receipts/stores/${storeId}/inventory/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    })
+  }
+
+  // Drivers
+  async listDrivers(): Promise<ApiResponse<Driver[]>> {
+    return this.request('/receipts/drivers')
+  }
+
+  async createDriver(driver: Partial<Driver>): Promise<ApiResponse<Driver>> {
+    return this.request('/receipts/drivers', {
+      method: 'POST',
+      body: JSON.stringify({ driver })
+    })
+  }
+
+  // Trips
+  async listTrips(params?: {
+    start_date?: string
+    end_date?: string
+  }): Promise<ApiResponse<Trip[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.start_date) searchParams.set('start_date', params.start_date)
+    if (params?.end_date) searchParams.set('end_date', params.end_date)
+
+    const query = searchParams.toString()
+    return this.request(`/receipts/trips${query ? `?${query}` : ''}`)
+  }
+
+  async getTrip(id: string): Promise<ApiResponse<Trip>> {
+    return this.request(`/receipts/trips/${id}`)
+  }
+
+  async createTrip(trip: Partial<Trip>): Promise<ApiResponse<Trip>> {
+    return this.request('/receipts/trips', {
+      method: 'POST',
+      body: JSON.stringify({ trip })
+    })
+  }
+
+  async updateTrip(id: string, trip: Partial<Trip>): Promise<ApiResponse<Trip>> {
+    return this.request(`/receipts/trips/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ trip })
+    })
+  }
+
+  async deleteTrip(id: string): Promise<void> {
+    return this.request(`/receipts/trips/${id}`, { method: 'DELETE' })
+  }
+
+  // Stops
+  async createStop(tripId: string, stop: Partial<Stop>): Promise<ApiResponse<Stop>> {
+    return this.request(`/receipts/trips/${tripId}/stops`, {
+      method: 'POST',
+      body: JSON.stringify({ stop })
+    })
+  }
+
+  async updateStop(id: string, stop: Partial<Stop>): Promise<ApiResponse<Stop>> {
+    return this.request(`/receipts/stops/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ stop })
+    })
+  }
+
+  async deleteStop(id: string): Promise<void> {
+    return this.request(`/receipts/stops/${id}`, { method: 'DELETE' })
+  }
+
+  // Brands
+  async listBrands(params?: { search?: string }): Promise<ApiResponse<Brand[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.search) searchParams.set('search', params.search)
+
+    const query = searchParams.toString()
+    return this.request(`/receipts/brands${query ? `?${query}` : ''}`)
+  }
+
+  async searchBrands(query: string): Promise<ApiResponse<Brand[]>> {
+    return this.request(`/receipts/brands/search?q=${encodeURIComponent(query)}`)
+  }
+
+  async createBrand(brand: Partial<Brand>): Promise<ApiResponse<Brand>> {
+    return this.request('/receipts/brands', {
+      method: 'POST',
+      body: JSON.stringify({ brand })
+    })
+  }
+
+  async updateBrand(id: string, brand: Partial<Brand>): Promise<ApiResponse<Brand>> {
+    return this.request(`/receipts/brands/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ brand })
+    })
+  }
+
+  // Units
+  async listUnits(): Promise<ApiResponse<Unit[]>> {
+    return this.request('/receipts/units')
+  }
+
+  async createUnit(unit: Partial<Unit>): Promise<ApiResponse<Unit>> {
+    return this.request('/receipts/units', {
+      method: 'POST',
+      body: JSON.stringify({ unit })
+    })
+  }
+
+  // Purchases
+  async listPurchases(params?: {
+    stop_id?: string
+    brand?: string
+  }): Promise<ApiResponse<Purchase[]>> {
+    const searchParams = new URLSearchParams()
+    if (params?.stop_id) searchParams.set('stop_id', params.stop_id)
+    if (params?.brand) searchParams.set('brand', params.brand)
+
+    const query = searchParams.toString()
+    return this.request(`/receipts/purchases${query ? `?${query}` : ''}`)
+  }
+
+  async getPurchase(id: string): Promise<ApiResponse<Purchase>> {
+    return this.request(`/receipts/purchases/${id}`)
+  }
+
+  async createPurchase(purchase: Partial<Purchase> & { date?: string }): Promise<ApiResponse<Purchase>> {
+    return this.request('/receipts/purchases', {
+      method: 'POST',
+      body: JSON.stringify({ purchase })
+    })
+  }
+
+  async updatePurchase(id: string, purchase: Partial<Purchase>): Promise<ApiResponse<Purchase>> {
+    return this.request(`/receipts/purchases/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ purchase })
+    })
+  }
+
+  async deletePurchase(id: string): Promise<void> {
+    return this.request(`/receipts/purchases/${id}`, { method: 'DELETE' })
+  }
+
+  async suggestByBrand(brand: string, storeId?: string): Promise<ApiResponse<BrandSuggestion>> {
+    const params = new URLSearchParams()
+    params.set('brand', brand)
+    if (storeId) params.set('store_id', storeId)
+
+    return this.request(`/receipts/purchases/suggest/brand?${params.toString()}`)
+  }
+
+  async suggestByItem(item: string): Promise<ApiResponse<BrandSuggestion[]>> {
+    return this.request(`/receipts/purchases/suggest/item?item=${encodeURIComponent(item)}`)
+  }
+
+  async addPurchasesToInventory(data: {
+    purchase_ids: string[]
+    sheet_assignments: Record<string, string>
+  }): Promise<void> {
+    return this.request('/receipts/purchases/to-inventory', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  }
+
 
   // Notebooks
   async listNotebooks(params?: { tag_ids?: string[] }): Promise<ApiResponse<Notebook[]>> {

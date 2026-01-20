@@ -54,7 +54,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
     end
   end
 
-  def delete_list(conn, %{"id" => id}) do
+  def delete(conn, %{"id" => id}) do
     user = Guardian.Plug.current_resource(conn)
 
     with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, id),

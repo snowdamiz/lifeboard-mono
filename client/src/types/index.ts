@@ -68,8 +68,9 @@ export interface Task {
   status: 'not_started' | 'in_progress' | 'completed'
   is_recurring: boolean
   recurrence_rule: RecurrenceRule | null
-  task_type: 'todo' | 'timed' | 'floating'
+  task_type: 'todo' | 'timed' | 'floating' | 'trip'
   parent_task_id: string | null
+  trip_id: string | null
   steps: TaskStep[]
   tags: Tag[]
   inserted_at: string
@@ -104,6 +105,13 @@ export interface InventoryItem {
   store: string | null
   unit_of_measure: string | null
   brand: string | null
+  count: string | null
+  price_per_count: string | null
+  price_per_unit: string | null
+  taxable: boolean | null
+  total_price: string | null
+  store_code: string | null
+  item_name: string | null
   tags: Tag[]
   tag_ids?: string[] // Used when creating/updating
   custom_fields: Record<string, unknown>
@@ -166,6 +174,7 @@ export interface BudgetEntry {
   tag_ids?: string[]
   inserted_at: string
   updated_at: string
+  is_trip?: boolean
 }
 
 export interface BudgetSummary {
@@ -176,6 +185,96 @@ export interface BudgetSummary {
   net: string
   savings_rate: string
   entry_count: number
+}
+
+// Receipts
+export interface Store {
+  id: string
+  name: string
+  address: string | null
+  state: string | null
+  store_code: string | null
+  tax_rate: string | null
+  inserted_at: string
+  updated_at: string
+}
+
+export interface Stop {
+  id: string
+  trip_id: string
+  store_id: string | null
+  store_name: string | null
+  store_address: string | null
+  notes: string | null
+  position: number
+  purchases?: Purchase[]
+  inserted_at: string
+}
+
+export interface Driver {
+  id: string
+  name: string
+  household_id: string
+  inserted_at: string
+  updated_at: string
+}
+
+export interface Trip {
+  id: string
+  driver: string | null
+  driver_id: string | null
+  trip_start: string | null
+  trip_end: string | null
+  notes: string | null
+  stops: Stop[]
+  inserted_at: string
+  updated_at: string
+}
+
+export interface Brand {
+  id: string
+  name: string
+  default_item: string | null
+  default_unit_measurement: string | null
+  default_tags: string[]
+  image_url: string | null
+  inserted_at: string
+  updated_at: string
+}
+
+export interface Unit {
+  id: string
+  name: string
+  household_id: string
+  inserted_at: string
+  updated_at: string
+}
+
+export interface Purchase {
+  id: string
+  stop_id: string | null
+  budget_entry_id: string
+  brand: string
+  item: string
+  unit_measurement: string | null
+  count: string | null
+  price_per_count: string | null
+  units: string | null
+  price_per_unit: string | null
+  taxable: boolean
+  tax_rate: string | null
+  total_price: string
+  store_code: string | null
+  item_name: string | null
+  tags: Tag[]
+  tag_ids?: string[]
+  inserted_at: string
+  updated_at: string
+}
+
+export interface BrandSuggestion {
+  brand: Brand | { name: string } | null
+  recent_purchases: Purchase[]
 }
 
 // Notes
@@ -344,7 +443,7 @@ export interface TaskTemplate {
   task_description: string | null
   duration_minutes: number | null
   priority: number
-  task_type: 'todo' | 'timed' | 'floating'
+  task_type: 'todo' | 'timed' | 'floating' | 'trip'
   default_steps: string[]
   inserted_at: string
   updated_at: string

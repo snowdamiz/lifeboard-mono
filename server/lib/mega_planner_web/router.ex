@@ -88,6 +88,32 @@ defmodule MegaPlannerWeb.Router do
       get "/summary", BudgetController, :summary
     end
 
+    # Receipts
+    scope "/receipts" do
+      resources "/stores", StoreController, except: [:new, :edit] do
+        get "/inventory", StoreController, :get_inventory
+        put "/inventory/:item_id", StoreController, :update_inventory_item
+      end
+      
+      get "/brands/search", BrandController, :search
+      resources "/brands", BrandController, except: [:new, :edit, :delete]
+      
+      resources "/units", UnitController, only: [:index, :create]
+      
+      resources "/trips", TripController, except: [:new, :edit] do
+        resources "/stops", StopController, only: [:index, :create]
+      end
+      
+      resources "/stops", StopController, only: [:update, :delete]
+      
+      resources "/purchases", PurchaseController, except: [:new, :edit]
+      get "/purchases/suggest/brand", PurchaseController, :suggest_by_brand
+      get "/purchases/suggest/item", PurchaseController, :suggest_by_item
+      post "/purchases/to-inventory", PurchaseController, :add_to_inventory
+      
+      resources "/drivers", DriverController, only: [:index, :create]
+    end
+
     # Notes
     resources "/notebooks", NotebookController, except: [:new, :edit] do
       resources "/pages", PageController, only: [:index, :create]

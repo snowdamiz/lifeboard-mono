@@ -103,6 +103,7 @@ defmodule MegaPlanner.Calendar do
   Updates a task.
   """
   def update_task(%Task{} = task, attrs) do
+    old_task = task
     {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
 
     result =
@@ -117,6 +118,14 @@ defmodule MegaPlanner.Calendar do
         else
           task
         end
+
+        # Propagate date changes to Trip and Budget Entries
+        if task.trip_id && (task.date != old_task.date || task.start_time != old_task.start_time) do
+           MegaPlanner.Receipts.update_trip_date(task.trip_id, task.date, task.start_time)
+        end
+
+        {:ok, Repo.preload(task, @task_preloads, force: true)}
+
         {:ok, Repo.preload(task, @task_preloads, force: true)}
       error ->
         error
@@ -142,10 +151,23 @@ defmodule MegaPlanner.Calendar do
   end
 
   @doc """
-  Deletes a task.
+  Deletes a task. If it's a trip task, also deletes the associated trip.
   """
   def delete_task(%Task{} = task) do
-    Repo.delete(task)
+    Repo.transaction(fn ->
+      # If there's a trip associated, delete it too (which cascades to purchases/budget)
+      if task.trip_id do
+        case MegaPlanner.Receipts.get_trip(task.trip_id) do
+          nil -> :ok
+          trip -> MegaPlanner.Receipts.delete_trip(trip)
+        end
+      end
+
+      case Repo.delete(task) do
+        {:ok, task} -> task
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc """

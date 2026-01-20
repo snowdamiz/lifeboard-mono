@@ -4,6 +4,7 @@ defmodule MegaPlanner.Inventory do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias MegaPlanner.Repo
   alias MegaPlanner.Inventory.{Sheet, Item, ShoppingList, ShoppingListItem}
   alias MegaPlanner.Tags.Tag
@@ -288,7 +289,22 @@ defmodule MegaPlanner.Inventory do
   Deletes a shopping list.
   """
   def delete_shopping_list(%ShoppingList{} = list) do
-    Repo.delete(list)
+    # Try simple delete first, but catch any unexpected crashes
+    try do
+      # Preload and clear tags first just in case
+      list = Repo.preload(list, :tags)
+      list
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.put_assoc(:tags, [])
+      |> Repo.update!()
+
+      Repo.delete(list)
+    rescue
+      e ->
+        require Logger
+        Logger.error("Failed to delete shopping list: #{inspect(e)}")
+        {:error, "Delete failed: #{inspect(e)}"}
+    end
   end
 
   # Shopping List Items
@@ -434,5 +450,133 @@ defmodule MegaPlanner.Inventory do
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
+  end
+
+  alias MegaPlanner.Receipts.Purchase
+
+  @doc """
+  Creates an inventory item from a purchase.
+  """
+  def create_item_from_purchase(%Purchase{} = purchase) do
+    purchase = Repo.preload(purchase, [:budget_entry, stop: :store])
+    household_id = purchase.household_id
+    
+    # Determine quantity to add (default to 1 if units is nil or 0)
+    quantity_to_add = 
+      if purchase.units && Decimal.gt?(purchase.units, 0) do
+        Decimal.to_integer(purchase.units)
+      else
+        1
+      end
+
+    # Normalize inputs for search
+    search_brand = String.trim(purchase.brand || "")
+    search_item = String.trim(purchase.item || "")
+
+    # Determine purchase store name for matching
+    store_name = if purchase.stop && purchase.stop.store, do: String.trim(purchase.stop.store.name), else: nil
+
+
+    # 0. Try to find an item by store_code (highest priority)
+    # This acts as our "Store-Brand Key"
+    store_code_match =
+      if purchase.store_code do
+        # We also filter by household to ensure we don't cross boundaries
+        Repo.one(from i in Item,
+          join: s in assoc(i, :sheet),
+          where: s.household_id == ^household_id and i.store_code == ^purchase.store_code,
+          limit: 1
+        )
+      else
+        nil
+      end
+
+    if store_code_match do
+      # If we found a match by code, update it regardless of name mismatch
+      update_item(store_code_match, %{quantity: store_code_match.quantity + quantity_to_add})
+
+    else
+      # Fallback to existing logic: Name + Brand + Store Name
+
+      base_query = 
+        from(i in Item,
+          join: s in assoc(i, :sheet),
+          where: s.household_id == ^household_id and 
+                 ilike(i.brand, ^search_brand) and 
+                 ilike(i.name, ^search_item),
+          limit: 1
+        )
+
+      # 1. Try to find an item with the specific store (if purchase has a store)
+      specific_item = 
+        if store_name do
+          Repo.one(from i in base_query, where: ilike(i.store, ^store_name))
+        else
+          nil
+        end
+        
+      # 2. If not found, try to find a generic item (no store)
+      existing_item = specific_item || Repo.one(from i in base_query, where: is_nil(i.store))
+      
+      case existing_item do
+        nil ->
+          # Create new item
+          create_new_inventory_item(purchase, quantity_to_add)
+        
+        item ->
+          # Update existing item quantity
+          update_item(item, %{quantity: item.quantity + quantity_to_add})
+      end
+    end
+
+
+  end
+
+  defp create_new_inventory_item(purchase, quantity) do
+    # We need a user to assign the sheet to. 
+    user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
+
+    case get_or_create_purchases_sheet(purchase.household_id, user_id) do
+       {:ok, sheet} ->
+          store_name = if purchase.stop && purchase.stop.store, do: purchase.stop.store.name, else: nil
+          trip_id = if purchase.stop, do: purchase.stop.trip_id, else: nil
+          stop_id = purchase.stop_id
+          
+          attrs = %{
+            name: purchase.item,
+            brand: purchase.brand,
+            store: store_name,
+            store_code: purchase.store_code,
+            quantity: quantity,
+            unit_of_measure: purchase.unit_measurement,
+            price_per_unit: purchase.price_per_unit,
+            total_price: purchase.total_price,
+            purchase_id: purchase.id,
+            trip_id: trip_id,
+            stop_id: stop_id,
+            purchase_date: purchase.inserted_at,
+            sheet_id: sheet.id,
+            count: purchase.count,
+            item_name: purchase.item_name,
+            taxable: purchase.taxable,
+          }
+          
+          create_item(attrs)
+       error -> error
+    end
+  end
+
+  defp get_or_create_purchases_sheet(household_id, user_id) do
+    # Try to find common purchases sheet
+    case Repo.get_by(Sheet, household_id: household_id, name: "Purchases") do
+      nil -> 
+        # Create one owned by the purchaser
+        create_sheet(%{
+          household_id: household_id, 
+          name: "Purchases", 
+          user_id: user_id
+        })
+      sheet -> {:ok, sheet}
+    end
   end
 end

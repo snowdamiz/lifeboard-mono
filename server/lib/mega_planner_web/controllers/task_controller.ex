@@ -112,6 +112,7 @@ defmodule MegaPlannerWeb.TaskController do
       recurrence_rule: task.recurrence_rule,
       task_type: task.task_type,
       parent_task_id: task.parent_task_id,
+      trip_id: task.trip_id,
       steps: Enum.map(task.steps || [], &step_to_json/1),
       tags: Enum.map(task.tags || [], &tag_to_json/1),
       inserted_at: task.inserted_at,

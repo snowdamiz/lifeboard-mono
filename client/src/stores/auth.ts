@@ -18,6 +18,11 @@ export const useAuthStore = defineStore('auth', () => {
   const initialized = ref(false)
   let checkAuthPromise: Promise<void> | null = null
 
+  // Initialize API client with tokens immediately
+  if (accessToken.value) {
+    api.setTokens(accessToken.value, refreshToken.value)
+  }
+
   // Check if we have tokens (for initial route guard before checkAuth completes)
   const hasTokens = computed(() => !!accessToken.value)
   const isAuthenticated = computed(() => !!accessToken.value && !!user.value)

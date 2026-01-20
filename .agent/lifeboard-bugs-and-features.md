@@ -48,6 +48,7 @@
 | 🐛 Bug | Sources generated in the budget calendar do not get saved |
 | 🐛 Bug | Sources in budget calendar do not show source name and can't be edited |
 | ✨ Feature | Instead of space for 2 sources in month view, show **net diff** only |
+| 🐛 Bug | Trip purchases not appearing on correct date in Budget Calendar [FIXED] |
 
 ### Savings Rate
 - [ ] Add **"Reset to X day"** option for savings rate

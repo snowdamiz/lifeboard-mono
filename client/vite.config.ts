@@ -15,8 +15,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:4000',
         changeOrigin: true
+      },
+      // Proxy /auth/refresh specifically as it's an API call, not a page load
+      '/auth/refresh': {
+        target: 'http://localhost:4000',
+        changeOrigin: true
       }
-      // Note: /auth routes are NOT proxied because OAuth uses full-page redirects
+      // Note: Other /auth routes are NOT proxied because OAuth uses full-page redirects
       // The frontend callback at /auth/callback is handled by Vue Router
     }
   }

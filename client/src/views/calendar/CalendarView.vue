@@ -16,6 +16,20 @@ const selectedTask = ref<Task | null>(null)
 const mobileSelectedDay = ref<Date>(new Date())
 const expandedDay = ref<string | null>(null) // Stores ISO string of expanded day in month view
 
+// Trip detail modal
+const showTripDetailModal = ref(false)
+const selectedTripId = ref<string | null>(null)
+
+// Filtering Logic
+const showFilterDropdown = ref(false)
+const filterCheckedTagIds = ref<Set<string>>(new Set(calendarStore.filterTags))
+const filterAppliedTagIds = computed(() => new Set<string>()) // No "applied" tags concept for filter, just selection
+
+// Watch for store filter changes (in case changed elsewhere)
+watch(() => calendarStore.filterTags, (newTags) => {
+  filterCheckedTagIds.value = new Set(newTags)
+})
+
 const syncMobileSelectedDay = () => {
   const today = new Date()
   if (calendarStore.viewMode === 'month') {
@@ -115,17 +129,26 @@ const closeTaskForm = () => {
   selectedTask.value = null
 }
 
-// Filtering Logic
-import TagManager from '@/components/shared/TagManager.vue'
-import { Filter } from 'lucide-vue-next'
-const showFilterDropdown = ref(false)
-const filterCheckedTagIds = ref<Set<string>>(new Set(calendarStore.filterTags))
-const filterAppliedTagIds = computed(() => new Set<string>()) // No "applied" tags concept for filter, just selection
+const handleOpenTripDetail = (tripId: string) => {
+  if (!tripId) return
+  selectedTripId.value = tripId
+  showTripDetailModal.value = true
+  
+  // Delay closing the form slightly to ensure clean transition
+  setTimeout(() => {
+    showTaskForm.value = false
+  }, 10)
+}
 
-// Watch for store filter changes (in case changed elsewhere)
-watch(() => calendarStore.filterTags, (newTags) => {
-  filterCheckedTagIds.value = new Set(newTags)
-})
+const closeTripDetailModal = () => {
+  showTripDetailModal.value = false
+  selectedTripId.value = null
+}
+
+import TagManager from '@/components/shared/TagManager.vue'
+import TripDetailModal from '@/components/calendar/TripDetailModal.vue'
+import { Filter } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
 
 const applyFilters = () => {
   calendarStore.filterTags = Array.from(filterCheckedTagIds.value)
@@ -153,7 +176,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
 </script>
 
 <template>
-  <div class="h-full flex flex-col animate-fade-in">
+  <div class="h-full flex flex-col animate-fade-in relative">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
       <div class="flex items-center gap-3">
@@ -355,6 +378,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           :key="task.id"
           :task="task"
           class="!p-3"
+          @manage-trip="handleOpenTripDetail"
         />
 
         <div 
@@ -422,6 +446,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
             v-for="task in calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []"
             :key="task.id"
             :task="task"
+            @manage-trip="handleOpenTripDetail"
           />
 
           <button
@@ -489,6 +514,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
               :key="task.id"
               :task="task"
               class="border-border/50 shadow-none hover:border-primary/30"
+              @manage-trip="handleOpenTripDetail"
             />
             <button 
               v-if="(calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length > 3"
@@ -518,6 +544,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
                   :key="task.id"
                   :task="task"
                   class="border-border/50 shadow-sm hover:border-primary/30"
+                  @manage-trip="handleOpenTripDetail"
                 />
               </div>
             </div>
@@ -547,6 +574,14 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
       :initial-date="selectedDate"
       @close="closeTaskForm"
       @saved="closeTaskForm"
+      :manage-trip-action="handleOpenTripDetail"
+      @manage-trip="handleOpenTripDetail"
+    />
+
+    <TripDetailModal
+      v-if="showTripDetailModal && selectedTripId"
+      :trip-id="selectedTripId"
+      @close="closeTripDetailModal"
     />
   </div>
 </template>

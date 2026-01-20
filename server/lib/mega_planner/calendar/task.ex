@@ -6,7 +6,7 @@ defmodule MegaPlanner.Calendar.Task do
   @foreign_key_type :binary_id
 
   @statuses ["not_started", "in_progress", "completed"]
-  @task_types ["todo", "timed", "floating"]
+  @task_types ["todo", "timed", "floating", "trip"]
 
   schema "tasks" do
     field :title, :string
@@ -23,6 +23,7 @@ defmodule MegaPlanner.Calendar.Task do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :parent_task, __MODULE__
+    belongs_to :trip, MegaPlanner.Receipts.Trip
     has_many :steps, MegaPlanner.Calendar.TaskStep, on_replace: :delete
     many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "tasks_tags", on_replace: :delete
 
@@ -34,7 +35,7 @@ defmodule MegaPlanner.Calendar.Task do
     task
     |> cast(attrs, [:title, :description, :date, :start_time, :duration_minutes,
                     :priority, :status, :is_recurring, :recurrence_rule, :task_type,
-                    :user_id, :household_id, :parent_task_id])
+                    :user_id, :household_id, :parent_task_id, :trip_id])
     |> validate_required([:title, :user_id, :household_id])
     |> cast_assoc(:steps, with: &MegaPlanner.Calendar.TaskStep.changeset/2, sort_param: :position)
     |> validate_inclusion(:status, @statuses)

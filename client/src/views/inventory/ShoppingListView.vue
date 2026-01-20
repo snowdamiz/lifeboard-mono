@@ -3,7 +3,7 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { 
   ShoppingCart, RefreshCw, Check, Package, AlertCircle, 
   Plus, Trash2, ChevronDown, ChevronRight, Edit2, X, Filter,
-  PlusCircle, MinusCircle
+  PlusCircle, MinusCircle, Store
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -343,6 +343,10 @@ const totalUnpurchased = computed(() =>
           <div v-if="isFilterOpen" class="fixed inset-0 z-40 bg-transparent" @click="isFilterOpen = false" />
         </div>
 
+        <Button variant="outline" size="sm" @click="$router.push('/budget/stores')">
+          <Store class="h-4 w-4 sm:mr-1" />
+          <span class="hidden sm:inline">Stores</span>
+        </Button>
         <Button variant="outline" size="sm" @click="openCreateListModal">
           <Plus class="h-4 w-4 mr-1" />
           New List

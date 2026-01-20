@@ -8,6 +8,26 @@ import { Button } from '@/components/ui/button'
 import { useCalendarStore } from '@/stores/calendar'
 import TaskCard from '@/components/calendar/TaskCard.vue'
 import TaskForm from '@/components/calendar/TaskForm.vue'
+import TripDetailModal from '@/components/calendar/TripDetailModal.vue'
+
+// Trip detail modal
+const showTripDetailModal = ref(false)
+const selectedTripId = ref<string | null>(null)
+
+const handleOpenTripDetail = (tripId: string) => {
+  selectedTripId.value = tripId
+  showTripDetailModal.value = true
+  
+  // Close task form with slight delay
+  setTimeout(() => {
+    showTaskForm.value = false
+  }, 10)
+}
+
+const closeTripDetailModal = () => {
+  showTripDetailModal.value = false
+  selectedTripId.value = null
+}
 
 const route = useRoute()
 const calendarStore = useCalendarStore()
@@ -155,6 +175,7 @@ onMounted(() => {
               v-for="task in todoTasks"
               :key="task.id"
               :task="task"
+              @manage-trip="handleOpenTripDetail"
             />
 
             <div v-if="todoTasks.length === 0" class="text-center py-8 text-muted-foreground">
@@ -211,6 +232,7 @@ onMounted(() => {
           :key="task.id"
           :task="task"
           class="!p-3"
+          @manage-trip="handleOpenTripDetail"
         />
 
         <div v-if="todoTasks.length === 0" class="text-center py-12 text-muted-foreground">
@@ -230,6 +252,14 @@ onMounted(() => {
       :initial-date="currentDate"
       @close="onFormClose"
       @saved="onTaskSaved"
+      :manage-trip-action="handleOpenTripDetail"
+      @manage-trip="handleOpenTripDetail"
+    />
+
+    <TripDetailModal
+      v-if="showTripDetailModal && selectedTripId"
+      :trip-id="selectedTripId"
+      @close="closeTripDetailModal"
     />
   </div>
 </template>

@@ -101,20 +101,26 @@ defmodule MegaPlanner.Budget do
   @doc """
   Returns the list of budget entries for a household within a date range.
   """
-  @doc """
-  Returns the list of budget entries for a household within a date range.
-  """
   def list_entries(household_id, opts \\ []) do
     query = from e in Entry,
       where: e.household_id == ^household_id,
       order_by: [asc: e.date],
-      preload: [:source, :tags]
+      preload: [:source, :tags, purchase: [stop: [:store, :purchases]]]
 
     query
     |> filter_entries_by_date_range(opts)
     |> filter_entries_by_type(opts)
     |> filter_entries_by_tags(opts)
+    |> filter_entries_exclude_purchases(opts)
     |> Repo.all()
+  end
+
+  defp filter_entries_exclude_purchases(query, opts) do
+    if Keyword.get(opts, :exclude_purchases) do
+      from e in query, where: is_nil(e.purchase_id)
+    else
+      query
+    end
   end
 
   defp filter_entries_by_tags(query, opts) do

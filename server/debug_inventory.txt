@@ -1,0 +1,28 @@
+
+[2026-01-20 02:15:13.392000Z] Inv Sync | Household: 8ee68e91-cb2b-4bfa-859b-e5cb9d6526df | Brand: '1' | Item: '1'
+Match Result: FOUND 230850cd-fe72-432a-8ddc-2f5916ac8a96 (3)
+Action: Updating EXISTING item. Old Qty: 3 -> New Qty: 4
+
+[2026-01-20 02:24:48.937000Z] Inv Sync | Household: dd0b03cc-b49a-4564-bc8d-2b0db8e15c30 | Brand: 'Debug Brand' | Item: 'Debug Item'
+Match Result: NIL
+Action: Creating NEW item
+
+[2026-01-20 02:33:56.948000Z] Syncing Purchase: '1' - '1'
+Purchase Store: "1"
+Match Result: 332f2e64-48c4-4564-9842-a978a79be92d
+
+[2026-01-20 03:12:52.818000Z] Syncing Purchase: '1' - '1'
+Purchase Store: "1"
+Match Result: 230850cd-fe72-432a-8ddc-2f5916ac8a96
+
+[2026-01-20 03:17:48.435000Z] Syncing Purchase: '1' - '1'
+Purchase Store: "1"
+Match Result: 230850cd-fe72-432a-8ddc-2f5916ac8a96
+Action: Updating EXISTING item. ID: 230850cd-fe72-432a-8ddc-2f5916ac8a96, Old Qty: 6, Add: 1
+Calculated New Qty: 7
+UpdateResult: OK
+
+[2026-01-20 03:19:51.131000Z] Syncing Purchase: '1' - '1'
+Purchase Store: "1"
+Match Result: 7e09da1b-0cc0-4d2c-b20b-35aa3648b475
+Action: Updating EXISTING item. ID: 7e09da1b-0cc0-4d2c-b20b-35aa3648b475, Old Qty: 1, Add: 1

@@ -1,0 +1,893 @@
+defmodule MegaPlanner.Receipts do
+  @moduledoc """
+  The Receipts context handles shopping trips, stores, purchases, and brands.
+  """
+
+  import Ecto.Query, warn: false
+  require Logger
+  alias MegaPlanner.Repo
+  alias MegaPlanner.Receipts.{Store, Trip, Stop, Brand, Purchase, Unit}
+  alias MegaPlanner.Budget
+  alias MegaPlanner.Tags.Tag
+  alias Ecto.Multi
+
+  # Stores
+
+  @doc """
+  Returns the list of stores for a household.
+  """
+  def list_stores(household_id) do
+    from(s in Store, where: s.household_id == ^household_id, order_by: [asc: s.name])
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single store.
+  """
+  def get_store(id) do
+    Repo.get(Store, id)
+  end
+
+  @doc """
+  Gets a store for a specific household.
+  """
+  def get_household_store(household_id, id) do
+    Repo.get_by(Store, id: id, household_id: household_id)
+  end
+
+  @doc """
+  Creates a store.
+  """
+  def create_store(attrs \\ %{}) do
+    %Store{}
+    |> Store.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a store.
+  """
+  def update_store(%Store{} = store, attrs) do
+    store
+    |> Store.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a store.
+  """
+  def delete_store(%Store{} = store) do
+    Repo.delete(store)
+  end
+
+  @doc """
+  Returns a combined list of inventory items for a store (manual items + receipts).
+  """
+  def list_store_inventory(%Store{} = store) do
+    # 1. Fetch manual inventory items for this store
+    manual_items =
+      from(i in MegaPlanner.Inventory.Item,
+        where: i.store == ^store.name,
+        select: %{
+          id: i.id,
+          source: "manual",
+          brand: i.brand,
+          name: i.name,
+          unit: i.unit_of_measure,
+          price: i.price_per_unit, # Or price_per_count depending on preference
+          date: i.updated_at
+        }
+      )
+      |> Repo.all()
+
+    # 2. Fetch recent unique purchases for this store
+    receipt_items =
+      from(p in Purchase,
+        join: s in assoc(p, :stop),
+        where: s.store_id == ^store.id,
+        # We want distinct items, ideally the most recent one
+        # Postgres DISTINCT ON is perfect here
+        distinct: [p.brand, p.item],
+        order_by: [asc: p.brand, asc: p.item, desc: p.inserted_at],
+        select: %{
+          id: p.id,
+          source: "receipt",
+          brand: p.brand,
+          name: p.item,
+          unit: p.unit_measurement,
+          price: p.price_per_unit,
+          date: p.inserted_at
+        }
+      )
+      |> Repo.all()
+
+    # Combine and sort
+    (manual_items ++ receipt_items)
+    |> Enum.sort_by(& &1.date, {:desc, Date})
+  end
+
+  def update_store_inventory_item(store_id, item_id, source, attrs, propagate \\ false) do
+    store = Repo.get!(Store, store_id)
+
+    case source do
+      "manual" ->
+        item = Repo.get!(MegaPlanner.Inventory.Item, item_id)
+        update_inventory_item_with_propagation(item, store, attrs, propagate)
+
+      "receipt" ->
+        purchase = Repo.get!(Purchase, item_id)
+        update_purchase_item_with_propagation(purchase, store, attrs, propagate)
+
+      _ ->
+        {:error, :invalid_source}
+    end
+  end
+
+  defp update_inventory_item_with_propagation(item, store, attrs, propagate) do
+    Multi.new()
+    |> Multi.update(:item, MegaPlanner.Inventory.Item.changeset(item, attrs))
+    |> run_propagation_if_needed(item, store, attrs, propagate, :manual)
+    |> Repo.transaction()
+  end
+
+  defp update_purchase_item_with_propagation(purchase, store, attrs, propagate) do
+    Multi.new()
+    |> Multi.update(:purchase, Purchase.changeset(purchase, attrs))
+    |> run_propagation_if_needed(purchase, store, attrs, propagate, :receipt)
+    |> Repo.transaction()
+  end
+
+  defp run_propagation_if_needed(multi, original_item, store, attrs, true, _type) do
+    # For each changed attribute, update other items that share the OLD value and the same BRAND
+    # Note: We assume 'brand' is the grouping key. If brand itself changes, we update items with the OLD brand.
+    
+    allowed_keys = [:brand, :unit_of_measure, :unit_measurement, :unit, :price, :price_per_unit]
+
+    Enum.reduce(allowed_keys, multi, fn key_atom, m ->
+      # Check both string and atom keys in attrs
+      new_value = Map.get(attrs, Atom.to_string(key_atom)) || Map.get(attrs, key_atom)
+      
+      # We only proceed if the key was actually present in the attrs (meaning it was part of the update payload)
+      # and the value is not nil (or we accept setting to nil? for now assume payload contains change)
+      # Actually, distinguishing "key present with nil" vs "key missing" is important.
+      # Map.get returns nil for missing.
+      # But StoreController passes a map where keys exist.
+      # Only if key_str is in Map.keys(attrs) should we proceed.
+      
+      key_str = Atom.to_string(key_atom)
+      key_exists = Map.has_key?(attrs, key_str) or Map.has_key?(attrs, key_atom)
+      
+      if key_exists do
+        old_value = Map.get(original_item, key_atom)
+        
+        # Cast new value based on expected type for the key
+        new_value = cast_propagation_value(key_atom, new_value)
+        
+        # If value changed and old_value was not nil (meaning the field existed in original_item)
+        if old_value != nil and old_value != new_value do
+           inv_field = inventory_field_map(key_atom)
+           purch_field = purchase_field_map(key_atom)
+           
+           m = if inv_field do
+             Multi.update_all(m,
+               "propagate_manual_#{key_atom}_#{System.unique_integer()}",
+               from(i in MegaPlanner.Inventory.Item,
+                 where: i.store == ^store.name and i.brand == ^original_item.brand and field(i, ^inv_field) == ^old_value
+               ),
+               set: [{inv_field, new_value}]
+             )
+           else
+             m
+           end
+           
+           if purch_field do
+             Multi.update_all(m,
+               "propagate_receipt_#{key_atom}_#{System.unique_integer()}",
+               from(p in Purchase,
+                 join: s in assoc(p, :stop),
+                 where: s.store_id == ^store.id and p.brand == ^original_item.brand and field(p, ^purch_field) == ^old_value
+               ),
+               set: [{purch_field, new_value}]
+             )
+           else
+             m
+           end
+        else
+          m
+        end
+      else
+        m
+      end
+    end)
+  end
+  defp run_propagation_if_needed(multi, _item, _store, _attrs, false, _type), do: multi
+
+  defp purchase_field_map(:unit_of_measure), do: :unit_measurement
+  defp purchase_field_map(:name), do: :item
+  defp purchase_field_map(:item), do: :item
+  defp purchase_field_map(:brand), do: :brand
+  defp purchase_field_map(:unit_measurement), do: :unit_measurement
+  defp purchase_field_map(:price_per_unit), do: :price_per_unit
+  defp purchase_field_map(_), do: nil # Don't map unknown fields
+
+  defp inventory_field_map(:unit_measurement), do: :unit_of_measure
+  defp inventory_field_map(:unit_of_measure), do: :unit_of_measure
+  defp inventory_field_map(:name), do: :name
+  defp inventory_field_map(:item), do: :name
+  defp inventory_field_map(:brand), do: :brand
+  defp inventory_field_map(:price_per_unit), do: :price_per_unit
+  defp inventory_field_map(:price), do: :price_per_unit
+  defp inventory_field_map(_), do: nil
+
+  defp cast_propagation_value(key, value) when key in [:price, :price_per_unit] do
+    case value do
+      nil -> nil
+      "" -> nil
+      v when is_binary(v) -> 
+        case Decimal.parse(v) do
+          {d, _} -> d
+          :error -> nil
+        end
+      v -> v
+    end
+  end
+  defp cast_propagation_value(_key, value), do: value
+
+
+  # Drivers
+
+  alias MegaPlanner.Receipts.Driver
+
+  @doc """
+  Returns the list of drivers for a household.
+  """
+  def list_drivers(household_id) do
+    from(d in Driver, where: d.household_id == ^household_id, order_by: [asc: d.name])
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single driver.
+  """
+  def get_driver(id) do
+    Repo.get(Driver, id)
+  end
+
+  @doc """
+  Creates a driver.
+  """
+  def create_driver(attrs \\ %{}) do
+    %Driver{}
+    |> Driver.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a driver.
+  """
+  def update_driver(%Driver{} = driver, attrs) do
+    driver
+    |> Driver.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a driver.
+  """
+  def delete_driver(%Driver{} = driver) do
+    Repo.delete(driver)
+  end
+
+  # Trips
+
+  @doc """
+  Returns the list of trips for a household.
+  """
+  def list_trips(household_id, opts \\ []) do
+    query = from t in Trip,
+      where: t.household_id == ^household_id,
+      order_by: [desc: t.trip_start],
+      preload: [stops: [:store, purchases: [:tags]]]
+
+    query
+    |> filter_trips_by_date_range(opts)
+    |> Repo.all()
+  end
+
+  defp filter_trips_by_date_range(query, opts) do
+    case {Keyword.get(opts, :start_date), Keyword.get(opts, :end_date)} do
+      {nil, nil} -> query
+      {start_date, nil} -> 
+        start_dt = to_datetime(start_date, :start)
+        from t in query, where: t.trip_start >= ^start_dt
+      {nil, end_date} -> 
+        end_dt = to_datetime(end_date, :end)
+        from t in query, where: t.trip_start <= ^end_dt
+      {start_date, end_date} -> 
+        start_dt = to_datetime(start_date, :start)
+        end_dt = to_datetime(end_date, :end)
+        from t in query, where: t.trip_start >= ^start_dt and t.trip_start <= ^end_dt
+    end
+  end
+
+  defp to_datetime(%Date{} = date, :start), do: DateTime.new!(date, ~T[00:00:00])
+  defp to_datetime(%Date{} = date, :end), do: DateTime.new!(date, ~T[23:59:59.999999])
+  defp to_datetime(dt, _) when is_struct(dt, DateTime), do: dt
+  defp to_datetime(val, _), do: val
+
+  @doc """
+  Gets a single trip with stops and purchases.
+  """
+  def get_trip(id) do
+    Trip
+    |> Repo.get(id)
+    |> Repo.preload(stops: [:store, purchases: [:tags]])
+  end
+
+  @doc """
+  Gets a trip for a specific household.
+  """
+  def get_household_trip(household_id, id) do
+    Trip
+    |> Repo.get_by(id: id, household_id: household_id)
+    |> Repo.preload([:driver, stops: [:store, purchases: [:tags]]])
+  end
+
+  @doc """
+  Creates a trip.
+  """
+  def create_trip(attrs \\ %{}) do
+    %Trip{}
+    |> Trip.changeset(attrs)
+    |> Repo.insert()
+    |> case do
+      {:ok, trip} -> {:ok, Repo.preload(trip, [:driver, stops: [:store, purchases: [:tags]]])}
+      error -> error
+    end
+  end
+
+  @doc """
+  Updates a trip.
+  """
+  def update_trip(%Trip{} = trip, attrs) do
+    trip
+    |> Trip.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, trip} -> {:ok, Repo.preload(trip, [:driver, stops: [:store, purchases: [:tags]]], force: true)}
+      error -> error
+    end
+  end
+
+  @doc """
+  Deletes a trip and all associated stops, purchases, and budget entries.
+  """
+  def delete_trip(%Trip{} = trip) do
+    trip = Repo.preload(trip, stops: [purchases: :budget_entry])
+    
+    Repo.transaction(fn ->
+      # Delete all purchases and their budget entries first
+      Enum.each(trip.stops, fn stop ->
+        Enum.each(stop.purchases || [], fn purchase ->
+          # Delete purchase (cascades to budget entry via DB constraint)
+          case Repo.delete(purchase) do
+            {:ok, _} -> 
+              # Also delete the budget entry
+              if purchase.budget_entry do
+                Budget.delete_entry(purchase.budget_entry)
+              end
+            {:error, changeset} -> 
+              Repo.rollback(changeset)
+          end
+        end)
+      end)
+      
+      # Delete the trip (which cascades to stops)
+      case Repo.delete(trip) do
+        {:ok, _} -> :ok
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  Updates the date of a trip and its associated budget entries.
+  """
+  def update_trip_date(trip_id, date, start_time) do
+    # Ensure start_time is present for DateTime creation
+    start_time = start_time || ~T[00:00:00]
+    dt_result = DateTime.new(date, start_time)
+    
+    # Only proceed if we have a valid date/time
+    case dt_result do
+      {:ok, trip_start} ->
+        trip = 
+          Trip
+          |> Repo.get(trip_id)
+          |> Repo.preload(stops: [purchases: :budget_entry])
+
+        if trip do
+          Multi.new()
+          |> Multi.update(:trip, Trip.changeset(trip, %{trip_start: trip_start}))
+          |> fn multi ->
+            Enum.reduce(trip.stops, multi, fn stop, m_stop ->
+              Enum.reduce(stop.purchases || [], m_stop, fn purchase, m_purch ->
+                if purchase.budget_entry do
+                  Multi.update(m_purch, "update_entry_#{purchase.budget_entry.id}", 
+                    Budget.Entry.changeset(purchase.budget_entry, %{date: date}))
+                else
+                  m_purch
+                end
+              end)
+            end)
+          end.()
+          |> Repo.transaction()
+        else
+          {:error, :not_found}
+        end
+      _ -> {:error, :invalid_date_or_time}
+    end
+  end
+
+  # Stops
+
+  @doc """
+  Lists stops for a trip.
+  """
+  def list_stops(trip_id) do
+    from(s in Stop,
+      where: s.trip_id == ^trip_id,
+      order_by: [asc: s.position],
+      preload: [:store, purchases: [:tags]]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single stop.
+  """
+  def get_stop(id) do
+    Stop
+    |> Repo.get(id)
+    |> Repo.preload([:store, purchases: [:tags]])
+  end
+
+  @doc """
+  Creates a stop.
+  """
+  def create_stop(attrs \\ %{}) do
+    %Stop{}
+    |> Stop.changeset(attrs)
+    |> Repo.insert()
+    |> case do
+      {:ok, stop} -> {:ok, Repo.preload(stop, [:store, purchases: [:tags]])}
+      error -> error
+    end
+  end
+
+  @doc """
+  Updates a stop.
+  """
+  def update_stop(%Stop{} = stop, attrs) do
+    stop
+    |> Stop.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, stop} -> {:ok, Repo.preload(stop, [:store, purchases: [:tags]], force: true)}
+      error -> error
+    end
+  end
+
+  @doc """
+  Deletes a stop and all associated purchases and budget entries.
+  """
+  def delete_stop(%Stop{} = stop) do
+    stop = Repo.preload(stop, purchases: :budget_entry)
+    
+    Repo.transaction(fn ->
+      # Delete all purchases and their budget entries first
+      Enum.each(stop.purchases || [], fn purchase ->
+        case Repo.delete(purchase) do
+          {:ok, _} -> 
+            # Also delete the budget entry
+            if purchase.budget_entry do
+              Budget.delete_entry(purchase.budget_entry)
+            end
+          {:error, changeset} -> 
+            Repo.rollback(changeset)
+        end
+      end)
+      
+      # Delete the stop
+      case Repo.delete(stop) do
+        {:ok, deleted_stop} -> deleted_stop
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  # Brands
+
+  @doc """
+  Returns the list of brands for a household.
+  """
+  def list_brands(household_id, opts \\ []) do
+    query = from b in Brand,
+      where: b.household_id == ^household_id,
+      order_by: [asc: b.name]
+
+    query
+    |> filter_brands_by_search(opts)
+    |> Repo.all()
+  end
+
+  defp filter_brands_by_search(query, opts) do
+    case Keyword.get(opts, :search) do
+      nil -> query
+      "" -> query
+      search -> from b in query, where: ilike(b.name, ^"%#{search}%")
+    end
+  end
+
+  @doc """
+  Gets a single brand.
+  """
+  def get_brand(id) do
+    Repo.get(Brand, id)
+  end
+
+  @doc """
+  Searches brands by name (for autocomplete).
+  """
+  def search_brands(household_id, query) do
+    from(b in Brand,
+      where: b.household_id == ^household_id and ilike(b.name, ^"%#{query}%"),
+      order_by: [asc: b.name],
+      limit: 10
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Creates a brand.
+  """
+  def create_brand(attrs \\ %{}) do
+    %Brand{}
+    |> Brand.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a brand.
+  """
+  def update_brand(%Brand{} = brand, attrs) do
+    brand
+    |> Brand.changeset(attrs)
+    |> Repo.update()
+  end
+
+  # Units
+
+  @doc """
+  Returns the list of units for a household.
+  """
+  def list_units(household_id) do
+    from(u in Unit, where: u.household_id == ^household_id, order_by: [asc: u.name])
+    |> Repo.all()
+  end
+
+  @doc """
+  Creates a unit.
+  """
+  def create_unit(attrs \\ %{}) do
+    %Unit{}
+    |> Unit.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Gets a unit by name or creates it if it doesn't exist.
+  """
+  def get_or_create_unit(household_id, name) do
+    case Repo.get_by(Unit, household_id: household_id, name: name) do
+      nil -> create_unit(%{household_id: household_id, name: name})
+      unit -> {:ok, unit}
+    end
+  end
+
+  # Purchases
+
+  @doc """
+  Returns the list of purchases for a household.
+  """
+  def list_purchases(household_id, opts \\ []) do
+    query = from p in Purchase,
+      where: p.household_id == ^household_id,
+      order_by: [desc: p.inserted_at],
+      preload: [:budget_entry, :stop, :tags]
+
+    query
+    |> filter_purchases_by_stop(opts)
+    |> filter_purchases_by_brand(opts)
+    |> Repo.all()
+  end
+
+  defp filter_purchases_by_stop(query, opts) do
+    case Keyword.get(opts, :stop_id) do
+      nil -> query
+      stop_id -> from p in query, where: p.stop_id == ^stop_id
+    end
+  end
+
+  defp filter_purchases_by_brand(query, opts) do
+    case Keyword.get(opts, :brand) do
+      nil -> query
+      brand -> from p in query, where: ilike(p.brand, ^"%#{brand}%")
+    end
+  end
+
+  @doc """
+  Gets a single purchase.
+  """
+  def get_purchase(id) do
+    Purchase
+    |> Repo.get(id)
+    |> Repo.preload([:budget_entry, :stop, :tags])
+  end
+
+  @doc """
+  Creates a purchase along with its associated budget entry.
+  """
+  def create_purchase(attrs \\ %{}) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
+    {stop_id, attrs} = Map.pop(attrs, "stop_id")
+    household_id = attrs["household_id"]
+    user_id = attrs["user_id"]
+
+    # Create the budget entry first
+    # Date should always be provided by the client in their local timezone
+    # If missing, we use UTC today as a fallback (this shouldn't normally happen)
+    date = attrs["date"] || (
+      Logger.warning("Purchase created without date, falling back to UTC today. This may cause timezone issues.")
+      Date.utc_today()
+    )
+    
+    budget_attrs = %{
+      "household_id" => household_id,
+      "user_id" => user_id,
+      "date" => date,
+      "amount" => attrs["total_price"],
+      "type" => "expense",
+      "notes" => "Purchase: #{attrs["brand"]} - #{attrs["item"]}"
+    }
+
+    Repo.transaction(fn ->
+      with {:ok, entry} <- Budget.create_entry(budget_attrs),
+           purchase_attrs <- Map.put(attrs, "budget_entry_id", entry.id),
+           purchase_attrs <- (if stop_id, do: Map.put(purchase_attrs, "stop_id", stop_id), else: purchase_attrs),
+           changeset <- Purchase.changeset(%Purchase{}, purchase_attrs),
+           {:ok, purchase} <- Repo.insert(changeset),
+           purchase <- update_purchase_tags(purchase, tag_ids),
+           {:ok, _entry} <- Budget.update_entry(entry, %{"purchase_id" => purchase.id}),
+           {:ok, _inv_item} <- MegaPlanner.Inventory.create_item_from_purchase(purchase) do
+        upsert_brand_defaults(purchase)
+        Repo.preload(purchase, [:budget_entry, :stop, :tags], force: true)
+      else
+        {:error, reason} -> Repo.rollback(reason)
+        error -> Repo.rollback(error)
+      end
+    end)
+  end
+
+  @doc """
+  Updates a purchase.
+  """
+  def update_purchase(%Purchase{} = purchase, attrs) do
+    {tag_ids, attrs} = Map.pop(attrs, "tag_ids")
+
+    purchase
+    |> Purchase.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, purchase} ->
+        purchase = if tag_ids != nil, do: update_purchase_tags(purchase, tag_ids), else: purchase
+        
+        # Update budget entry if total_price changed
+        if Map.has_key?(attrs, "total_price") do
+          purchase = Repo.preload(purchase, :budget_entry)
+          if purchase.budget_entry do
+            case Budget.update_entry(purchase.budget_entry, %{"amount" => attrs["total_price"]}) do
+              {:ok, _} -> :ok
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+          end
+        end
+        
+
+        
+        upsert_brand_defaults(purchase)
+
+        {:ok, Repo.preload(purchase, [:budget_entry, :stop, :tags], force: true)}
+      error -> error
+    end
+  end
+
+  defp update_purchase_tags(purchase, tag_ids) when is_list(tag_ids) do
+    tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+    purchase
+    |> Repo.preload(:tags)
+    |> Purchase.tags_changeset(tags)
+    |> Repo.update!()
+  end
+
+  defp update_purchase_tags(purchase, _), do: purchase
+
+  @doc """
+  Deletes a purchase and its budget entry.
+  """
+  def delete_purchase(%Purchase{} = purchase) do
+    purchase = Repo.preload(purchase, :budget_entry)
+    
+    Repo.transaction(fn ->
+      with {:ok, _purchase} <- Repo.delete(purchase) do
+        if purchase.budget_entry do
+          Budget.delete_entry(purchase.budget_entry)
+        end
+        :ok
+      else
+        error -> Repo.rollback(error)
+      end
+    end)
+  end
+
+  @doc """
+  Calculates tax based on store tax rate.
+  """
+  def calculate_tax(nil, _amount, _taxable), do: Decimal.new(0)
+  
+  def calculate_tax(store_id, amount, taxable) when taxable do
+    case get_store(store_id) do
+      nil -> Decimal.new(0)
+      store -> 
+        tax_rate = store.tax_rate || get_default_tax_rate(store.state)
+        Decimal.mult(amount, tax_rate)
+    end
+  end
+
+  def calculate_tax(_store_id, _amount, _taxable), do: Decimal.new(0)
+
+  defp get_default_tax_rate("IN"), do: Decimal.new("0.07")
+  defp get_default_tax_rate("MI"), do: Decimal.new("0.06")
+  defp get_default_tax_rate(_), do: Decimal.new(0)
+
+  @doc """
+  Returns suggestions for auto-populate based on brand name.
+  """
+  def suggest_for_brand(household_id, brand_name, opts \\ []) do
+    # Get brand if it exists
+    brand = from(b in Brand,
+      where: b.household_id == ^household_id and ilike(b.name, ^brand_name),
+      limit: 1
+    ) |> Repo.one()
+
+    # Get recent purchases with this brand
+    # Filter by store if provided
+    store_id = Keyword.get(opts, :store_id)
+    
+    query = from(p in Purchase,
+      where: p.household_id == ^household_id and ilike(p.brand, ^brand_name),
+      order_by: [desc: p.inserted_at],
+      limit: 5,
+      preload: [:tags]
+    )
+    
+    query = if store_id do
+      from p in query,
+        join: s in assoc(p, :stop),
+        where: s.store_id == ^store_id
+    else
+      query
+    end
+
+    recent_purchases = Repo.all(query)
+
+    %{
+      brand: brand,
+      recent_purchases: recent_purchases
+    }
+  end
+
+  @doc """
+  Returns suggestions for auto-populate based on item name.
+  """
+  def suggest_for_item(household_id, item_name) do
+    from(p in Purchase,
+      where: p.household_id == ^household_id and ilike(p.item, ^"%#{item_name}%"),
+      order_by: [desc: p.inserted_at],
+      limit: 10,
+      preload: [:tags],
+      distinct: p.brand
+    )
+    |> Repo.all()
+    |> Enum.group_by(& &1.brand)
+    |> Enum.map(fn {brand, purchases} ->
+      %{
+        brand: %{name: brand},
+        recent_purchases: purchases
+      }
+    end)
+  end
+
+  @doc """
+  Adds selected purchases to inventory sheets.
+  """
+  def add_purchases_to_inventory(purchase_ids, sheet_assignments) do
+    alias MegaPlanner.Inventory
+    
+    Repo.transaction(fn ->
+      Enum.each(purchase_ids, fn purchase_id ->
+        purchase = get_purchase(purchase_id)
+        sheet_id = Map.get(sheet_assignments, purchase_id)
+        
+        if sheet_id do
+          # Create inventory item from purchase
+          item_attrs = %{
+            "sheet_id" => sheet_id,
+            "name" => purchase.item,
+            "brand" => purchase.brand,
+            "quantity" => Decimal.to_integer(purchase.count || Decimal.new(0)),
+            "unit_measurement" => purchase.unit_measurement,
+            "count" => purchase.count,
+            "price_per_count" => purchase.price_per_count,
+            "price_per_unit" => purchase.price_per_unit,
+            "taxable" => purchase.taxable,
+            "total_price" => purchase.total_price,
+            "store_code" => purchase.store_code,
+            "item_name" => purchase.item_name
+          }
+          
+          case Inventory.create_item(item_attrs) do
+            {:ok, _item} -> :ok
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end
+      end)
+    end)
+  end
+
+  defp upsert_brand_defaults(purchase) do
+    # We only want to update defaults if we have a valid brand name
+    if is_binary(purchase.brand) and purchase.brand != "" do
+      # Normalize brand name for search/lookup
+      brand_name = String.trim(purchase.brand)
+      
+      # Find validation/existing brand
+      existing_brand = Repo.get_by(Brand, household_id: purchase.household_id, name: brand_name)
+      
+      tag_ids = Enum.map(purchase.tags, & &1.id)
+      
+      attrs = %{
+        "default_item" => purchase.item,
+        "default_unit_measurement" => purchase.unit_measurement,
+        "default_tags" => tag_ids
+      }
+
+      case existing_brand do
+        nil ->
+          # Create new brand with these defaults
+          create_brand(Map.merge(attrs, %{
+            "name" => brand_name, 
+            "household_id" => purchase.household_id
+          }))
+        
+        brand ->
+          # Update existing brand defaults
+          update_brand(brand, attrs)
+      end
+    end
+    
+    # Always return the purchase to keep the pipe/with chain flowing smoothly
+    purchase
+  end
+end
+

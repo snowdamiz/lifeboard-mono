@@ -16,6 +16,7 @@ defmodule MegaPlanner.Budget.Entry do
     belongs_to :source, MegaPlanner.Budget.Source
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
+    belongs_to :purchase, MegaPlanner.Receipts.Purchase
     many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "budget_entries_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -24,7 +25,7 @@ defmodule MegaPlanner.Budget.Entry do
   @doc false
   def changeset(entry, attrs) do
     entry
-    |> cast(attrs, [:date, :amount, :type, :notes, :source_id, :user_id, :household_id])
+    |> cast(attrs, [:date, :amount, :type, :notes, :source_id, :user_id, :household_id, :purchase_id])
     |> validate_required([:date, :amount, :type, :user_id, :household_id])
     |> validate_inclusion(:type, @types)
     |> validate_number(:amount, greater_than_or_equal_to: 0)
