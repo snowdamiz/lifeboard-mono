@@ -26,10 +26,15 @@ import { Badge } from '@/components/ui/badge'
 import { useNotesStore } from '@/stores/notes'
 import { debounce } from '@/lib/utils'
 import TagManager from '@/components/shared/TagManager.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
+import { useTextTemplate } from '@/composables/useTextTemplate'
 
 const route = useRoute()
 const router = useRouter()
 const notesStore = useNotesStore()
+
+// Templates
+const pageTitleTemplate = useTextTemplate('page_title')
 const saving = ref(false)
 const lastSaved = ref<Date | null>(null)
 const viewMode = ref<'edit' | 'preview'>('edit')
@@ -71,6 +76,9 @@ const debouncedSave = debounce(async () => {
   const id = pageId()
   if (!id || !title.value.trim()) return
   
+  // Save template
+  pageTitleTemplate.save(title.value)
+
   saving.value = true
   try {
     await notesStore.updatePage(id, {
@@ -173,11 +181,15 @@ const toolbarActions = [
         <Button variant="ghost" size="icon" @click="router.push('/notes')">
           <ArrowLeft class="h-5 w-5" />
         </Button>
-        <div>
-          <input
+        </Button>
+        <div class="flex-1 w-full max-w-3xl">
+          <SearchableInput
             v-model="title"
-            class="text-xl font-semibold tracking-tight bg-transparent outline-none border-none focus:ring-0 w-full"
+            class="text-xl font-semibold tracking-tight bg-transparent outline-none border-none focus:ring-0 w-full p-0 h-auto"
             placeholder="Page title"
+            :search-function="pageTitleTemplate.search"
+            :show-create-option="true"
+            @create="title = $event"
           />
           <div class="flex items-center gap-3 mt-1">
              <p class="text-xs text-muted-foreground">

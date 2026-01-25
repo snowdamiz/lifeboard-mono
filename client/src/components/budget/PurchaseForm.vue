@@ -9,6 +9,7 @@ import { useReceiptsStore } from '@/stores/receipts'
 import { useTagsStore } from '@/stores/tags'
 import { useAuthStore } from '@/stores/auth'
 import TagManager from '@/components/shared/TagManager.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
 import type { Purchase, Brand, Unit } from '@/types'
 
 interface Props {
@@ -30,26 +31,26 @@ const authStore = useAuthStore()
 const saving = ref(false)
 const isEditing = computed(() => !!props.purchase)
 
-// Brand autocomplete
-const brandSearch = ref('')
-const brandSuggestions = ref<Brand[]>([])
-const showBrandDropdown = ref(false)
-const loadingBrands = ref(false)
 
-// Unit autocomplete
-const unitSearch = ref('')
-const showUnitDropdown = ref(false)
 
-const filteredUnits = computed(() => {
-  if (!unitSearch.value) return receiptsStore.units
-  const search = unitSearch.value.toLowerCase()
-  return receiptsStore.units.filter(u => u.name.toLowerCase().includes(search))
-})
 
-const exactUnitMatch = computed(() => {
-  if (!unitSearch.value) return false
-  return receiptsStore.units.some(u => u.name.toLowerCase() === unitSearch.value.toLowerCase())
-})
+
+// Unit autocomplete helpers (most logic moved to SearchableInput or inline)
+const searchUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  return receiptsStore.units.filter(u => u.name.toLowerCase().includes(q))
+}
+
+const handleUnitCreate = async (name: string) => {
+  if (!name) return
+  await receiptsStore.createUnit(name)
+  // No need to select explicitly, v-model update from SearchableInput handles it if we wanted, 
+  // but SearchableInput 'create' event is just for action.
+  // Actually SearchableInput doesn't auto-select on create currently without help?
+  // Let's check SearchableInput logic. It emits 'create' and closes.
+  // We should manually set the form value.
+  form.value.unit_measurement = name
+}
 
 // Form data
 // Helper to extract pre-tax price from stored total
@@ -132,43 +133,7 @@ const getTagName = (tagId: string) => {
 
 const isSelecting = ref(false)
 
-// Brand autocomplete
-watch(brandSearch, async (newValue) => {
-  if (isSelecting.value) return
 
-  if (!newValue) {
-    // Show all brands when empty
-    brandSuggestions.value = receiptsStore.brands
-    return
-  }
-  
-  // Local filter first for better responsiveness if we have brands loaded
-  if (receiptsStore.brands.length > 0) {
-    const search = newValue.toLowerCase()
-    brandSuggestions.value = receiptsStore.brands.filter(b => 
-      b.name.toLowerCase().includes(search)
-    )
-    showBrandDropdown.value = brandSuggestions.value.length > 0
-    return
-  }
-
-  // Fallback to API if for some reason we rely on that (though we load all on mount now)
-  if (newValue.length >= 2) {
-    loadingBrands.value = true
-    try {
-      brandSuggestions.value = await receiptsStore.searchBrands(newValue)
-      showBrandDropdown.value = brandSuggestions.value.length > 0
-    } catch (error: any) {
-      brandSuggestions.value = []
-      showBrandDropdown.value = false
-    } finally {
-      loadingBrands.value = false
-    }
-  } else {
-    brandSuggestions.value = []
-    showBrandDropdown.value = false
-  }
-})
 
 // Helper to finding store ID from stop ID
 const getStoreId = () => {
@@ -192,26 +157,23 @@ const getStoreId = () => {
 const selectBrand = async (brand: Brand) => {
   isSelecting.value = true
   form.value.brand = brand.name
-  brandSearch.value = brand.name
+
   
   console.log('Selecting brand:', brand)
   
-  // Track what we've set to avoid overwriting with older data if we implement a tiered fallback
+  // Track what we've set
   let itemSet = false
   let unitSet = false
   let tagsSet = false
   
   // 1. Try explicit Brand defaults first
   if (brand.default_item) {
-    console.log('Setting default item from brand:', brand.default_item)
     form.value.item = brand.default_item
     itemSet = true
   }
   
   if (brand.default_unit_measurement) {
-    console.log('Setting default unit from brand:', brand.default_unit_measurement)
     form.value.unit_measurement = brand.default_unit_measurement
-    unitSearch.value = brand.default_unit_measurement
     unitSet = true
   }
   
@@ -225,96 +187,99 @@ const selectBrand = async (brand: Brand) => {
     tagsSet = true
   }
 
-  // 2. Fallback to recent history if anything is missing OR to populate store-specific fields
-  // We check history even if some defaults are set, because we might want store-specific overrides
-  // or additional fields (store_code, item_name)
-  
+  // 2. Fetch History (Store-specific + Global fallback/merge)
   const storeId = getStoreId()
+  let history: Purchase[] = []
   
   try {
-      const suggestions = await receiptsStore.getSuggestionsByBrand(brand.name, storeId)
-      if (suggestions && suggestions.recent_purchases && suggestions.recent_purchases.length > 0) {
-        const lastPurchase = suggestions.recent_purchases[0]
-        console.log('Using recent purchase for defaults:', lastPurchase)
-        
-        // If we found a store-specific purchase, we might want to prioritize it over generic brand defaults?
-        // For now, let's fill gaps and populate store fields.
-        
-        if (!itemSet && lastPurchase.item) {
-           form.value.item = lastPurchase.item
-           itemSet = true
-        }
-        
-        if (!unitSet && lastPurchase.unit_measurement) {
-           form.value.unit_measurement = lastPurchase.unit_measurement
-           unitSearch.value = lastPurchase.unit_measurement
-           unitSet = true
-        }
-
-        // Also try to help with tax settings if they aren't standard
-        if (lastPurchase.taxable !== undefined) {
-           form.value.taxable = lastPurchase.taxable
-        }
-        
-        if (!tagsSet && lastPurchase.tags && lastPurchase.tags.length > 0) {
-           lastPurchase.tags.forEach(t => {
-             // Tags from purchase might be objects or IDs depending on API normalization
-             if (t.id && !form.value.tag_ids.includes(t.id)) {
-                form.value.tag_ids.push(t.id)
-             }
-           })
-        }
-        
-        // Store specific fields
-        if (lastPurchase.store_code) {
-          form.value.store_code = lastPurchase.store_code
-        }
-        
-        if (lastPurchase.item_name) {
-          form.value.item_name = lastPurchase.item_name
-        }
+    // A. Store-specific
+    if (storeId) {
+      const res = await receiptsStore.getSuggestionsByBrand(brand.name, storeId)
+      if (res?.recent_purchases) {
+        history = res.recent_purchases
       }
+    }
+
+    // B. Global fallback/fill: if no history or missing key fields
+    const hasStoreCode = history.some(p => p.store_code)
+    const hasItemName = history.some(p => p.item_name)
+    
+    if (!storeId || history.length === 0 || !hasStoreCode || !hasItemName) {
+         console.log('Fetching global history to fill gaps')
+         const globalRes = await receiptsStore.getSuggestionsByBrand(brand.name)
+         if (globalRes?.recent_purchases) {
+            // Append global purchases (lower priority than store-specific)
+            const existingIds = new Set(history.map(p => p.id))
+            const newGlobals = globalRes.recent_purchases.filter(p => !existingIds.has(p.id))
+            history = [...history, ...newGlobals]
+         }
+    }
   } catch (err) {
-      console.warn('Failed to fetch brand history for defaults:', err)
+      console.warn('Failed to fetch brand history:', err)
+  }
+
+  // 3. Apply defaults from history
+  if (history.length > 0) {
+       console.log('Applying defaults from history:', history.length, 'entries')
+       // Helper to find first non-empty value
+       const findVal = <K extends keyof Purchase>(key: K): Purchase[K] | undefined => {
+          const val = history.find(p => p[key])?.[key]
+          return val
+       }
+
+       if (!itemSet) {
+          const val = findVal('item')
+          if (val && typeof val === 'string') { 
+              console.log('Found item in history:', val); 
+              form.value.item = val; 
+              itemSet = true; 
+          }
+       }
+       
+       if (!unitSet) {
+          const val = findVal('unit_measurement')
+          if (val && typeof val === 'string') { 
+              unitSet = true
+          }
+       }
+
+       // For tax, take from most recent relevant purchase
+       const latest = history[0]
+       if (latest.taxable !== undefined) {
+          form.value.taxable = latest.taxable
+       }
+       
+       if (!tagsSet) {
+           // Collect unique tags from recent history? Or just most recent?
+           // Let's stick to the most recent purchase that has tags
+           const pWithTags = history.find(p => p.tags && p.tags.length > 0)
+           if (pWithTags && pWithTags.tags) {
+               pWithTags.tags.forEach(t => {
+                   // t might be object or ID depending on API
+                   const tId = typeof t === 'object' ? t.id : t
+                   if (tId && !form.value.tag_ids.includes(tId)) {
+                       form.value.tag_ids.push(tId)
+                   }
+               })
+           }
+       }
+       
+       // Store fields - search whole history
+       const code = findVal('store_code')
+       if (code && typeof code === 'string') form.value.store_code = code
+       
+       const name = findVal('item_name')
+       if (name && typeof name === 'string') form.value.item_name = name
   }
   
-  showBrandDropdown.value = false
+  applyStoreTaxRate()
   
-  // Reset flag after updates propagate
   setTimeout(() => {
     isSelecting.value = false
   }, 100)
 }
 
-const handleBrandBlur = () => {
-  // Delay hiding dropdown to allow click events to fire
-  setTimeout(() => {
-    showBrandDropdown.value = false
-  }, 200)
-}
 
-const selectUnit = (unit: Unit) => {
-  form.value.unit_measurement = unit.name
-  unitSearch.value = unit.name
-  showUnitDropdown.value = false
-}
-
-const createAndSelectUnit = async () => {
-  if (!unitSearch.value) return
-  const newUnit = await receiptsStore.createUnit(unitSearch.value)
-  selectUnit(newUnit)
-}
-
-const handleUnitBlur = () => {
-  setTimeout(() => {
-    showUnitDropdown.value = false
-  }, 200)
-}
-
-// Watch unit search to update form
-watch(unitSearch, (newValue) => {
-  form.value.unit_measurement = newValue
-})
 
 // Calculate total price
 const calculateTotal = () => {
@@ -352,6 +317,11 @@ onMounted(async () => {
   if (tagsStore.tags.length === 0) {
     await tagsStore.fetchTags()
   }
+  
+  // Ensure stores are loaded for tax rate lookup
+  if (receiptsStore.stores.length === 0) {
+    await receiptsStore.fetchStores()
+  }
 
   // Fetch brands if needed
   if (receiptsStore.brands.length === 0) {
@@ -363,48 +333,28 @@ onMounted(async () => {
     await receiptsStore.fetchUnits()
   }
   
-  // Initialize brand search with current brand
-  if (form.value.brand) {
-    brandSearch.value = form.value.brand
-  }
+  // Initialize brand search - no longer needed as separate ref
 
-  // Initialize unit search
-  if (form.value.unit_measurement) {
-    unitSearch.value = form.value.unit_measurement
-  }
+  // Initialize unit search - no longer needed as separate ref
+  
+  // Try to set default tax rate from store if not set
+  applyStoreTaxRate()
 })
 
-const handleBrandFocus = () => {
-  if (!brandSearch.value) {
-    // Show all brands if search is empty
-    brandSuggestions.value = receiptsStore.brands
-    showBrandDropdown.value = receiptsStore.brands.length > 0
-  } else if (brandSearch.value.length >= 2) {
-    showBrandDropdown.value = true
+const applyStoreTaxRate = () => {
+  if (form.value.taxable && !form.value.tax_rate) {
+    const storeId = getStoreId()
+    if (storeId) {
+      const store = receiptsStore.stores.find(s => s.id === storeId)
+      if (store && store.tax_rate) {
+        const rate = parseFloat(store.tax_rate) * 100
+        form.value.tax_rate = rate.toString()
+      }
+    }
   }
 }
 
-const handleBrandEnter = (e: KeyboardEvent) => {
-  // If dropdown is visible and we have suggestions, select the first match or exact match
-  if (showBrandDropdown.value && brandSuggestions.value.length > 0) {
-    // Prefer exact match (case insensitive)
-    const exactMatch = brandSuggestions.value.find(
-      b => b.name.toLowerCase() === brandSearch.value.toLowerCase()
-    )
-    
-    if (exactMatch) {
-      selectBrand(exactMatch)
-      return
-    }
-    
-    // Otherwise select the first one if it's a "good enough" match?
-    // For now let's just use the first suggestion if the user presses enter
-    // but only if they've typed something relevant
-    if (brandSearch.value.length >= 2) {
-      selectBrand(brandSuggestions.value[0])
-    }
-  }
-}
+
 
 const save = async () => {
   if (!form.value.brand || !form.value.item || !form.value.total_price) {
@@ -475,45 +425,30 @@ const save = async () => {
 
         <form class="flex-1 overflow-auto p-4 space-y-4" @submit.prevent="save">
           <!-- Brand (with autocomplete) -->
-          <div class="relative">
+          <div>
             <label class="text-sm font-medium">Brand *</label>
-            <Input 
-              v-model="brandSearch" 
-              @input="form.brand = brandSearch"
-              @blur="handleBrandBlur"
-              @focus="handleBrandFocus"
-              @keydown.enter.prevent="handleBrandEnter"
+            <SearchableInput 
+              v-model="form.brand" 
+              :search-function="(q) => receiptsStore.searchBrands(q)"
+              :display-function="(b) => b.name"
+              :value-function="(b) => b.name"
+              :min-chars="1"
               placeholder="Start typing brand name..." 
               class="mt-1" 
-              autocomplete="off"
+              @select="selectBrand"
             />
-            
-            <!-- Brand suggestions dropdown -->
-            <div 
-              v-if="showBrandDropdown && brandSuggestions.length > 0" 
-              class="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 max-h-60 overflow-auto"
-            >
-              <button
-                v-for="brand in brandSuggestions"
-                :key="brand.id"
-                type="button"
-                class="w-full text-left px-3 py-2 hover:bg-accent text-sm border-b border-border last:border-0"
-                @click="selectBrand(brand)"
-              >
-                <div class="font-medium">{{ brand.name }}</div>
-                <div v-if="brand.default_item" class="text-xs text-muted-foreground">
-                  Default: {{ brand.default_item }}
-                </div>
-              </button>
-            </div>
-            
-            <p v-if="loadingBrands" class="text-xs text-muted-foreground mt-1">Searching...</p>
           </div>
 
           <!-- Item -->
           <div>
             <label class="text-sm font-medium">Item *</label>
-            <Input v-model="form.item" placeholder="e.g., Milk, Bread, etc." class="mt-1" />
+            <SearchableInput 
+              v-model="form.item" 
+              :search-function="receiptsStore.searchItemNames"
+              :min-chars="1"
+              placeholder="e.g., Milk, Bread, etc." 
+              class="mt-1" 
+            />
           </div>
 
           <!-- Pricing Grid -->
@@ -571,49 +506,18 @@ const save = async () => {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-sm font-medium">Unit Measurement</label>
-              <div class="space-y-2">
-                <!-- Unit Search/Create Input -->
-                <div class="flex gap-2">
-                  <Input 
-                    v-model="unitSearch" 
-                    placeholder="Search or create unit..." 
-                    class="flex-1"
-                    autocomplete="off"
-                    @keydown.enter.prevent="createAndSelectUnit"
-                  />
-                  <Button 
-                    type="button"
-                    :disabled="!unitSearch || exactUnitMatch"
-                    @click="createAndSelectUnit"
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Plus class="h-4 w-4 mr-2" />
-                    New
-                  </Button>
-                </div>
-                
-                <!-- Unit Selection List -->
-                <div class="border border-border rounded-lg bg-card overflow-hidden max-h-40 overflow-y-auto">
-                    <div v-if="filteredUnits.length > 0" class="divide-y divide-border">
-                        <button
-                            v-for="unit in filteredUnits"
-                            :key="unit.id"
-                            type="button"
-                            class="w-full px-3 py-2 text-left hover:bg-secondary/60 flex items-center gap-2 transition-colors text-sm"
-                            @click="selectUnit(unit)"
-                        >
-                            <div class="h-4 w-4 rounded-full border border-primary flex items-center justify-center">
-                                <div v-if="form.unit_measurement === unit.name" class="h-2 w-2 rounded-full bg-primary" />
-                            </div>
-                            <span class="flex-1 font-medium">{{ unit.name }}</span>
-                        </button>
-                    </div>
-                    <div v-else class="px-3 py-4 text-center text-xs text-muted-foreground">
-                        {{ unitSearch ? 'No matching units found' : 'No units available' }}
-                    </div>
-                </div>
-              </div>
+              <SearchableInput 
+                v-model="form.unit_measurement"
+                :search-function="searchUnits"
+                :display-function="(u) => u.name"
+                :value-function="(u) => u.name"
+                :show-create-option="true"
+                :min-chars="1"
+                placeholder="Search or create unit..." 
+                class="mt-1"
+                @create="handleUnitCreate"
+              />
+
             </div>
             <div>
               <label class="text-sm font-medium">Total Price *</label>
@@ -659,16 +563,20 @@ const save = async () => {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-sm font-medium text-muted-foreground">Store Code</label>
-              <Input 
+              <SearchableInput 
                 v-model="form.store_code" 
+                :search-function="receiptsStore.searchStoreCodes"
+                :min-chars="1"
                 placeholder="Receipt item code" 
                 class="mt-1 font-mono text-xs" 
               />
             </div>
             <div>
               <label class="text-sm font-medium text-muted-foreground">Receipt Item Name</label>
-              <Input 
+              <SearchableInput 
                 v-model="form.item_name" 
+                :search-function="receiptsStore.searchReceiptItemNames"
+                :min-chars="1"
                 placeholder="Name on receipt" 
                 class="mt-1 text-xs" 
               />

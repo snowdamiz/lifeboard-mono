@@ -1,0 +1,193 @@
+<script setup lang="ts">
+import { ref, computed, watch, onMounted } from 'vue'
+import { ArrowRightLeft, Package, Loader2 } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Select } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import type { InventoryItem, InventorySheet } from '@/types'
+import { api } from '@/services/api'
+import { useInventoryStore } from '@/stores/inventory'
+
+const props = defineProps<{
+  item: InventoryItem | null
+  open: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'update:open', value: boolean): void
+  (e: 'transferred'): void
+}>()
+
+const inventoryStore = useInventoryStore()
+
+const transferQuantity = ref(1)
+const targetSheetId = ref<string>('')
+const isTransferring = ref(false)
+const isLoadingMatches = ref(false)
+const matchingItems = ref<(InventoryItem & { sheet: { id: string; name: string } })[]>([])
+
+const nonPurchasesSheets = computed(() => 
+  inventoryStore.sheets.filter(s => s.name !== 'Purchases')
+)
+
+const sheetOptions = computed(() => 
+  nonPurchasesSheets.value.map(sheet => ({
+    value: sheet.id,
+    label: sheet.name,
+    disabled: false
+  }))
+)
+
+watch(() => props.item, async (newItem) => {
+  if (newItem) {
+    transferQuantity.value = Math.min(1, newItem.quantity)
+    targetSheetId.value = ''
+    // Fetch matching items across sheets
+    isLoadingMatches.value = true
+    try {
+      const res = await api.findMatchingItems(newItem.brand || '', newItem.name)
+      matchingItems.value = res.data
+    } catch (err) {
+      console.error('Failed to find matching items:', err)
+      matchingItems.value = []
+    } finally {
+      isLoadingMatches.value = false
+    }
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  if (inventoryStore.sheets.length === 0) {
+    inventoryStore.fetchSheets()
+  }
+})
+
+const maxQuantity = computed(() => props.item?.quantity || 0)
+
+const handleTransfer = async () => {
+  if (!props.item || !targetSheetId.value || transferQuantity.value < 1) return
+  
+  isTransferring.value = true
+  try {
+    const result = await api.transferItem(props.item.id, targetSheetId.value, transferQuantity.value)
+    if ('success' in result && result.success) {
+      emit('transferred')
+      emit('update:open', false)
+    } else if ('error' in result) {
+      console.error('Transfer failed:', result.error)
+    }
+  } catch (err) {
+    console.error('Transfer failed:', err)
+  } finally {
+    isTransferring.value = false
+  }
+}
+
+const handleTransferAll = () => {
+  if (props.item) {
+    transferQuantity.value = props.item.quantity
+  }
+}
+</script>
+
+<template>
+  <Dialog :open="open" @update:open="emit('update:open', $event)">
+    <DialogContent class="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle class="flex items-center gap-2">
+          <ArrowRightLeft class="h-5 w-5 text-primary" />
+          Transfer Item
+        </DialogTitle>
+        <DialogDescription>
+          Move items from this trip receipt to another inventory sheet
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="item" class="space-y-4 py-4">
+        <!-- Source item info -->
+        <div class="bg-muted/50 rounded-lg p-3">
+          <div class="font-medium">{{ item.name }}</div>
+          <div class="text-sm text-muted-foreground flex items-center gap-2">
+            <span v-if="item.brand">{{ item.brand }}</span>
+            <Badge variant="outline" class="font-mono">
+              {{ item.quantity }} available
+            </Badge>
+          </div>
+        </div>
+
+        <!-- Matching items across sheets -->
+        <div v-if="isLoadingMatches" class="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 class="h-4 w-4 animate-spin" />
+          Finding matches across sheets...
+        </div>
+        <div v-else-if="matchingItems.length > 0" class="space-y-2">
+          <div class="text-xs text-muted-foreground">Found in other sheets:</div>
+          <div class="space-y-1">
+            <div
+              v-for="match in matchingItems"
+              :key="match.id"
+              class="text-sm flex items-center gap-2 p-2 bg-green-500/10 rounded border border-green-500/20"
+            >
+              <Package class="h-4 w-4 text-green-600" />
+              <span class="font-medium">{{ match.sheet.name }}</span>
+              <span class="text-muted-foreground">·</span>
+              <span>{{ match.quantity }} {{ match.unit_of_measure || '' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quantity input -->
+        <div class="space-y-2">
+          <div class="text-sm font-medium">Quantity to transfer</div>
+          <div class="flex items-center gap-2">
+            <Input
+              type="number"
+              v-model.number="transferQuantity"
+              :min="1"
+              :max="maxQuantity"
+              class="w-24"
+            />
+            <Button variant="outline" size="sm" @click="handleTransferAll">
+              Transfer All ({{ maxQuantity }})
+            </Button>
+          </div>
+        </div>
+
+        <!-- Target sheet selection -->
+        <div class="space-y-2">
+          <div class="text-sm font-medium">Destination sheet</div>
+          <Select 
+            v-model="targetSheetId" 
+            :options="sheetOptions"
+            placeholder="Select a sheet..."
+          />
+          <p v-if="nonPurchasesSheets.length === 0" class="text-sm text-muted-foreground">
+            No sheets available. Create an inventory sheet first.
+          </p>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" @click="emit('update:open', false)">
+          Cancel
+        </Button>
+        <Button
+          @click="handleTransfer"
+          :disabled="!targetSheetId || transferQuantity < 1 || transferQuantity > maxQuantity || isTransferring"
+        >
+          <Loader2 v-if="isTransferring" class="h-4 w-4 mr-2 animate-spin" />
+          Transfer
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+</template>

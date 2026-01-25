@@ -11,12 +11,19 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import TagManager from '@/components/shared/TagManager.vue'
+import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
 import { useHabitsStore, type HabitWithStatus } from '@/stores/habits'
 import { useTagsStore } from '@/stores/tags'
+import { useTextTemplate } from '@/composables/useTextTemplate'
 import type { Habit, Tag } from '@/types'
 
 const habitsStore = useHabitsStore()
 const tagsStore = useTagsStore()
+
+// Template composables
+const habitTitleTemplate = useTextTemplate('habit_title')
+const habitDescriptionTemplate = useTextTemplate('habit_description')
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -34,23 +41,19 @@ const newHabit = ref({
 
 // Tag selection state
 const tempSelectedTags = ref<Set<string>>(new Set())
+const isCreateTagsExpanded = ref(false)
+const isEditTagsExpanded = ref(false)
 
 // Helper to resolve tag objects from IDs
 const resolveTags = (tagIds: Set<string>): Tag[] => {
   return Array.from(tagIds).map(id => tagsStore.tags.find(t => t.id === id)).filter(Boolean) as Tag[]
 }
 
-const addCheckedTags = (targetSet: Set<string>) => {
-  tempSelectedTags.value.forEach(id => targetSet.add(id))
-  tempSelectedTags.value = new Set()
+const handleAddTags = (targetSet: Set<string>, tagsToAdd: Set<string>) => {
+  tagsToAdd.forEach(id => targetSet.add(id))
 }
 
-const removeCheckedTags = (targetSet: Set<string>) => {
-  tempSelectedTags.value.forEach(id => targetSet.delete(id))
-  tempSelectedTags.value = new Set()
-}
-
-const removeTag = (targetSet: Set<string>, tagId: string) => {
+const handleRemoveTag = (targetSet: Set<string>, tagId: string) => {
   targetSet.delete(tagId)
 }
 
@@ -109,6 +112,12 @@ onMounted(async () => {
 
 const handleCreateHabit = async () => {
   if (!newHabit.value.name.trim()) return
+
+  // Save templates
+  habitTitleTemplate.save(newHabit.value.name)
+  if (newHabit.value.description) {
+      habitDescriptionTemplate.save(newHabit.value.description)
+  }
   
   await habitsStore.createHabit({
     name: newHabit.value.name,
@@ -127,11 +136,25 @@ const handleCreateHabit = async () => {
 watch(showCreateModal, (val) => {
   if (!val) {
     tempSelectedTags.value = new Set()
+    isCreateTagsExpanded.value = false
+  }
+})
+
+watch(showEditModal, (val) => {
+  if (!val) {
+    tempSelectedTags.value = new Set()
+    isEditTagsExpanded.value = false
   }
 })
 
 const handleUpdateHabit = async () => {
   if (!editingHabit.value) return
+
+  // Save templates
+  habitTitleTemplate.save(editingHabit.value.name)
+  if (editingHabit.value.description) {
+      habitDescriptionTemplate.save(editingHabit.value.description)
+  }
   
   await habitsStore.updateHabit(editingHabit.value.id, {
     name: editingHabit.value.name,
@@ -511,16 +534,114 @@ const toggleDayOfWeek = (day: number, model: { days_of_week: number[] }) => {
               <h2 class="text-lg font-semibold">Create New Habit</h2>
             </div>
             <div class="p-5 space-y-4 overflow-y-auto">
+            <div class="p-5 space-y-4 overflow-y-auto">
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Name</label>
-                <Input v-model="newHabit.name" placeholder="e.g., Morning exercise" />
+                <SearchableInput 
+                    v-model="newHabit.name" 
+                    placeholder="e.g., Morning exercise"
+                    :search-function="habitTitleTemplate.search"
+                    :on-delete="habitTitleTemplate.deleteTemplate"
+                    :show-create-option="true"
+                    @create="newHabit.name = $event"
+                />
               </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Description (optional)</label>
-                <Input v-model="newHabit.description" placeholder="What does this habit involve?" />
+                <SearchableInput 
+                    v-model="newHabit.description" 
+                    placeholder="What does this habit involve?"
+                    :search-function="habitDescriptionTemplate.search"
+                    :on-delete="habitDescriptionTemplate.deleteTemplate"
+                    :show-create-option="true"
+                    @create="newHabit.description = $event"
+                />
               </div>
               
-              <!-- Tags -->
+              <!-- Tags with CollapsibleTagManager -->
+              <CollapsibleTagManager
+                :applied-tag-ids="newHabit.tag_ids"
+                :tags="resolveTags(newHabit.tag_ids)"
+                :reset-trigger="!showCreateModal"
+                @add-tags="(tags) => handleAddTags(newHabit.tag_ids, tags)"
+                @remove-tag="(id) => handleRemoveTag(newHabit.tag_ids, id)"
+              />
+
+              <!-- Frequency & Color -->
+                
+                <!-- Selected Tags List -->
+                <div class="flex flex-wrap gap-1.5 mb-2" v-if="newHabit.tag_ids.size > 0">
+                  <Badge
+                    v-for="tag in resolveTags(newHabit.tag_ids)"
+                    :key="tag.id"
+                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
+                    variant="outline"
+                    class="gap-1 pr-1"
+                  >
+                    <div 
+                      class="h-1.5 w-1.5 rounded-full" 
+                      :style="{ backgroundColor: tag.color }"
+                    />
+                    {{ tag.name }}
+                    <button
+                      type="button"
+                      class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
+                      @click="removeTag(newHabit.tag_ids, tag.id)"
+                    >
+                      <X class="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+
+                <!-- Collapsed state: click to expand -->
+                <div v-if="!isCreateTagsExpanded">
+                  <Input 
+                    placeholder="Click to manage tags..." 
+                    readonly
+                    @click="isCreateTagsExpanded = true"
+                    class="cursor-pointer"
+                  />
+                </div>
+
+                <!-- Expanded state: full TagManager -->
+                <div v-else>
+                  <TagManager
+                    mode="select"
+                    :embedded="true"
+                    :compact="true"
+                    v-model:checkedTagIds="tempSelectedTags"
+                    class="max-h-[150px] overflow-auto"
+                    :applied-tag-ids="newHabit.tag_ids"
+                  >
+                    <template #actions="{ checkedCount }">
+                      <div class="flex gap-2 mb-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="h-7 px-2 text-xs flex-1 bg-background"
+                          :disabled="checkedCount === 0"
+                          @click="addCheckedTags(newHabit.tag_ids)"
+                        >
+                          <PlusCircle class="h-3 w-3 mr-1" />
+                          Add
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="h-7 px-2 text-xs flex-1 bg-background"
+                          :disabled="checkedCount === 0"
+                          @click="removeCheckedTags(newHabit.tag_ids)"
+                        >
+                          <MinusCircle class="h-3 w-3 mr-1" />
+                          Remove
+                        </Button>
+                      </div>
+                    </template>
+                  </TagManager>
+                </div>
+              </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Tags</label>
                 
@@ -587,18 +708,34 @@ const toggleDayOfWeek = (day: number, model: { days_of_week: number[] }) => {
                 </div>
               </div>
 
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Frequency</label>
-                <Select 
-                  v-model="newHabit.frequency"
-                  :options="[
-                    { value: 'daily', label: 'Daily' },
-                    { value: 'weekly', label: 'Weekly (specific days)' }
-                  ]"
-                  placeholder="Select frequency"
-                />
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="text-sm font-medium mb-1.5 block">Frequency</label>
+                  <Select 
+                    v-model="newHabit.frequency"
+                    :options="[
+                      { value: 'daily', label: 'Daily' },
+                      { value: 'weekly', label: 'Weekly (specific days)' }
+                    ]"
+                    placeholder="Select frequency"
+                  />
+                </div>
+                <div>
+                  <label class="text-sm font-medium mb-1.5 block">Color</label>
+                  <div class="flex gap-2">
+                    <button
+                      v-for="color in colors"
+                      :key="color"
+                      class="w-8 h-8 rounded-lg transition-all"
+                      :class="newHabit.color === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'"
+                      :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
+                      @click="newHabit.color = color"
+                    />
+                  </div>
+                </div>
               </div>
-              <div v-if="newHabit.frequency === 'weekly'">
+              <div v-if="newHabit.frequency === 'weekly'">>
                 <label class="text-sm font-medium mb-1.5 block">Days of Week</label>
                 <div class="flex gap-1">
                   <button
@@ -630,9 +767,9 @@ const toggleDayOfWeek = (day: number, model: { days_of_week: number[] }) => {
                 </div>
               </div>
             </div>
-            <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2 shrink-0">
+            <div class="px-5 py-4 border-t border-border/60 flex justify-between gap-2 shrink-0">
               <Button variant="ghost" @click="showCreateModal = false">Cancel</Button>
-              <Button @click="handleCreateHabit" :disabled="!newHabit.name.trim()">Create Habit</Button>
+              <Button @click="handleCreateHabit" :disabled="!newHabit.name.trim()">Create</Button>
             </div>
           </div>
         </div>
@@ -664,14 +801,101 @@ const toggleDayOfWeek = (day: number, model: { days_of_week: number[] }) => {
             <div class="p-5 space-y-4 overflow-y-auto">
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Name</label>
-                <Input v-model="editingHabit.name" />
+                <SearchableInput 
+                    v-model="editingHabit.name" 
+                    :search-function="habitTitleTemplate.search"
+                    :show-create-option="true"
+                    @create="editingHabit.name = $event"
+                />
               </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Description</label>
-                <Input :model-value="editingHabit.description ?? ''" @update:model-value="editingHabit.description = $event || null" />
+                <SearchableInput 
+                    :model-value="editingHabit.description ?? ''" 
+                    @update:model-value="editingHabit.description = $event || null"
+                    :search-function="habitDescriptionTemplate.search"
+                    :show-create-option="true"
+                    @create="editingHabit.description = $event || null"
+                />
               </div>
 
               <!-- Tags -->
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Tags</label>
+                
+                <!-- Selected Tags List -->
+                <div class="flex flex-wrap gap-1.5 mb-2" v-if="editingHabit && editingHabitTagIds.size > 0">
+                  <Badge
+                    v-for="tag in resolveTags(editingHabitTagIds)"
+                    :key="tag.id"
+                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
+                    variant="outline"
+                    class="gap-1 pr-1"
+                  >
+                    <div 
+                      class="h-1.5 w-1.5 rounded-full" 
+                      :style="{ backgroundColor: tag.color }"
+                    />
+                    {{ tag.name }}
+                    <button
+                      type="button"
+                      class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
+                      @click="removeTag(editingHabitTagIds, tag.id)"
+                    >
+                      <X class="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+
+                <!-- Collapsed state: click to expand -->
+                <div v-if="!isEditTagsExpanded">
+                  <Input 
+                    placeholder="Click to manage tags..." 
+                    readonly
+                    @click="isEditTagsExpanded = true"
+                    class="cursor-pointer"
+                  />
+                </div>
+
+                <!-- Expanded state: full TagManager -->
+                <div v-else>
+                  <TagManager
+                    mode="select"
+                    :embedded="true"
+                    :compact="true"
+                    v-model:checkedTagIds="tempSelectedTags"
+                    class="max-h-[150px] overflow-auto"
+                    :applied-tag-ids="editingHabitTagIds"
+                  >
+                    <template #actions="{ checkedCount }">
+                      <div class="flex gap-2 mb-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="h-7 px-2 text-xs flex-1 bg-background"
+                          :disabled="checkedCount === 0"
+                          @click="addCheckedTags(editingHabitTagIds)"
+                        >
+                          <PlusCircle class="h-3 w-3 mr-1" />
+                          Add
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="h-7 px-2 text-xs flex-1 bg-background"
+                          :disabled="checkedCount === 0"
+                          @click="removeCheckedTags(editingHabitTagIds)"
+                        >
+                          <MinusCircle class="h-3 w-3 mr-1" />
+                          Remove
+                        </Button>
+                      </div>
+                    </template>
+                  </TagManager>
+                </div>
+              </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Tags</label>
 
@@ -752,7 +976,7 @@ const toggleDayOfWeek = (day: number, model: { days_of_week: number[] }) => {
                 </div>
               </div>
             </div>
-            <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2 shrink-0">
+            <div class="px-5 py-4 border-t border-border/60 flex justify-between gap-2 shrink-0">
               <Button variant="ghost" @click="showEditModal = false">Cancel</Button>
               <Button @click="handleUpdateHabit">Save Changes</Button>
             </div>

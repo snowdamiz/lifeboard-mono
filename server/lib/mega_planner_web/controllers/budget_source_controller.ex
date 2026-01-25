@@ -64,8 +64,6 @@ defmodule MegaPlannerWeb.BudgetSourceController do
       name: source.name,
       type: source.type,
       amount: source.amount,
-      is_recurring: source.is_recurring,
-      recurrence_rule: source.recurrence_rule,
       tags: Enum.map(source.tag_objects || [], &tag_to_json/1),
       inserted_at: source.inserted_at,
       updated_at: source.updated_at

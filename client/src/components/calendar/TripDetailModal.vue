@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { X, Plus, MapPin, Trash } from 'lucide-vue-next'
 import type { Trip, Stop, Purchase, Store } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import { useReceiptsStore } from '@/stores/receipts'
 import PurchaseForm from '@/components/budget/PurchaseForm.vue'
 import PurchaseList from '@/components/budget/PurchaseList.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
 
 interface Props {
   tripId: string
@@ -19,6 +21,8 @@ const emit = defineEmits<{
 }>()
 
 const receiptsStore = useReceiptsStore()
+const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const addingStop = ref(false)
 const trip = ref<Trip | null>(null)
@@ -125,15 +129,16 @@ const setStoreSearch = (stopId: string, value: string) => {
   storeSearchMap.value[stopId] = value
 }
 
-const getFilteredStores = (stopId: string) => {
-  const search = (storeSearchMap.value[stopId] || '').toLowerCase()
-  if (!search) return availableStores.value
-  return availableStores.value.filter(s => s.name.toLowerCase().includes(search))
-}
+
 
 const isExactStoreMatch = (stopId: string) => {
   const search = (storeSearchMap.value[stopId] || '').toLowerCase()
   return availableStores.value.some(s => s.name.toLowerCase() === search)
+}
+
+const searchStopStores = async (query: string) => {
+  const q = query.toLowerCase()
+  return availableStores.value.filter(s => s.name.toLowerCase().includes(q))
 }
 
 const selectStore = async (stop: Stop, store: Store) => {
@@ -144,12 +149,19 @@ const selectStore = async (stop: Stop, store: Store) => {
   })
 }
 
-const createAndSelectStore = async (stop: Stop) => {
-  const name = storeSearchMap.value[stop.id]
+const createAndSelectStore = async (stop: Stop, storeName?: string) => {
+  const name = storeName || storeSearchMap.value[stop.id]
   if (!name || isExactStoreMatch(stop.id)) return
   
-  const newStore = await receiptsStore.createStore({ name })
-  await selectStore(stop, newStore)
+  // Redirect to store creation page
+  router.push({
+    path: '/budget/stores',
+    query: {
+      new: '1',
+      name: name,
+      returnTo: route.fullPath
+    }
+  })
 }
 
 const getPurchaseDate = () => {
@@ -241,46 +253,19 @@ onMounted(() => {
                 <div class="flex-1 space-y-3">
                   <!-- Store Selection -->
                   <div class="space-y-2">
-                     <div class="flex gap-2">
-                        <Input 
-                          :model-value="getStoreSearch(stop.id)"
-                          @update:model-value="(val) => setStoreSearch(stop.id, val as string)"
-                          placeholder="Search or create store..." 
-                          class="flex-1"
-                          @keydown.enter.prevent="createAndSelectStore(stop)"
-                        />
-                        <Button 
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          :disabled="!getStoreSearch(stop.id) || isExactStoreMatch(stop.id)"
-                          @click="createAndSelectStore(stop)"
-                        >
-                          <Plus class="h-4 w-4 mr-2" />
-                          New
-                        </Button>
-                     </div>
-                     
-                     <!-- Store List -->
-                     <div class="border border-border rounded-lg bg-card overflow-hidden max-h-40 overflow-y-auto">
-                        <div v-if="getFilteredStores(stop.id).length > 0" class="divide-y divide-border">
-                            <button
-                                v-for="store in getFilteredStores(stop.id)"
-                                :key="store.id"
-                                type="button"
-                                class="w-full px-3 py-2 text-left hover:bg-secondary/60 flex items-center gap-2 transition-colors text-sm"
-                                @click="selectStore(stop, store)"
-                            >
-                                <div class="h-4 w-4 rounded-full border border-primary flex items-center justify-center shrink-0">
-                                    <div v-if="stop.store_id === store.id" class="h-2 w-2 rounded-full bg-primary" />
-                                </div>
-                                <span class="flex-1 font-medium truncate">{{ store.name }}</span>
-                            </button>
-                        </div>
-                        <div v-else class="px-3 py-4 text-center text-xs text-muted-foreground">
-                            {{ getStoreSearch(stop.id) ? 'No matching stores found' : 'No stores available' }}
-                        </div>
-                     </div>
+                     <SearchableInput 
+                       :model-value="getStoreSearch(stop.id)"
+                       @update:model-value="(val) => setStoreSearch(stop.id, val)"
+                       :search-function="searchStopStores"
+                       :display-function="(s) => s.name"
+                       :value-function="(s) => s.name"
+                       :show-create-option="true"
+                       :min-chars="0"
+                       placeholder="Search or create store..." 
+                       class="flex-1"
+                       @select="(store) => selectStore(stop, store)"
+                       @create="(name) => createAndSelectStore(stop, name)"
+                     />
                   </div>
 
                   <Input

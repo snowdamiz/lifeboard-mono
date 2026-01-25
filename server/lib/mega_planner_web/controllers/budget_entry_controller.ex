@@ -56,14 +56,17 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   end
   
   defp init_stop_group(entry, stop) do
+    # Prefer the entry's linked source, fall back to deriving from stop
+    source = get_entry_source(entry, stop)
+    
     %{
       id: stop.id, # Use stop ID as the entry ID
       date: entry.date,
       amount: entry.amount,
       type: "expense",
       notes: stop.notes,
-      source_id: "stop-#{stop.id}",
-      source: get_stop_source(stop),
+      source_id: source.id,
+      source: source,
       tags: entry.tags || [],
       inserted_at: entry.inserted_at,
       updated_at: entry.updated_at,
@@ -77,6 +80,18 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       amount: Decimal.add(group.amount, entry.amount),
       tags: (group.tags ++ (entry.tags || [])) |> Enum.uniq_by(& &1.id)
     }
+  end
+  
+  # Get source from entry if linked, otherwise derive from stop
+  defp get_entry_source(entry, stop) do
+    if entry.source do
+      %{
+        id: entry.source.id,
+        name: entry.source.name
+      }
+    else
+      get_stop_source(stop)
+    end
   end
   
   defp get_stop_source(stop) do

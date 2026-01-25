@@ -12,6 +12,7 @@ defmodule MegaPlannerWeb.PurchaseController do
     opts = []
     |> maybe_add_opt(:stop_id, params["stop_id"])
     |> maybe_add_opt(:brand, params["brand"])
+    |> maybe_add_opt(:source_id, params["source_id"])
 
     purchases = Receipts.list_purchases(user.household_id, opts)
     json(conn, %{data: Enum.map(purchases, &purchase_to_json/1)})
@@ -85,6 +86,30 @@ defmodule MegaPlannerWeb.PurchaseController do
     end
   end
 
+  def suggest_stores(conn, %{"search" => search}) do
+    user = Guardian.Plug.current_resource(conn)
+    stores = Receipts.search_stores(user.household_id, search)
+    json(conn, %{data: Enum.map(stores, &store_to_json/1)})
+  end
+
+  def suggest_store_codes(conn, %{"search" => search}) do
+    user = Guardian.Plug.current_resource(conn)
+    codes = Receipts.suggest_store_codes(user.household_id, search)
+    json(conn, %{data: codes})
+  end
+
+  def suggest_receipt_items(conn, %{"search" => search}) do
+    user = Guardian.Plug.current_resource(conn)
+    names = Receipts.suggest_receipt_item_names(user.household_id, search)
+    json(conn, %{data: names})
+  end
+
+  def suggest_items(conn, %{"search" => search}) do
+    user = Guardian.Plug.current_resource(conn)
+    names = Receipts.suggest_names(user.household_id, search)
+    json(conn, %{data: names})
+  end
+
   defp maybe_add_opt(opts, key, value) when is_binary(value) and value != "" do
     Keyword.put(opts, key, value)
   end
@@ -140,6 +165,13 @@ defmodule MegaPlannerWeb.PurchaseController do
       id: tag.id,
       name: tag.name,
       color: tag.color
+    }
+  end
+
+  defp store_to_json(store) do
+    %{
+      id: store.id,
+      name: store.name
     }
   end
 end

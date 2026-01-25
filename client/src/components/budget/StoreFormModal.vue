@@ -9,6 +9,7 @@ import { useReceiptsStore } from '@/stores/receipts'
 const props = defineProps<{
   open: boolean
   store: Store | null
+  initialName?: string
 }>()
 
 const emit = defineEmits<{
@@ -39,7 +40,7 @@ watch(() => props.store, (newStore) => {
     }
   } else {
     form.value = {
-      name: '',
+      name: props.initialName || '',
       address: '',
       state: '',
       store_code: '',

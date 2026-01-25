@@ -198,8 +198,6 @@ defmodule MegaPlannerWeb.ExportController do
           name: source.name,
           type: source.type,
           amount: source.amount,
-          is_recurring: source.is_recurring,
-          recurrence_rule: source.recurrence_rule,
           tags: source.tags
         }
       end),

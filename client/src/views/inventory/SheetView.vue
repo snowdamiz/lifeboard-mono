@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Plus, Minus, Trash, AlertTriangle, Check, Edit, Package, X, Filter, ChevronDown } from 'lucide-vue-next'
+import { ArrowLeft, Plus, Minus, Trash, AlertTriangle, Edit, Package, X, Filter, ChevronDown, Calendar, Receipt, Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useInventoryStore } from '@/stores/inventory'
-import TagSelector from '@/components/shared/TagSelector.vue'
-import type { InventoryItem, Tag } from '@/types'
+import InventoryItemForm from '@/components/inventory/InventoryItemForm.vue'
+import TripReceiptList from '@/components/inventory/TripReceiptList.vue'
+import ItemTransferModal from '@/components/inventory/ItemTransferModal.vue'
+import type { InventoryItem, TripReceipt } from '@/types'
+import { api } from '@/services/api'
+
+interface GroupedInventoryItem extends InventoryItem {
+  original_ids: string[]
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -20,22 +26,22 @@ const selectedItems = ref<Set<string>>(new Set())
 const nameFilter = ref<Set<string>>(new Set())
 const showFilterDropdown = ref(false)
 
-const newItem = ref({
-  name: '',
-  quantity: 0,
-  min_quantity: 0,
-  is_necessity: false,
-  store: '',
-  unit_of_measure: '',
-  brand: '',
-  tags: [] as Tag[]
-})
+// Trip receipt state
+const tripReceipts = ref<TripReceipt[]>([])
+const isLoadingReceipts = ref(false)
+const transferItem = ref<InventoryItem | null>(null)
+const showTransferModal = ref(false)
 
 const sheetId = computed(() => route.params.id as string)
 
+// Check if this is the special "Purchases" sheet
+const isPurchasesSheet = computed(() => 
+  inventoryStore.currentSheet?.name?.toLowerCase() === 'purchases'
+)
+
 const lowItems = computed(() => 
   inventoryStore.currentSheet?.items?.filter(
-    item => item.is_necessity && item.quantity < item.min_quantity
+    item => item.quantity < item.min_quantity
   ) || []
 )
 
@@ -50,6 +56,28 @@ const filteredItems = computed(() => {
   const items = inventoryStore.currentSheet?.items || []
   if (nameFilter.value.size === 0) return items
   return items.filter(item => nameFilter.value.has(item.name))
+})
+
+const groupedItems = computed<GroupedInventoryItem[]>(() => {
+  const groups = new Map<string, GroupedInventoryItem>()
+  
+  filteredItems.value.forEach(item => {
+    // Key by name, brand, store
+    const key = `${item.name}|${item.brand || ''}|${item.store || ''}`
+    
+    if (groups.has(key)) {
+      const group = groups.get(key)!
+      group.quantity += item.quantity
+      group.original_ids.push(item.id)
+    } else {
+      groups.set(key, {
+        ...item,
+        original_ids: [item.id]
+      })
+    }
+  })
+  
+  return Array.from(groups.values())
 })
 
 const toggleNameFilter = (name: string) => {
@@ -68,49 +96,86 @@ const clearNameFilter = () => {
 
 onMounted(() => {
   inventoryStore.fetchSheet(sheetId.value)
+  if (inventoryStore.currentSheet?.name?.toLowerCase() === 'purchases') {
+    fetchTripReceipts()
+  }
 })
 
-const createItem = async () => {
-  if (!newItem.value.name.trim()) return
-  
-  await inventoryStore.createItem({
-    name: newItem.value.name,
-    quantity: newItem.value.quantity,
-    min_quantity: newItem.value.min_quantity,
-    is_necessity: newItem.value.is_necessity,
-    store: newItem.value.store || null,
-    unit_of_measure: newItem.value.unit_of_measure || null,
-    brand: newItem.value.brand || null,
-    tag_ids: newItem.value.tags.map(t => t.id),
-    sheet_id: sheetId.value
-  })
-  
-  newItem.value = { name: '', quantity: 0, min_quantity: 0, is_necessity: false, store: '', unit_of_measure: '', brand: '', tags: [] }
-  showNewItem.value = false
+watch(() => isPurchasesSheet.value, (isPurchases) => {
+  if (isPurchases) {
+    fetchTripReceipts()
+  }
+})
+
+const fetchTripReceipts = async () => {
+  isLoadingReceipts.value = true
+  try {
+    const res = await api.listTripReceipts()
+    tripReceipts.value = res.data
+  } catch (err) {
+    console.error('Failed to fetch trip receipts:', err)
+  } finally {
+    isLoadingReceipts.value = false
+  }
 }
 
-const updateQuantity = async (item: InventoryItem, delta: number) => {
+const handleTransferClick = (item: InventoryItem) => {
+  transferItem.value = item
+  showTransferModal.value = true
+}
+
+const onTransferComplete = () => {
+  // Refresh receipts to show updated quantities/items
+  fetchTripReceipts()
+  // Also refresh the sheet items if needed
+  inventoryStore.fetchSheet(sheetId.value)
+}
+
+const updateQuantity = async (item: GroupedInventoryItem, delta: number) => {
+  // Consolidate duplicates on update
   const newQuantity = Math.max(0, item.quantity + delta)
+  
+  // Update the representative item
   await inventoryStore.updateItem(item.id, { quantity: newQuantity })
+
+  // Delete valid redundant items (so we don't have ghosts)
+  // We only delete items that are NOT the current representative
+  const otherIds = item.original_ids.filter(id => id !== item.id)
+  
+  // Create a customized promise execution to avoid race conditions or UI flicker
+  if (otherIds.length > 0) {
+      await Promise.all(otherIds.map(id => inventoryStore.deleteItem(id)))
+      // Clean up selection if needed
+      otherIds.forEach(id => selectedItems.value.delete(id))
+  }
 }
 
-const deleteItem = async (id: string) => {
-  await inventoryStore.deleteItem(id)
-  selectedItems.value.delete(id)
+const deleteItem = async (item: GroupedInventoryItem) => {
+  for (const id of item.original_ids) {
+    await inventoryStore.deleteItem(id)
+    selectedItems.value.delete(id)
+  }
 }
 
 const toggleSelection = (id: string) => {
-  const newSet = new Set(selectedItems.value)
-  if (newSet.has(id)) {
-    newSet.delete(id)
+  const group = groupedItems.value.find(g => g.id === id)
+  if (!group) return
+
+  // Check if the representative is selected (proxy for the group)
+  const isSelected = selectedItems.value.has(id)
+  
+  if (isSelected) {
+     // Deselect all
+     group.original_ids.forEach(oid => selectedItems.value.delete(oid))
   } else {
-    newSet.add(id)
+     // Select all
+     group.original_ids.forEach(oid => selectedItems.value.add(oid))
   }
-  selectedItems.value = newSet
 }
 
 const selectAll = () => {
-  const allIds = inventoryStore.currentSheet?.items?.map(i => i.id) || []
+  // Select all visible items (filtered items)
+  const allIds = filteredItems.value.map(i => i.id)
   selectedItems.value = new Set(allIds)
 }
 
@@ -120,6 +185,8 @@ const clearSelection = () => {
 
 const bulkDelete = async () => {
   const ids = Array.from(selectedItems.value)
+  // Since we select ALL IDs in the group, we can just delete linearly.
+  // The store handles deletion. 
   for (const id of ids) {
     await inventoryStore.deleteItem(id)
   }
@@ -127,25 +194,12 @@ const bulkDelete = async () => {
 }
 
 const startEdit = (item: InventoryItem) => {
-  editingItem.value = { 
-    ...item,
-    tags: [...(item.tags || [])]
-  }
+  editingItem.value = item
 }
 
-const saveEdit = async () => {
-  if (!editingItem.value) return
-  await inventoryStore.updateItem(editingItem.value.id, {
-    name: editingItem.value.name,
-    quantity: editingItem.value.quantity,
-    min_quantity: editingItem.value.min_quantity,
-    is_necessity: editingItem.value.is_necessity,
-    store: editingItem.value.store,
-    unit_of_measure: editingItem.value.unit_of_measure,
-    brand: editingItem.value.brand,
-    tag_ids: editingItem.value.tags?.map(t => t.id) || []
-  })
-  editingItem.value = null
+const onItemSaved = () => {
+    // Optionally refresh sheet if needed, but store typically updates reactively
+    // inventoryStore.fetchSheet(sheetId.value) 
 }
 </script>
 
@@ -164,12 +218,36 @@ const saveEdit = async () => {
           </span>
         </p>
       </div>
-      <Button size="sm" class="shrink-0" @click="showNewItem = true">
+      <Button v-if="!isPurchasesSheet" size="sm" class="shrink-0" @click="showNewItem = true">
         <Plus class="h-4 w-4 sm:mr-2" />
         <span class="hidden sm:inline">Add Item</span>
       </Button>
     </div>
 
+    <!-- Special Purchases Sheet View - Trip Receipts -->
+    <template v-if="isPurchasesSheet">
+      <!-- Loading state -->
+      <div v-if="isLoadingReceipts" class="flex items-center justify-center py-12">
+        <Loader2 class="h-8 w-8 animate-spin text-primary" />
+      </div>
+
+      <!-- Trip Receipt List -->
+      <TripReceiptList 
+        v-else
+        :receipts="tripReceipts" 
+        @transfer="handleTransferClick" 
+      />
+      
+      <!-- Transfer Modal -->
+      <ItemTransferModal
+        v-model:open="showTransferModal"
+        :item="transferItem"
+        @transferred="onTransferComplete"
+      />
+    </template>
+
+    <!-- Normal Sheet View -->
+    <template v-else>
     <!-- Filter Dropdown -->
     <div class="flex items-center gap-2">
       <div class="relative">
@@ -246,27 +324,26 @@ const saveEdit = async () => {
               <tr>
                 <th class="w-10 p-3">
                   <Checkbox 
-                    :model-value="selectedItems.size > 0 && selectedItems.size === inventoryStore.currentSheet?.items?.length"
+                    :model-value="selectedItems.size > 0 && selectedItems.size === groupedItems.length"
                     @update:model-value="$event ? selectAll() : clearSelection()"
                   />
                 </th>
+                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-36">Brand</th>
                 <th class="text-left p-3 text-sm font-medium text-muted-foreground">Name</th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-28">Brand</th>
+                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-32">Store</th>
                 <th class="text-center p-3 text-sm font-medium text-muted-foreground w-28">Quantity</th>
                 <th class="text-center p-3 text-sm font-medium text-muted-foreground w-20">Unit</th>
                 <th class="text-center p-3 text-sm font-medium text-muted-foreground w-20">Min</th>
-                <th class="text-center p-3 text-sm font-medium text-muted-foreground w-20">Essential</th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-32">Store</th>
                 <th class="w-20"></th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="item in filteredItems"
+                v-for="item in groupedItems"
                 :key="item.id"
                 :class="[
                   'border-t border-border hover:bg-secondary/30 transition-colors',
-                  item.is_necessity && item.quantity < item.min_quantity && 'bg-destructive/5'
+                  item.quantity < item.min_quantity && 'bg-destructive/5'
                 ]"
               >
                 <td class="p-3" @click.stop>
@@ -275,10 +352,13 @@ const saveEdit = async () => {
                     @update:model-value="toggleSelection(item.id)"
                   />
                 </td>
+                <td class="p-3 text-muted-foreground text-sm">
+                  {{ item.brand || '-' }}
+                </td>
                 <td class="p-3">
                   <div class="flex items-center gap-2">
                     <AlertTriangle 
-                      v-if="item.is_necessity && item.quantity < item.min_quantity"
+                      v-if="item.quantity < item.min_quantity"
                       class="h-4 w-4 text-destructive shrink-0"
                     />
                     <div class="min-w-0">
@@ -298,15 +378,15 @@ const saveEdit = async () => {
                   </div>
                 </td>
                 <td class="p-3 text-muted-foreground text-sm">
-                  {{ item.brand || '-' }}
+                  {{ item.store || '-' }}
                 </td>
                 <td class="p-3">
                   <div class="flex items-center justify-center gap-1.5">
-                    <Button variant="outline" size="icon" class="h-7 w-7" @click="updateQuantity(item, -1)">
+                    <Button variant="outline" size="icon" class="h-7 w-7" @click="updateQuantity(item as unknown as GroupedInventoryItem, -1)">
                       -
                     </Button>
                     <span class="w-8 text-center font-mono text-sm">{{ item.quantity }}</span>
-                    <Button variant="outline" size="icon" class="h-7 w-7" @click="updateQuantity(item, 1)">
+                    <Button variant="outline" size="icon" class="h-7 w-7" @click="updateQuantity(item as unknown as GroupedInventoryItem, 1)">
                       +
                     </Button>
                   </div>
@@ -317,26 +397,18 @@ const saveEdit = async () => {
                 <td class="p-3 text-center text-muted-foreground text-sm">
                   {{ item.min_quantity }}
                 </td>
-                <td class="p-3 text-center">
-                  <Badge v-if="item.is_necessity" variant="default" class="px-2">
-                    <Check class="h-3 w-3" />
-                  </Badge>
-                </td>
-                <td class="p-3 text-muted-foreground text-sm">
-                  {{ item.store || '-' }}
-                </td>
                 <td class="p-3">
                   <div class="flex items-center gap-1">
                     <Button variant="ghost" size="icon" class="h-8 w-8" @click="startEdit(item)">
                       <Edit class="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive" @click="deleteItem(item.id)">
+                    <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive" @click="deleteItem(item as unknown as GroupedInventoryItem)">
                       <Trash class="h-4 w-4" />
                     </Button>
                   </div>
                 </td>
               </tr>
-              <tr v-if="!inventoryStore.currentSheet?.items?.length">
+              <tr v-if="!groupedItems.length">
                 <td colspan="8" class="p-10 text-center text-muted-foreground">
                   No items yet. Add your first item to get started.
                 </td>
@@ -350,24 +422,22 @@ const saveEdit = async () => {
     <!-- Mobile Card View -->
     <div class="md:hidden space-y-2">
       <div
-        v-for="item in inventoryStore.currentSheet?.items"
+        v-for="item in groupedItems"
         :key="item.id"
         :class="[
           'bg-card rounded-xl border border-border/60 p-3 transition-colors',
-          item.is_necessity && item.quantity < item.min_quantity && 'border-destructive/30 bg-destructive/5'
+          item.quantity < item.min_quantity && 'border-destructive/30 bg-destructive/5'
         ]"
       >
         <div class="flex items-start justify-between gap-3">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
               <AlertTriangle 
-                v-if="item.is_necessity && item.quantity < item.min_quantity"
+                v-if="item.quantity < item.min_quantity"
                 class="h-4 w-4 text-destructive shrink-0"
               />
               <h3 class="font-medium text-sm truncate">{{ item.name }}</h3>
-              <Badge v-if="item.is_necessity" variant="default" class="shrink-0 px-1.5 py-0 text-[10px]">
-                Essential
-              </Badge>
+              <!-- Removed Essential Badge -->
             </div>
             <div class="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
               <span v-if="item.brand" class="font-medium">{{ item.brand }}</span>
@@ -391,7 +461,7 @@ const saveEdit = async () => {
             <Button variant="ghost" size="icon" class="h-7 w-7" @click.stop="startEdit(item)">
               <Edit class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="h-7 w-7 text-destructive" @click.stop="deleteItem(item.id)">
+            <Button variant="ghost" size="icon" class="h-7 w-7 text-destructive" @click.stop="deleteItem(item as unknown as GroupedInventoryItem)">
               <Trash class="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -405,13 +475,13 @@ const saveEdit = async () => {
               variant="outline" 
               size="icon" 
               class="h-8 w-8 rounded-full" 
-              @click="updateQuantity(item, -1)"
+              @click="updateQuantity(item as unknown as GroupedInventoryItem, -1)"
             >
               <Minus class="h-4 w-4" />
             </Button>
             <span :class="[
               'w-10 text-center font-mono text-lg font-semibold',
-              item.is_necessity && item.quantity < item.min_quantity && 'text-destructive'
+              item.quantity < item.min_quantity && 'text-destructive'
             ]">
               {{ item.quantity }}
             </span>
@@ -419,7 +489,7 @@ const saveEdit = async () => {
               variant="outline" 
               size="icon" 
               class="h-8 w-8 rounded-full" 
-              @click="updateQuantity(item, 1)"
+              @click="updateQuantity(item as unknown as GroupedInventoryItem, 1)"
             >
               <Plus class="h-4 w-4" />
             </Button>
@@ -427,7 +497,7 @@ const saveEdit = async () => {
         </div>
       </div>
 
-      <div v-if="!inventoryStore.currentSheet?.items?.length" class="text-center py-12 text-muted-foreground">
+      <div v-if="!groupedItems.length" class="text-center py-12 text-muted-foreground">
         <Package class="h-10 w-10 mx-auto mb-3 opacity-40" />
         <p class="text-sm">No items yet</p>
         <Button size="sm" variant="outline" class="mt-3" @click="showNewItem = true">
@@ -435,122 +505,22 @@ const saveEdit = async () => {
           Add Item
         </Button>
       </div>
-    </div>
+      </div>
+    </template>
 
     <!-- New Item Modal -->
-    <Teleport to="body">
-      <div 
-        v-if="showNewItem" 
-        class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-        @click="showNewItem = false"
-      >
-        <Card class="w-full sm:max-w-md shadow-xl animate-slide-up rounded-t-2xl sm:rounded-xl max-h-[90vh] overflow-auto" @click.stop>
-          <CardContent class="p-4 sm:p-6">
-            <h2 class="text-lg font-semibold mb-5">Add Item</h2>
-            <form class="space-y-4" @submit.prevent="createItem">
-              <div>
-                <label class="text-sm font-medium">Name</label>
-                <Input v-model="newItem.name" placeholder="Item name" class="mt-1.5" />
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-sm font-medium">Brand</label>
-                  <Input v-model="newItem.brand" placeholder="Brand name" class="mt-1.5" />
-                </div>
-                <div>
-                  <label class="text-sm font-medium">Unit</label>
-                  <Input v-model="newItem.unit_of_measure" placeholder="e.g. lbs, oz, pcs" class="mt-1.5" />
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-sm font-medium">Quantity</label>
-                  <Input v-model.number="newItem.quantity" type="number" min="0" class="mt-1.5" />
-                </div>
-                <div>
-                  <label class="text-sm font-medium">Min Qty</label>
-                  <Input v-model.number="newItem.min_quantity" type="number" min="0" class="mt-1.5" />
-                </div>
-              </div>
-              <div>
-                <label class="text-sm font-medium">Store</label>
-                <Input v-model="newItem.store" placeholder="Where to buy" class="mt-1.5" />
-              </div>
-              <div class="flex items-center gap-2">
-                <Checkbox v-model="newItem.is_necessity" />
-                <label class="text-sm">Mark as necessity (for shopping list)</label>
-              </div>
-              <div>
-                <label class="text-sm font-medium">Tags</label>
-                <div class="mt-1.5">
-                  <TagSelector v-model="newItem.tags" placeholder="Add tags to categorize..." />
-                </div>
-              </div>
-              <div class="flex gap-3 pt-2">
-                <Button variant="outline" type="button" class="flex-1 sm:flex-none" @click="showNewItem = false">Cancel</Button>
-                <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto" :disabled="!newItem.name.trim()">Add Item</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+    <InventoryItemForm 
+      v-if="showNewItem" 
+      @close="showNewItem = false"
+      @saved="onItemSaved"
+    />
 
-      <!-- Edit Item Modal -->
-      <div 
-        v-if="editingItem" 
-        class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-        @click="editingItem = null"
-      >
-        <Card class="w-full sm:max-w-md shadow-xl animate-slide-up rounded-t-2xl sm:rounded-xl max-h-[90vh] overflow-auto" @click.stop>
-          <CardContent class="p-4 sm:p-6">
-            <h2 class="text-lg font-semibold mb-5">Edit Item</h2>
-            <form class="space-y-4" @submit.prevent="saveEdit">
-              <div>
-                <label class="text-sm font-medium">Name</label>
-                <Input v-model="editingItem.name" class="mt-1.5" />
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-sm font-medium">Brand</label>
-                  <Input :model-value="editingItem.brand ?? ''" @update:model-value="editingItem.brand = $event || null" class="mt-1.5" />
-                </div>
-                <div>
-                  <label class="text-sm font-medium">Unit</label>
-                  <Input :model-value="editingItem.unit_of_measure ?? ''" @update:model-value="editingItem.unit_of_measure = $event || null" placeholder="e.g. lbs, oz" class="mt-1.5" />
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-sm font-medium">Quantity</label>
-                  <Input v-model.number="editingItem.quantity" type="number" min="0" class="mt-1.5" />
-                </div>
-                <div>
-                  <label class="text-sm font-medium">Min Qty</label>
-                  <Input v-model.number="editingItem.min_quantity" type="number" min="0" class="mt-1.5" />
-                </div>
-              </div>
-              <div>
-                <label class="text-sm font-medium">Store</label>
-                <Input :model-value="editingItem.store ?? ''" @update:model-value="editingItem.store = $event || null" class="mt-1.5" />
-              </div>
-              <div class="flex items-center gap-2">
-                <Checkbox v-model="editingItem.is_necessity" />
-                <label class="text-sm">Mark as necessity</label>
-              </div>
-              <div>
-                <label class="text-sm font-medium">Tags</label>
-                <div class="mt-1.5">
-                  <TagSelector v-model="editingItem.tags" placeholder="Add tags..." />
-                </div>
-              </div>
-              <div class="flex gap-3 pt-2">
-                <Button variant="outline" type="button" class="flex-1 sm:flex-none" @click="editingItem = null">Cancel</Button>
-                <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto">Save</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </Teleport>
+    <!-- Edit Item Modal -->
+    <InventoryItemForm
+      v-if="editingItem"
+      :item="editingItem"
+      @close="editingItem = null"
+      @saved="onItemSaved"
+    />
   </div>
 </template>

@@ -8,15 +8,64 @@ import type { Store as StoreType } from '@/types'
 import StoreFormModal from '@/components/budget/StoreFormModal.vue'
 import StoreInventoryModal from '@/components/budget/StoreInventoryModal.vue'
 
+import { useRoute, useRouter } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
 const receiptsStore = useReceiptsStore()
 const showStoreForm = ref(false)
 const showInventoryModal = ref(false)
 const editingStore = ref<StoreType | null>(null)
 const viewingStore = ref<StoreType | null>(null)
+const returnTo = ref<string | null>(null)
+const initialName = ref<string>('')
 
 onMounted(async () => {
   await receiptsStore.fetchStores()
+  
+  if (route.query.returnTo) {
+    returnTo.value = route.query.returnTo as string
+  }
+  
+  if (route.query.new) {
+    if (route.query.name) {
+      initialName.value = route.query.name as string
+    }
+    openNewStore()
+  }
 })
+
+const handleStoreSaved = () => {
+  // If we have a return URL, go back immediately after save
+  if (returnTo.value) {
+    router.push(returnTo.value)
+  }
+}
+
+const handleModalClose = () => {
+  // If we have a return URL and the modal is closed (either by cancel or save), 
+  // we might want to go back. However, 'saved' event fires first, creating a race if we also trigger on close.
+  // But if the user CANCELS, we also want to go back?
+  // User said: "bring user back to wherever they were before tryin to create store"
+  // If I cancel, I should probably go back.
+  if (returnTo.value) {
+     // A small timeout to let the saved handler fire first if it was a save
+     setTimeout(() => {
+        // If we are still on the page (meaning saved handler didn't redirect distinctively, usually it does), 
+        // OR if clean navigation is needed.
+        // Actually, logic: Saved -> redirect. Close -> redirect.
+        // If saved, handleStoreSaved redirects. Using 'replac'e or 'push'.
+        // If I redirect in handleStoreSaved, component unmounts?
+        // Let's just do it here if we verify we haven't redirected yet?
+        // Simpler: Just rely on handleModalClose for BOTH? 
+        // No, saved gives feedback.
+        // Let's check if the route is still the same.
+        if (route.path === '/budget/stores') { // Making sure we haven't navigated away
+             router.push(returnTo.value!)
+        }
+     }, 100)
+  }
+}
 
 const openNewStore = () => {
   editingStore.value = null
@@ -132,7 +181,9 @@ const handleDelete = async (id: string, event?: Event) => {
     <StoreFormModal 
       v-model:open="showStoreForm"
       :store="editingStore"
-      @saved="() => {}"
+      :initial-name="initialName"
+      @saved="handleStoreSaved"
+      @update:open="(val) => { showStoreForm = val; if (!val) handleModalClose() }"
     />
 
     <StoreInventoryModal

@@ -5,7 +5,7 @@ defmodule MegaPlanner.Goals do
 
   import Ecto.Query, warn: false
   alias MegaPlanner.Repo
-  alias MegaPlanner.Goals.{Goal, GoalCategory, GoalStatusChange, Milestone, Habit, HabitCompletion}
+  alias MegaPlanner.Goals.{Goal, GoalCategory, GoalStatusChange, Milestone, Habit, HabitCompletion, MilestoneTemplate}
   alias MegaPlanner.Tags.Tag
 
   # ============================================================================
@@ -681,5 +681,58 @@ defmodule MegaPlanner.Goals do
         count
       end
     end
+  end
+
+  @doc """
+  Returns distinct goal titles matching the query.
+  """
+  def suggest_titles(household_id, query) do
+    from(g in Goal,
+      where: g.household_id == ^household_id and ilike(g.title, ^"%#{query}%"),
+      select: g.title,
+      distinct: true,
+      order_by: [asc: g.title],
+      limit: 10
+    )
+    |> Repo.all()
+  end
+
+  alias MegaPlanner.Goals.MilestoneTemplate
+
+  @doc """
+  Returns distinct milestone titles matching the query from both Milestones and MilestoneTemplates.
+  """
+  def suggest_milestone_titles(household_id, query) do
+    # Query for existing milestones used in goals
+    milestones_query = from(m in Milestone,
+      join: g in assoc(m, :goal),
+      where: g.household_id == ^household_id and ilike(m.title, ^"%#{query}%"),
+      select: m.title
+    )
+
+    # Query for saved templates
+    templates_query = from(t in MilestoneTemplate,
+      where: t.household_id == ^household_id and ilike(t.title, ^"%#{query}%"),
+      select: t.title
+    )
+
+    # Union the two queries to get distinct results
+    union_query = from(q in subquery(union(milestones_query, ^templates_query)),
+      select: q.title,
+      distinct: true,
+      order_by: [asc: q.title],
+      limit: 10
+    )
+
+    Repo.all(union_query)
+  end
+
+  @doc """
+  Creates a milestone template.
+  """
+  def create_milestone_template(attrs \\ %{}) do
+    %MilestoneTemplate{}
+    |> MilestoneTemplate.changeset(attrs)
+    |> Repo.insert(on_conflict: :nothing)
   end
 end

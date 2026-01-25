@@ -102,4 +102,22 @@ defmodule MegaPlannerWeb.InventorySheetController do
       color: tag.color
     }
   end
+
+  # Trip Receipts
+
+  def trip_receipts(conn, _params) do
+    user = Guardian.Plug.current_resource(conn)
+    receipts = Inventory.list_trip_receipts(user.household_id)
+    json(conn, %{data: Enum.map(receipts, &trip_receipt_to_json/1)})
+  end
+
+  defp trip_receipt_to_json(receipt) do
+    %{
+      id: receipt.id,
+      store_name: receipt.store_name,
+      trip_start: receipt.trip_start,
+      date: receipt.date,
+      items: Enum.map(receipt.items, &item_to_json/1)
+    }
+  end
 end

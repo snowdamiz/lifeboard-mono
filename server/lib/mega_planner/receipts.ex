@@ -366,6 +366,10 @@ defmodule MegaPlanner.Receipts do
     trip = Repo.preload(trip, stops: [purchases: :budget_entry])
     
     Repo.transaction(fn ->
+      # Unlink Inventory Items linked to this trip
+      from(i in MegaPlanner.Inventory.Item, where: i.trip_id == ^trip.id)
+      |> Repo.update_all(set: [trip_id: nil, stop_id: nil, purchase_id: nil])
+
       # Delete all purchases and their budget entries first
       Enum.each(trip.stops, fn stop ->
         Enum.each(stop.purchases || [], fn purchase ->
@@ -485,6 +489,10 @@ defmodule MegaPlanner.Receipts do
     stop = Repo.preload(stop, purchases: :budget_entry)
     
     Repo.transaction(fn ->
+      # Unlink Inventory Items linked to this stop
+      from(i in MegaPlanner.Inventory.Item, where: i.stop_id == ^stop.id)
+      |> Repo.update_all(set: [stop_id: nil, purchase_id: nil])
+
       # Delete all purchases and their budget entries first
       Enum.each(stop.purchases || [], fn purchase ->
         case Repo.delete(purchase) do
@@ -609,6 +617,7 @@ defmodule MegaPlanner.Receipts do
     query
     |> filter_purchases_by_stop(opts)
     |> filter_purchases_by_brand(opts)
+    |> filter_purchases_by_source(opts)
     |> Repo.all()
   end
 
@@ -623,6 +632,16 @@ defmodule MegaPlanner.Receipts do
     case Keyword.get(opts, :brand) do
       nil -> query
       brand -> from p in query, where: ilike(p.brand, ^"%#{brand}%")
+    end
+  end
+
+  defp filter_purchases_by_source(query, opts) do
+    case Keyword.get(opts, :source_id) do
+      nil -> query
+      source_id -> 
+        from p in query,
+          join: e in assoc(p, :budget_entry),
+          where: e.source_id == ^source_id
     end
   end
 
@@ -652,13 +671,26 @@ defmodule MegaPlanner.Receipts do
       Date.utc_today()
     )
     
+    # Get store name from stop (if stop exists) and create/get expense source
+    store_name = get_store_name_for_stop(stop_id)
+    source_id = 
+      case store_name do
+        nil -> nil
+        name ->
+          case Budget.get_or_create_source_for_store(household_id, user_id, name) do
+            {:ok, source} when not is_nil(source) -> source.id
+            _ -> nil
+          end
+      end
+
     budget_attrs = %{
       "household_id" => household_id,
       "user_id" => user_id,
       "date" => date,
       "amount" => attrs["total_price"],
       "type" => "expense",
-      "notes" => "Purchase: #{attrs["brand"]} - #{attrs["item"]}"
+      "notes" => "Purchase: #{attrs["brand"]} - #{attrs["item"]}",
+      "source_id" => source_id
     }
 
     Repo.transaction(fn ->
@@ -677,6 +709,17 @@ defmodule MegaPlanner.Receipts do
         error -> Repo.rollback(error)
       end
     end)
+  end
+
+  # Helper to get store name from a stop
+  defp get_store_name_for_stop(nil), do: nil
+  defp get_store_name_for_stop(stop_id) do
+    stop = get_stop(stop_id)
+    cond do
+      stop && stop.store -> stop.store.name
+      stop && stop.store_name -> stop.store_name
+      true -> nil
+    end
   end
 
   @doc """
@@ -729,7 +772,20 @@ defmodule MegaPlanner.Receipts do
     purchase = Repo.preload(purchase, :budget_entry)
     
     Repo.transaction(fn ->
+      # 1. Unlink from Budget Entry (to avoid FK constraint on budget_entries.purchase_id)
+      if purchase.budget_entry do
+        purchase.budget_entry
+        |> Ecto.Changeset.change(purchase_id: nil)
+        |> Repo.update!()
+      end
+
+      # 2. Unlink from Inventory Items (to avoid FK constraint on inventory_items.purchase_id)
+      from(i in MegaPlanner.Inventory.Item, where: i.purchase_id == ^purchase.id)
+      |> Repo.update_all(set: [purchase_id: nil])
+
+      # 3. Delete the purchase
       with {:ok, _purchase} <- Repo.delete(purchase) do
+        # 4. Delete the budget entry
         if purchase.budget_entry do
           Budget.delete_entry(purchase.budget_entry)
         end
@@ -771,7 +827,6 @@ defmodule MegaPlanner.Receipts do
     ) |> Repo.one()
 
     # Get recent purchases with this brand
-    # Filter by store if provided
     store_id = Keyword.get(opts, :store_id)
     
     query = from(p in Purchase,
@@ -791,9 +846,40 @@ defmodule MegaPlanner.Receipts do
 
     recent_purchases = Repo.all(query)
 
+    # ALSO fetch from Inventory Items to fill gaps
+    # We map them to look like purchases so the frontend can consume them easily
+    inventory_items = from(i in MegaPlanner.Inventory.Item,
+      where: i.brand == ^brand_name and not is_nil(i.store_code),
+      order_by: [desc: i.updated_at],
+      limit: 5,
+      preload: [:tags]
+    ) |> Repo.all()
+
+    # Convert inventory items to purchase-like structures
+    inventory_as_purchases = Enum.map(inventory_items, fn item -> 
+      %Purchase{
+        id: item.id, # differentiate?
+        brand: item.brand,
+        item: item.name,
+        unit_measurement: item.unit_of_measure,
+        count: item.count,
+        price_per_count: item.price_per_count,
+        units: nil, # item doesn't strictly have units/price_per_unit separate the same way? actually it does
+        price_per_unit: item.price_per_unit,
+        taxable: item.taxable,
+        # tax_rate? Inventory item doesn't store tax rate usually, maybe calculate?
+        total_price: item.total_price,
+        store_code: item.store_code,
+        item_name: item.item_name,
+        tags: item.tags,
+        inserted_at: item.inserted_at,
+        updated_at: item.updated_at
+      }
+    end)
+
     %{
       brand: brand,
-      recent_purchases: recent_purchases
+      recent_purchases: recent_purchases ++ inventory_as_purchases
     }
   end
 
@@ -889,5 +975,105 @@ defmodule MegaPlanner.Receipts do
     # Always return the purchase to keep the pipe/with chain flowing smoothly
     purchase
   end
-end
 
+
+
+  @doc """
+  Searches stores by name.
+  """
+  def search_stores(household_id, query) do
+    from(s in Store,
+      where: s.household_id == ^household_id and (ilike(s.name, ^"%#{query}%") or ilike(s.store_code, ^"%#{query}%")),
+      order_by: [asc: s.name],
+      limit: 10
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns distinct store codes matching the query.
+  """
+  def suggest_store_codes(household_id, query) do
+    purchases_codes = from(p in Purchase,
+      where: p.household_id == ^household_id and not is_nil(p.store_code) and ilike(p.store_code, ^"%#{query}%"),
+      select: p.store_code,
+      distinct: true,
+      order_by: [asc: p.store_code],
+      limit: 10
+    )
+    |> Repo.all()
+
+    inventory_codes = from(i in MegaPlanner.Inventory.Item,
+      join: s in assoc(i, :sheet),
+      where: s.household_id == ^household_id and not is_nil(i.store_code) and ilike(i.store_code, ^"%#{query}%"),
+      select: i.store_code,
+      distinct: true,
+      order_by: [asc: i.store_code],
+      limit: 10
+    )
+    |> Repo.all()
+
+    (purchases_codes ++ inventory_codes)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.take(10)
+  end
+
+  @doc """
+  Returns distinct receipt item names matching the query.
+  """
+  def suggest_receipt_item_names(household_id, query) do
+    purchase_names = from(p in Purchase,
+      where: p.household_id == ^household_id and not is_nil(p.item_name) and ilike(p.item_name, ^"%#{query}%"),
+      select: p.item_name,
+      distinct: true,
+      order_by: [asc: p.item_name],
+      limit: 10
+    )
+    |> Repo.all()
+
+    inventory_names = from(i in MegaPlanner.Inventory.Item,
+      join: s in assoc(i, :sheet),
+      where: s.household_id == ^household_id and not is_nil(i.item_name) and ilike(i.item_name, ^"%#{query}%"),
+      select: i.item_name,
+      distinct: true,
+      order_by: [asc: i.item_name],
+      limit: 10
+    )
+    |> Repo.all()
+
+    (purchase_names ++ inventory_names)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.take(10)
+  end
+
+  @doc """
+  Returns distinct item names matching the query.
+  """
+  def suggest_names(household_id, query) do
+    purchases = from(p in Purchase,
+      where: p.household_id == ^household_id and ilike(p.item, ^"%#{query}%"),
+      select: p.item,
+      distinct: true,
+      order_by: [asc: p.item],
+      limit: 10
+    )
+    |> Repo.all()
+
+    inventory = from(i in MegaPlanner.Inventory.Item,
+      join: s in assoc(i, :sheet),
+      where: s.household_id == ^household_id and ilike(i.name, ^"%#{query}%"),
+      select: i.name,
+      distinct: true,
+      order_by: [asc: i.name],
+      limit: 10
+    )
+    |> Repo.all()
+
+    (purchases ++ inventory)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.take(10)
+  end
+end

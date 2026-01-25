@@ -385,7 +385,7 @@ defmodule MegaPlanner.Inventory do
     items_needing_replenishment =
       from(i in Item,
         join: s in Sheet, on: i.sheet_id == s.id,
-        where: s.household_id == ^household_id and i.is_necessity == true and i.quantity < i.min_quantity,
+        where: s.household_id == ^household_id and i.quantity < i.min_quantity,
         select: %{id: i.id, quantity: i.quantity, min_quantity: i.min_quantity}
       )
       |> Repo.all()
@@ -578,5 +578,111 @@ defmodule MegaPlanner.Inventory do
         })
       sheet -> {:ok, sheet}
     end
+  end
+
+  # Trip Receipts
+
+  @doc """
+  Lists inventory items from the Purchases sheet grouped by stop_id.
+  Returns a list of trip receipts with their items.
+  """
+  def list_trip_receipts(household_id) do
+    case Repo.get_by(Sheet, household_id: household_id, name: "Purchases") do
+      nil -> []
+      sheet ->
+        from(i in Item,
+          where: i.sheet_id == ^sheet.id and not is_nil(i.stop_id),
+          preload: [:tags, stop: [:store, :trip]],
+          order_by: [desc: i.purchase_date]
+        )
+        |> Repo.all()
+        |> Enum.group_by(&(&1.stop_id))
+        |> Enum.map(fn {_stop_id, items} ->
+          first_item = List.first(items)
+          stop = first_item.stop
+          %{
+            id: stop.id,
+            store_name: (stop.store && stop.store.name) || stop.stop_name,
+            trip_start: stop.trip && stop.trip.trip_start,
+            date: first_item.purchase_date,
+            items: items
+          }
+        end)
+        |> Enum.sort_by(& &1.date, {:desc, DateTime})
+    end
+  end
+
+  @doc """
+  Finds all inventory items matching brand+name across non-Purchases sheets.
+  """
+  def find_matching_items(household_id, brand, name) do
+    search_brand = brand || ""
+    search_name = name || ""
+    
+    from(i in Item,
+      join: s in assoc(i, :sheet),
+      where: s.household_id == ^household_id and 
+             s.name != "Purchases" and
+             ilike(i.brand, ^search_brand) and 
+             ilike(i.name, ^search_name),
+      preload: [:sheet, :tags]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Transfers quantity from source item to target sheet.
+  Creates new item in target if none exists, otherwise adds to existing.
+  Transferred items become regular inventory (no purchase linkage).
+  """
+  def transfer_item(source_item_id, target_sheet_id, quantity) do
+    Repo.transaction(fn ->
+      source = get_item(source_item_id)
+      
+      if source == nil do
+        Repo.rollback(:item_not_found)
+      end
+      
+      if source.quantity < quantity do
+        Repo.rollback(:insufficient_quantity)
+      end
+      
+      # Look for existing matching item in target sheet
+      target_item = Repo.one(
+        from i in Item,
+          where: i.sheet_id == ^target_sheet_id and
+                 i.name == ^source.name and
+                 coalesce(i.brand, "") == ^(source.brand || ""),
+          limit: 1
+      )
+      
+      # Update or create target
+      case target_item do
+        nil ->
+          # Create new item in target (no purchase linkage)
+          {:ok, _} = create_item(%{
+            "name" => source.name,
+            "brand" => source.brand,
+            "store" => source.store,
+            "quantity" => quantity,
+            "sheet_id" => target_sheet_id,
+            "unit_of_measure" => source.unit_of_measure,
+            "store_code" => source.store_code
+          })
+        item ->
+          # Add to existing item
+          {:ok, _} = update_item(item, %{quantity: item.quantity + quantity})
+      end
+      
+      # Reduce source or delete if empty
+      new_quantity = source.quantity - quantity
+      if new_quantity <= 0 do
+        delete_item(source)
+      else
+        update_item(source, %{quantity: new_quantity})
+      end
+      
+      :ok
+    end)
   end
 end

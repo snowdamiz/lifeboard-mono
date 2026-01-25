@@ -382,12 +382,12 @@ const deletePage = async (notebookId: string, pageId: string, event: Event) => {
                 />
               </div>
 
-              <div class="flex gap-3 mt-5">
+              <div class="flex justify-between gap-3 mt-5">
                 <Button variant="outline" type="button" class="flex-1 sm:flex-none" @click="showNotebookModal = false">
                   Cancel
                 </Button>
                 <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto" :disabled="!notebookForm.name.trim()">
-                  {{ editingNotebook ? 'Save' : 'Create' }}
+                  {{ editingNotebook ? 'Save Changes' : 'Create' }}
                 </Button>
               </div>
             </form>

@@ -188,7 +188,7 @@ export const useReceiptsStore = defineStore('receipts', () => {
     }
 
     async function searchBrands(query: string) {
-        if (!query || query.length < 2) return []
+        if (!query || query.length < 1) return []
         try {
             const response = await api.searchBrands(query)
             return response.data
@@ -231,7 +231,7 @@ export const useReceiptsStore = defineStore('receipts', () => {
     }
 
     // Purchases
-    async function fetchPurchases(params?: { stop_id?: string; brand?: string }) {
+    async function fetchPurchases(params?: { stop_id?: string; brand?: string; source_id?: string }) {
         loading.value = true
         try {
             const response = await api.listPurchases(params)
@@ -251,6 +251,11 @@ export const useReceiptsStore = defineStore('receipts', () => {
             if (stop && stop.purchases) {
                 stop.purchases.push(response.data)
             }
+        }
+
+        // Check if brand is new and refresh brands list if so
+        if (purchase.brand && !brands.value.some(b => b.name.toLowerCase() === purchase.brand?.toLowerCase())) {
+            fetchBrands()
         }
 
         return response.data
@@ -274,6 +279,11 @@ export const useReceiptsStore = defineStore('receipts', () => {
                     }
                 }
             }
+        }
+
+        // Check if brand is new and refresh brands list if so
+        if (updates.brand && !brands.value.some(b => b.name.toLowerCase() === updates.brand?.toLowerCase())) {
+            fetchBrands()
         }
 
         return response.data
@@ -301,6 +311,26 @@ export const useReceiptsStore = defineStore('receipts', () => {
 
     async function getSuggestionsByItem(item: string): Promise<BrandSuggestion[]> {
         const response = await api.suggestByItem(item)
+        return response.data
+    }
+
+    async function searchStores(query: string): Promise<Store[]> {
+        const response = await api.suggestStores(query)
+        return response.data
+    }
+
+    async function searchStoreCodes(query: string): Promise<string[]> {
+        const response = await api.suggestStoreCodes(query)
+        return response.data
+    }
+
+    async function searchReceiptItemNames(query: string): Promise<string[]> {
+        const response = await api.suggestReceiptItems(query)
+        return response.data
+    }
+
+    async function searchItemNames(query: string): Promise<string[]> {
+        const response = await api.suggestItems(query)
         return response.data
     }
 
@@ -361,6 +391,10 @@ export const useReceiptsStore = defineStore('receipts', () => {
         // Auto-complete
         getSuggestionsByBrand,
         getSuggestionsByItem,
+        searchStores,
+        searchStoreCodes,
+        searchReceiptItemNames,
+        searchItemNames,
 
         // Inventory
         addToInventory,

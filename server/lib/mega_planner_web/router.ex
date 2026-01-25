@@ -53,6 +53,11 @@ defmodule MegaPlannerWeb.Router do
     get "/preferences", PreferencesController, :show
     put "/preferences", PreferencesController, :update
 
+    # Generic Text Templates (must come before resources to avoid :id matching "suggest")
+    get "/templates/suggest", TemplateController, :suggest
+    post "/text-templates", TemplateController, :create_text_template
+    delete "/text-templates", TemplateController, :delete_text_template
+
     # Task Templates
     resources "/templates", TemplateController, except: [:new, :edit]
     post "/templates/:template_id/apply", TemplateController, :apply
@@ -67,6 +72,9 @@ defmodule MegaPlannerWeb.Router do
 
     # Inventory
     scope "/inventory" do
+      get "/trip-receipts", InventorySheetController, :trip_receipts
+      get "/items/find-matching", InventoryItemController, :find_matching
+      post "/items/transfer", InventoryItemController, :transfer
       resources "/sheets", InventorySheetController, except: [:new, :edit]
       resources "/items", InventoryItemController, except: [:new, :edit, :index]
     end
@@ -109,6 +117,10 @@ defmodule MegaPlannerWeb.Router do
       resources "/purchases", PurchaseController, except: [:new, :edit]
       get "/purchases/suggest/brand", PurchaseController, :suggest_by_brand
       get "/purchases/suggest/item", PurchaseController, :suggest_by_item
+      get "/purchases/suggest/store", PurchaseController, :suggest_stores
+      get "/purchases/suggest/store-code", PurchaseController, :suggest_store_codes
+      get "/purchases/suggest/receipt-item", PurchaseController, :suggest_receipt_items
+      get "/purchases/suggest/item-name", PurchaseController, :suggest_items
       post "/purchases/to-inventory", PurchaseController, :add_to_inventory
       
       resources "/drivers", DriverController, only: [:index, :create]
@@ -134,6 +146,14 @@ defmodule MegaPlannerWeb.Router do
     resources "/goal-categories", GoalCategoryController, except: [:new, :edit]
 
     # Goals
+    # Goals
+    get "/goals/suggest/titles", GoalController, :suggest_titles
+    # Milestone suggestion endpoint
+    get "/goals/suggest/milestones", GoalController, :suggest_milestone_titles
+    post "/goals/templates/milestones", GoalController, :create_template
+
+
+
     resources "/goals", GoalController, except: [:new, :edit] do
       post "/milestones", GoalController, :create_milestone
       put "/milestones/:milestone_id", GoalController, :update_milestone

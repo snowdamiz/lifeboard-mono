@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
-import { ArrowLeft, Plus, Trash, Edit, TrendingUp, TrendingDown } from 'lucide-vue-next'
+import { ArrowLeft, Plus, Trash, Edit, TrendingUp, TrendingDown, Eye } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,29 +8,76 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { useBudgetStore } from '@/stores/budget'
+import { useTagsStore } from '@/stores/tags'
 import { formatCurrency } from '@/lib/utils'
-import TagSelector from '@/components/shared/TagSelector.vue'
+import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
+import SourceDetailModal from '@/components/budget/SourceDetailModal.vue'
+import { api } from '@/services/api'
 import type { BudgetSource, Tag } from '@/types'
 
 const router = useRouter()
 const budgetStore = useBudgetStore()
+const tagsStore = useTagsStore()
 const showForm = ref(false)
 const editingSource = ref<BudgetSource | null>(null)
+const showSourceDetail = ref(false)
+const selectedSource = ref<BudgetSource | null>(null)
+
+const openSourceDetail = (source: BudgetSource) => {
+  selectedSource.value = source
+  showSourceDetail.value = true
+}
+
+const handleSourceDetailRefresh = async () => {
+  await budgetStore.fetchSources()
+}
 
 const form = ref({
   name: '',
   type: 'expense' as 'income' | 'expense',
   amount: '',
-  is_recurring: false,
-  tags: [] as Tag[]
+  tagIds: new Set<string>()
+})
+
+const resolvedTags = computed(() => {
+  return Array.from(form.value.tagIds)
+    .map(id => tagsStore.tags.find((t: Tag) => t.id === id))
+    .filter((t): t is Tag => t !== undefined)
 })
 
 onMounted(() => {
   budgetStore.fetchSources()
 })
 
+// Search function for source names using text templates
+const searchSourceNames = async (query: string) => {
+  const response = await api.suggestTemplates('budget_source_name', query)
+  return response.data
+}
+
+const deleteSourceNameTemplate = async (value: string) => {
+  try {
+    await api.deleteTextTemplate('budget_source_name', value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// When a source name is selected from autocomplete, load the existing source's parameters
+const onSourceNameSelect = (selectedName: string) => {
+  // Find an existing source with this name to pre-fill the form
+  const existingSource = budgetStore.sources.find(s => s.name === selectedName)
+  if (existingSource) {
+    form.value.type = existingSource.type
+    form.value.amount = existingSource.amount
+    form.value.tagIds = new Set(existingSource.tags.map(t => t.id))
+  }
+}
+
 const resetForm = () => {
-  form.value = { name: '', type: 'expense', amount: '', is_recurring: false, tags: [] }
+  form.value = { name: '', type: 'expense', amount: '', tagIds: new Set() }
   editingSource.value = null
 }
 
@@ -45,8 +92,7 @@ const openEdit = (source: BudgetSource) => {
     name: source.name,
     type: source.type,
     amount: source.amount,
-    is_recurring: source.is_recurring,
-    tags: [...source.tags]
+    tagIds: new Set(source.tags.map(t => t.id))
   }
   showForm.value = true
 }
@@ -58,14 +104,19 @@ const saveSource = async () => {
     name: form.value.name,
     type: form.value.type,
     amount: form.value.amount || '0',
-    is_recurring: form.value.is_recurring,
-    tag_ids: form.value.tags.map(t => t.id)
+    tag_ids: Array.from(form.value.tagIds)
   }
 
   if (editingSource.value) {
     await budgetStore.updateSource(editingSource.value.id, data)
   } else {
     await budgetStore.createSource(data)
+    // Save the source name as a template for future autocomplete
+    try {
+      await api.saveTemplate('budget_source_name', form.value.name.trim())
+    } catch (e) {
+      // Ignore errors - template already exists or other non-critical issues
+    }
   }
 
   showForm.value = false
@@ -124,7 +175,6 @@ const totalExpense = computed(() =>
             <div class="flex-1 min-w-0">
               <p class="font-medium">{{ source.name }}</p>
               <div class="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge v-if="source.is_recurring" variant="secondary">Recurring</Badge>
                 <span class="text-sm text-muted-foreground">{{ formatCurrency(source.amount) }}</span>
                 <Badge
                   v-for="tag in source.tags"
@@ -169,12 +219,12 @@ const totalExpense = computed(() =>
           <div
             v-for="source in budgetStore.expenseSources"
             :key="source.id"
-            class="flex items-center justify-between p-3 rounded-xl bg-red-500/5 border border-red-500/15"
+            class="flex items-center justify-between p-3 rounded-xl bg-red-500/5 border border-red-500/15 cursor-pointer hover:border-red-500/30 transition-colors"
+            @click="openSourceDetail(source)"
           >
             <div class="flex-1 min-w-0">
               <p class="font-medium">{{ source.name }}</p>
               <div class="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge v-if="source.is_recurring" variant="secondary">Recurring</Badge>
                 <span class="text-sm text-muted-foreground">{{ formatCurrency(source.amount) }}</span>
                 <Badge
                   v-for="tag in source.tags"
@@ -188,10 +238,13 @@ const totalExpense = computed(() =>
               </div>
             </div>
             <div class="flex items-center gap-1">
-              <Button variant="ghost" size="icon" class="h-8 w-8" @click="openEdit(source)">
+              <Button variant="ghost" size="icon" class="h-8 w-8" @click.stop="openSourceDetail(source)" title="View purchases">
+                <Eye class="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" class="h-8 w-8" @click.stop="openEdit(source)">
                 <Edit class="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive" @click="deleteSource(source.id)">
+              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive" @click.stop="deleteSource(source.id)">
                 <Trash class="h-4 w-4" />
               </Button>
             </div>
@@ -218,7 +271,14 @@ const totalExpense = computed(() =>
             <form class="space-y-4" @submit.prevent="saveSource">
               <div>
                 <label class="text-sm font-medium">Name</label>
-                <Input v-model="form.name" placeholder="e.g., Salary, Rent" class="mt-1.5" />
+                <SearchableInput
+                  v-model="form.name"
+                  placeholder="e.g., Salary, Rent"
+                  :search-function="searchSourceNames"
+                  :on-delete="deleteSourceNameTemplate"
+                  @select="onSourceNameSelect"
+                  class="mt-1.5"
+                />
               </div>
               <div>
                 <label class="text-sm font-medium">Type</label>
@@ -236,15 +296,14 @@ const totalExpense = computed(() =>
                 <label class="text-sm font-medium">Amount</label>
                 <Input v-model="form.amount" type="number" step="0.01" min="0" placeholder="0.00" class="mt-1.5" />
               </div>
-              <div class="flex items-center gap-2">
-                <input type="checkbox" v-model="form.is_recurring" id="recurring" class="rounded border-input" />
-                <label for="recurring" class="text-sm">Recurring</label>
-              </div>
               <div>
-                <label class="text-sm font-medium">Tags</label>
-                <div class="mt-1.5">
-                  <TagSelector v-model="form.tags" placeholder="Add tags to categorize..." />
-                </div>
+                <CollapsibleTagManager
+                  :applied-tag-ids="form.tagIds"
+                  :tags="resolvedTags"
+                  :reset-trigger="!showForm"
+                  @add-tags="(tags) => tags.forEach(id => form.tagIds.add(id))"
+                  @remove-tag="(id) => form.tagIds.delete(id)"
+                />
               </div>
               <div class="flex gap-3 pt-2">
                 <Button variant="outline" type="button" class="flex-1 sm:flex-none" @click="showForm = false">Cancel</Button>
@@ -257,5 +316,13 @@ const totalExpense = computed(() =>
         </Card>
       </div>
     </Teleport>
+
+    <!-- Source Detail Modal -->
+    <SourceDetailModal
+      v-if="showSourceDetail && selectedSource"
+      :source="selectedSource"
+      @close="showSourceDetail = false; selectedSource = null"
+      @refresh="handleSourceDetailRefresh"
+    />
   </div>
 </template>

@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, X } from 'lucide-vue-next'
 import type { Store, Brand, Unit, Purchase } from '@/types'
 import { useReceiptsStore } from '@/stores/receipts'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
 
 interface InventoryItem {
   id: string
@@ -16,6 +17,8 @@ interface InventoryItem {
   unit: string | null
   price: string | null
   date: string
+  store_code?: string | null
+  item_name?: string | null
 }
 
 const props = defineProps<{
@@ -38,21 +41,14 @@ const form = ref({
   name: '',
   unit: '',
   price: '',
+  store_code: '',
+  item_name: ''
 })
 
 // Search States
 const brandSearch = ref('')
-const showBrandDropdown = ref(false)
-const brandSuggestions = ref<Brand[]>([])
-const loadingBrands = ref(false)
-
 const itemSearch = ref('')
-const showItemDropdown = ref(false)
-const itemSuggestions = ref<Purchase[]>([]) // Flattened suggestions
-const loadingItems = ref(false)
-
 const unitSearch = ref('')
-const showUnitDropdown = ref(false)
 
 // Bulk update state
 const propagate = ref(true)
@@ -64,7 +60,9 @@ watch(() => props.item, (newItem) => {
       brand: newItem.brand || '',
       name: newItem.name,
       unit: newItem.unit || '',
-      price: newItem.price || ''
+      price: newItem.price || '',
+      store_code: newItem.store_code || '',
+      item_name: newItem.item_name || ''
     }
     brandSearch.value = newItem.brand || ''
     itemSearch.value = newItem.name
@@ -74,7 +72,9 @@ watch(() => props.item, (newItem) => {
       brand: '',
       name: '',
       unit: '',
-      price: ''
+      price: '',
+      store_code: '',
+      item_name: ''
     }
     brandSearch.value = ''
     itemSearch.value = ''
@@ -95,71 +95,60 @@ watch(unitSearch, (val) => {
 })
 
 // Brand Search Logic
-watch(brandSearch, async (newValue) => {
-  if (!newValue) {
-    brandSuggestions.value = receiptsStore.brands
-    return
-  }
-  
-  if (receiptsStore.brands.length > 0) {
-    const search = newValue.toLowerCase()
-    brandSuggestions.value = receiptsStore.brands.filter(b => 
-      b.name.toLowerCase().includes(search)
-    )
-    showBrandDropdown.value = brandSuggestions.value.length > 0
-    return
-  }
-  
-  if (newValue.length >= 2) {
-    loadingBrands.value = true
-    try {
-      brandSuggestions.value = await receiptsStore.searchBrands(newValue)
-      showBrandDropdown.value = brandSuggestions.value.length > 0
-    } catch (e) {
-      brandSuggestions.value = []
-    } finally {
-      loadingBrands.value = false
+const searchBrands = async (query: string) => {
+    if (!query) return receiptsStore.brands
+    if (receiptsStore.brands.length > 0) {
+        const q = query.toLowerCase()
+        return receiptsStore.brands.filter(b => b.name.toLowerCase().includes(q))
     }
-  } else {
-    brandSuggestions.value = []
-  }
-})
-
-const handleBrandFocus = () => {
-    if (!brandSearch.value) {
-        brandSuggestions.value = receiptsStore.brands
-        showBrandDropdown.value = receiptsStore.brands.length > 0
-    } else {
-        showBrandDropdown.value = brandSuggestions.value.length > 0
+    // Fallback if not loaded (though we load on mount)
+    try {
+        return await receiptsStore.searchBrands(query)
+    } catch {
+        return []
     }
 }
 
-const selectBrand = (brand: Brand) => {
+const selectBrand = async (brand: Brand) => {
     brandSearch.value = brand.name
-    showBrandDropdown.value = false
+    form.value.brand = brand.name // Ensure form is updated
+    form.value.brand = brand.name // Ensure form is updated
+    
+    // Auto-population (Store is fixed as props.store)
+    if (props.store) {
+        try {
+            const suggestion = await receiptsStore.getSuggestionsByBrand(brand.name, props.store.id)
+            if (suggestion.recent_purchases && suggestion.recent_purchases.length > 0) {
+              const latest = suggestion.recent_purchases[0]
+              
+              if (!form.value.name) {
+                  form.value.name = latest.item
+                  itemSearch.value = latest.item
+              } 
+              if (!form.value.unit && latest.unit_measurement) {
+                  form.value.unit = latest.unit_measurement
+                  unitSearch.value = latest.unit_measurement
+              }
+              if (!form.value.store_code && latest.store_code) form.value.store_code = latest.store_code
+              if (!form.value.item_name && latest.item_name) form.value.item_name = latest.item_name
+          }
+        } catch (e) {
+            console.error("Failed to get suggestions", e)
+        }
+    }
 }
 
 // Item Search Logic
-watch(itemSearch, async (newValue) => {
-    if (!newValue || newValue.length < 2) {
-        itemSuggestions.value = []
-        showItemDropdown.value = false
-        return
-    }
-
-    loadingItems.value = true
+const searchItems = async (query: string) => {
+    if (!query || query.length < 2) return []
     try {
-        const results = await receiptsStore.getSuggestionsByItem(newValue)
-        // Flatten results to a list of purchases/items
+        const results = await receiptsStore.getSuggestionsByItem(query)
         const flat: Purchase[] = []
         results.forEach(res => {
             if (res.recent_purchases) {
                 flat.push(...res.recent_purchases)
             }
         })
-        
-        // Deduplicate by item name (and maybe brand?)
-        // Let's just keep unique item names for now, or allow displaying "Item (Brand)"
         const unique = new Map<string, Purchase>()
         flat.forEach(p => {
              const key = `${p.item}-${p.brand}`
@@ -167,15 +156,11 @@ watch(itemSearch, async (newValue) => {
                  unique.set(key, p)
              }
         })
-        
-        itemSuggestions.value = Array.from(unique.values()).slice(0, 10)
-        showItemDropdown.value = itemSuggestions.value.length > 0
-    } catch (e) {
-        itemSuggestions.value = []
-    } finally {
-        loadingItems.value = false
+        return Array.from(unique.values()).slice(0, 10)
+    } catch {
+        return []
     }
-})
+}
 
 const selectItem = (purchase: Purchase) => {
     itemSearch.value = purchase.item
@@ -189,32 +174,31 @@ const selectItem = (purchase: Purchase) => {
         unitSearch.value = purchase.unit_measurement
     }
     
-    showItemDropdown.value = false
+
 }
 
 // Unit Search Logic
-const filteredUnits = computed(() => {
-    if (!unitSearch.value) return receiptsStore.units
-    const search = unitSearch.value.toLowerCase()
-    return receiptsStore.units.filter(u => u.name.toLowerCase().includes(search))
-})
+const searchUnits = async (query: string) => {
+    const q = (query || '').toLowerCase()
+    return receiptsStore.units.filter(u => u.name.toLowerCase().includes(q))
+}
 
 const selectUnit = (unit: Unit) => {
     unitSearch.value = unit.name
-    showUnitDropdown.value = false
+    unitSearch.value = unit.name
 }
 
-const createAndSelectUnit = async () => {
-    if (!unitSearch.value) return
+const createAndSelectUnit = async (name: string) => {
+    if (!name) return
     // Check if exists
-    const existing = receiptsStore.units.find(u => u.name.toLowerCase() === unitSearch.value?.toLowerCase())
+    const existing = receiptsStore.units.find(u => u.name.toLowerCase() === name.toLowerCase())
     if (existing) {
         selectUnit(existing)
         return
     }
     
     try {
-        const newUnit = await receiptsStore.createUnit(unitSearch.value)
+        const newUnit = await receiptsStore.createUnit(name)
         selectUnit(newUnit)
     } catch (e) {
         console.error("Failed to create unit", e)
@@ -242,7 +226,9 @@ const handleSubmit = async () => {
       item: form.value.name,
       unit_measurement: form.value.unit,
       unit_of_measure: form.value.unit,
-      price_per_unit: form.value.price
+      price_per_unit: form.value.price,
+      store_code: form.value.store_code,
+      item_name: form.value.item_name
     }
 
     await receiptsStore.updateStoreInventoryItem(props.store.id, props.item.id, payload)
@@ -256,23 +242,7 @@ const handleSubmit = async () => {
   }
 }
 
-const handleBrandBlur = () => {
-    setTimeout(() => {
-        showBrandDropdown.value = false
-    }, 200)
-}
 
-const handleItemBlur = () => {
-    setTimeout(() => {
-        showItemDropdown.value = false
-    }, 200)
-}
-
-const handleUnitBlur = () => {
-    setTimeout(() => {
-        showUnitDropdown.value = false
-    }, 200)
-}
 </script>
 
 <template>
@@ -290,95 +260,75 @@ const handleUnitBlur = () => {
         <div class="grid grid-cols-2 gap-4 relative z-50">
           <div class="col-span-1 relative">
              <label class="text-sm font-medium mb-1.5 block">Brand</label>
-              <Input 
-                v-model="brandSearch" 
-                placeholder="Brand name" 
-                @focus="handleBrandFocus"
-                @blur="handleBrandBlur"
-                autocomplete="off"
+              <SearchableInput 
+                v-model="brandSearch"
+                :search-function="searchBrands"
+                :display-function="(b) => b.name"
+                :value-function="(b) => b.name"
+                :show-create-option="false" 
+                :min-chars="0"
+                placeholder="Brand name"
+                @select="selectBrand"
               />
-              <div 
-                v-if="showBrandDropdown && brandSuggestions.length > 0"
-                class="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-auto z-50"
-              >
-                  <button
-                    v-for="brand in brandSuggestions"
-                    :key="brand.id"
-                    type="button"
-                    class="w-full text-left px-3 py-2 hover:bg-accent text-sm border-b border-border last:border-0"
-                    @click="selectBrand(brand)"
-                  >
-                    {{ brand.name }}
-                  </button>
-              </div>
           </div>
 
           <div class="col-span-1 relative">
              <label class="text-sm font-medium mb-1.5 block">Item Name</label>
-              <Input 
-                v-model="itemSearch" 
-                placeholder="Item name" 
-                @focus="showItemDropdown = itemSuggestions.length > 0"
-                @blur="handleItemBlur"
-                autocomplete="off"
+              <SearchableInput 
+                v-model="itemSearch"
+                :search-function="searchItems"
+                :display-function="(p) => {
+                    if (p.brand) return `${p.item} (${p.brand})`
+                    return p.item
+                }"
+                :value-function="(p) => p.item"
+                :show-create-option="false" 
+                :min-chars="1"
+                placeholder="Item name"
+                @select="selectItem"
               />
-              <div 
-                v-if="showItemDropdown && itemSuggestions.length > 0"
-                class="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-auto z-50"
-              >
-                  <button
-                    v-for="p in itemSuggestions"
-                    :key="p.id"
-                    type="button"
-                    class="w-full text-left px-3 py-2 hover:bg-accent text-sm border-b border-border last:border-0"
-                    @click="selectItem(p)"
-                  >
-                    <div class="font-medium">{{ p.item }}</div>
-                    <div class="text-xs text-muted-foreground" v-if="p.brand">
-                        {{ p.brand }} {{ p.unit_measurement ? `(${p.unit_measurement})` : '' }}
-                    </div>
-                  </button>
-              </div>
           </div>
         </div>
         
+        
+        <!-- Store Code & Receipt Item Name -->
+        <div class="grid grid-cols-2 gap-4 relative z-40 bg-muted/30 p-2 rounded-lg border border-border/50">
+           <div class="col-span-1 relative">
+            <label class="text-xs font-medium mb-1.5 block text-muted-foreground">Store Code</label>
+            <Input 
+                v-model="form.store_code" 
+                placeholder="Code"
+                autocomplete="off"
+                class="h-8 text-sm"
+            />
+           </div>
+           
+           <div class="col-span-1 relative">
+            <label class="text-xs font-medium mb-1.5 block text-muted-foreground">Receipt Item Name</label>
+            <Input 
+                v-model="form.item_name" 
+                placeholder="Name on receipt"
+                autocomplete="off"
+                class="h-8 text-sm"
+            />
+           </div>
+        </div>
+
         <!-- Unit & Price -->
         <div class="grid grid-cols-2 gap-4 relative z-40">
            <div class="col-span-1 relative">
             <label class="text-sm font-medium mb-1.5 block">Unit</label>
-            <div class="flex gap-2">
-                <Input 
-                    v-model="unitSearch" 
-                    placeholder="e.g. oz, gal"
-                    @focus="showUnitDropdown = true"
-                    @blur="handleUnitBlur" 
-                    autocomplete="off"
-                    @keydown.enter.prevent="createAndSelectUnit"
-                    class="flex-1"
-                />
-            </div>
-            
-            <div 
-                v-if="showUnitDropdown"
-                class="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-auto z-50"
-            >
-                <div v-if="filteredUnits.length > 0">
-                     <button
-                        v-for="unit in filteredUnits"
-                        :key="unit.id"
-                        type="button"
-                        class="w-full text-left px-3 py-2 hover:bg-accent text-sm border-b border-border last:border-0"
-                        @click="selectUnit(unit)"
-                     >
-                        {{ unit.name }}
-                     </button>
-                </div>
-                 <div v-else class="p-2 text-center text-xs text-muted-foreground">
-                    <Button variant="ghost" size="sm" class="w-full h-auto py-1" @click="createAndSelectUnit">
-                        Create "{{ unitSearch }}"
-                    </Button>
-                </div>
-            </div>
+            <SearchableInput 
+                v-model="unitSearch"
+                :search-function="searchUnits"
+                :display-function="(u) => u.name"
+                :value-function="(u) => u.name"
+                :show-create-option="true"
+                :min-chars="0"
+                placeholder="e.g. oz, gal"
+                @select="selectUnit"
+                @create="createAndSelectUnit"
+            />
           </div>
           
           <div class="col-span-1">

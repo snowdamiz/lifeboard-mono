@@ -155,8 +155,6 @@ export interface BudgetSource {
   name: string
   type: 'income' | 'expense'
   amount: string
-  is_recurring: boolean
-  recurrence_rule: RecurrenceRule | null
   tags: Tag[]
   inserted_at: string
   updated_at: string
@@ -270,6 +268,15 @@ export interface Purchase {
   tag_ids?: string[]
   inserted_at: string
   updated_at: string
+}
+
+// Trip Receipt (grouped inventory items from shopping trips)
+export interface TripReceipt {
+  id: string
+  store_name: string
+  trip_start: string | null
+  date: string | null
+  items: InventoryItem[]
 }
 
 export interface BrandSuggestion {

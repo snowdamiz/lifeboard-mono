@@ -1,4 +1,3 @@
-```
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { format } from 'date-fns'
@@ -14,6 +13,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import TagManager from '@/components/shared/TagManager.vue'
+import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
 import { useGoalsStore } from '@/stores/goals'
 import { useTagsStore } from '@/stores/tags'
 import type { Goal, Tag } from '@/types'
@@ -35,25 +36,18 @@ const newGoal = ref({
   tag_ids: new Set<string>()
 })
 
-// Tag selection state
-const tempSelectedTags = ref<Set<string>>(new Set())
+// Tag selection state - handled by CollapsibleTagManager component now
 
 // Helper to resolve tag objects from IDs
 const resolveTags = (tagIds: Set<string>): Tag[] => {
   return Array.from(tagIds).map(id => tagsStore.tags.find(t => t.id === id)).filter(Boolean) as Tag[]
 }
 
-const addCheckedTags = (targetSet: Set<string>) => {
-  tempSelectedTags.value.forEach(id => targetSet.add(id))
-  tempSelectedTags.value = new Set()
+const handleAddTags = (targetSet: Set<string>, tagsToAdd: Set<string>) => {
+  tagsToAdd.forEach(id => targetSet.add(id))
 }
 
-const removeCheckedTags = (targetSet: Set<string>) => {
-  tempSelectedTags.value.forEach(id => targetSet.delete(id))
-  tempSelectedTags.value = new Set()
-}
-
-const removeTag = (targetSet: Set<string>, tagId: string) => {
+const handleRemoveTag = (targetSet: Set<string>, tagId: string) => {
   targetSet.delete(tagId)
 }
 
@@ -66,6 +60,10 @@ const editMilestoneInput = ref('')
 const addMilestone = (isEditing: boolean) => {
   if (isEditing) {
     if (!editMilestoneInput.value.trim()) return
+    
+    // Save as template for future reuse
+    goalsStore.saveMilestone(editMilestoneInput.value)
+
     editingGoalMilestones.value.push({
       title: editMilestoneInput.value,
       completed: false,
@@ -74,6 +72,10 @@ const addMilestone = (isEditing: boolean) => {
     editMilestoneInput.value = ''
   } else {
     if (!newMilestoneInput.value.trim()) return
+
+    // Save as template for future reuse
+    goalsStore.saveMilestone(newMilestoneInput.value)
+
     newGoalMilestones.value.push({
       title: newMilestoneInput.value,
       completed: false
@@ -202,9 +204,11 @@ const handleCreateGoal = async () => {
 }
 
 watch(showCreateModal, (val) => {
-  if (!val) {
-    tempSelectedTags.value = new Set()
-  }
+  // CollapsibleTagManager handles its own reset
+})
+
+watch(showEditModal, (val) => {
+  // CollapsibleTagManager handles its own reset
 })
 
 const getStatusColor = (status: string) => {
@@ -248,14 +252,11 @@ const handleUpdateGoal = async () => {
   editingGoal.value = null
   editingGoalTagIds.value = new Set()
   editingGoalMilestones.value = []
-  tempSelectedTags.value = new Set()
   editMilestoneInput.value = ''
 }
 
 watch(showEditModal, (val) => {
-  if (!val) {
-    tempSelectedTags.value = new Set()
-  }
+  // CollapsibleTagManager handles its own reset
 })
 
 const handleDeleteGoal = async (id: string) => {
@@ -546,7 +547,7 @@ const openEditModal = (goal: Goal) => {
           @click="showCreateModal = false"
         >
           <div 
-            class="w-full max-w-md bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            class="w-full max-w-md bg-card border border-border/80 rounded-xl shadow-2xl overflow-visible flex flex-col"
             @click.stop
           >
             <div class="px-5 py-4 border-b border-border/60 flex items-center justify-between shrink-0">
@@ -556,9 +557,19 @@ const openEditModal = (goal: Goal) => {
               </Button>
             </div>
             <div class="p-5 space-y-4 flex-1 overflow-y-auto">
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Title</label>
-                <Input v-model="newGoal.title" placeholder="What do you want to achieve?" />
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2">
+                  <label class="text-sm font-medium mb-1.5 block">Title</label>
+                  <SearchableInput 
+                    v-model="newGoal.title" 
+                    :search-function="goalsStore.searchTitles"
+                    placeholder="What do you want to achieve?" 
+                  />
+                </div>
+                <div>
+                  <label class="text-sm font-medium mb-1.5 block">Target Date</label>
+                  <Input v-model="newGoal.target_date" type="date" />
+                </div>
               </div>
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Description</label>
@@ -569,105 +580,54 @@ const openEditModal = (goal: Goal) => {
                   placeholder="Describe your goal in detail..."
                 />
               </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div class="col-span-2">
-                  <label class="text-sm font-medium mb-1.5 block">Target Date</label>
-                  <Input v-model="newGoal.target_date" type="date" />
-                </div>
-              </div>
 
-              <!-- Milestones -->
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Milestones</label>
-                <div class="space-y-2">
-                  <div
-                    v-for="(milestone, index) in newGoalMilestones"
-                    :key="index"
-                    class="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg"
-                  >
-                    <Checkbox v-model="milestone.completed" class="shrink-0" />
-                    <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
-                    <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="removeMilestone(index, false)">
-                      <Trash2 class="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </div>
+              <!-- Milestones and Tags in 2 columns -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- Milestones -->
+                <div>
+                  <label class="text-sm font-medium mb-1.5 block">Milestones</label>
+                  <div class="space-y-2">
+                    <div
+                      v-for="(milestone, index) in newGoalMilestones"
+                      :key="index"
+                      class="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg"
+                    >
+                      <Checkbox v-model="milestone.completed" class="shrink-0" />
+                      <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
+                      <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="removeMilestone(index, false)">
+                        <Trash2 class="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
 
-                  <div class="flex items-center gap-2">
-                    <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Input 
-                      v-model="newMilestoneInput" 
-                      placeholder="Add a milestone..."
-                      class="flex-1 h-9"
-                      @keydown.enter.prevent="addMilestone(false)"
-                    />
-                    <Button variant="outline" size="sm" @click="addMilestone(false)">
-                      Add
-                    </Button>
+                    <div class="flex items-center gap-2">
+                      <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
+                      <SearchableInput 
+                        v-model="newMilestoneInput" 
+                        :search-function="goalsStore.searchMilestones"
+                        placeholder="Add a milestone..."
+                        class="flex-1"
+                        @select="() => addMilestone(false)"
+                        @keydown.enter.prevent="addMilestone(false)"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Tags</label>
-                <!-- Selected Tags List -->
-                <div class="flex flex-wrap gap-1.5 mb-2" v-if="newGoal.tag_ids.size > 0">
-                  <Badge
-                    v-for="tag in resolveTags(newGoal.tag_ids)"
-                    :key="tag.id"
-                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
-                    variant="outline"
-                    class="gap-1 pr-1"
-                  >
-                    <div 
-                      class="h-1.5 w-1.5 rounded-full" 
-                      :style="{ backgroundColor: tag.color }"
-                    />
-                    {{ tag.name }}
-                    <button
-                      type="button"
-                      class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
-                      @click="removeTag(newGoal.tag_ids, tag.id)"
-                    >
-                      <X class="h-3 w-3" />
-                    </button>
-                  </Badge>
-                </div>
 
-                <TagManager
-                    v-model:checkedTagIds="tempSelectedTags"
-                    :applied-tag-ids="newGoal.tag_ids"
-                    mode="select"
-                    embedded
-                >
-                  <template #actions="{ checkedCount }">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      class="h-7 px-2 text-xs flex-1"
-                      :disabled="checkedCount === 0"
-                      @click="addCheckedTags(newGoal.tag_ids)"
-                    >
-                      <PlusCircle class="h-3 w-3 mr-1" />
-                      Add
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      class="h-7 px-2 text-xs flex-1"
-                      :disabled="checkedCount === 0"
-                      @click="removeCheckedTags(newGoal.tag_ids)"
-                    >
-                      <MinusCircle class="h-3 w-3 mr-1" />
-                      Remove
-                    </Button>
-                  </template>
-                </TagManager>
-              </div>
+                <!-- Tags with CollapsibleTagManager -->
+                <CollapsibleTagManager
+                  :applied-tag-ids="newGoal.tag_ids"
+                  :tags="resolveTags(newGoal.tag_ids)"
+                  :reset-trigger="!showCreateModal"
+                  @add-tags="(tags) => handleAddTags(newGoal.tag_ids, tags)"
+                  @remove-tag="(id) => handleRemoveTag(newGoal.tag_ids, id)"
+                />
+              <!-- End of Tags column -->
+            </div>
+            <!-- End of Milestones and Tags grid -->
             </div>
             <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2">
               <Button variant="ghost" @click="showCreateModal = false">Cancel</Button>
-              <Button @click="handleCreateGoal" :disabled="!newGoal.title.trim()">Create Goal</Button>
+              <Button @click="handleCreateGoal" :disabled="!newGoal.title.trim()">Create</Button>
             </div>
           </div>
         </div>
@@ -737,76 +697,25 @@ const openEditModal = (goal: Goal) => {
 
                   <div class="flex items-center gap-2">
                     <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Input 
+                    <SearchableInput 
                       v-model="editMilestoneInput" 
+                      :search-function="goalsStore.searchMilestones"
                       placeholder="Add a milestone..."
-                      class="flex-1 h-9"
+                      class="flex-1"
+                      @select="() => addMilestone(true)"
                       @keydown.enter.prevent="addMilestone(true)"
                     />
-                    <Button variant="outline" size="sm" @click="addMilestone(true)">
-                      Add
-                    </Button>
                   </div>
                 </div>
               </div>
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Tags</label>
-                <!-- Selected Tags List -->
-                <div class="flex flex-wrap gap-1.5 mb-2" v-if="editingGoalTagIds.size > 0">
-                  <Badge
-                    v-for="tag in resolveTags(editingGoalTagIds)"
-                    :key="tag.id"
-                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
-                    variant="outline"
-                    class="gap-1 pr-1"
-                  >
-                    <div 
-                      class="h-1.5 w-1.5 rounded-full" 
-                      :style="{ backgroundColor: tag.color }"
-                    />
-                    {{ tag.name }}
-                    <button
-                      type="button"
-                      class="ml-0.5 rounded-full hover:bg-black/10 p-0.5"
-                      @click="removeTag(editingGoalTagIds, tag.id)"
-                    >
-                      <X class="h-3 w-3" />
-                    </button>
-                  </Badge>
-                </div>
-
-                <TagManager
-                    v-model:checkedTagIds="tempSelectedTags"
-                    :applied-tag-ids="editingGoalTagIds"
-                    mode="select"
-                    embedded
-                >
-                  <template #actions="{ checkedCount }">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      class="h-7 px-2 text-xs flex-1"
-                      :disabled="checkedCount === 0"
-                      @click="addCheckedTags(editingGoalTagIds)"
-                    >
-                      <PlusCircle class="h-3 w-3 mr-1" />
-                      Add
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      class="h-7 px-2 text-xs flex-1"
-                      :disabled="checkedCount === 0"
-                      @click="removeCheckedTags(editingGoalTagIds)"
-                    >
-                      <MinusCircle class="h-3 w-3 mr-1" />
-                      Remove
-                    </Button>
-                  </template>
-                </TagManager>
-              </div>
+              <!-- Tags with CollapsibleTagManager -->
+              <CollapsibleTagManager
+                :applied-tag-ids="editingGoalTagIds"
+                :tags="resolveTags(editingGoalTagIds)"
+                :reset-trigger="!showEditModal"
+                @add-tags="(tags) => handleAddTags(editingGoalTagIds, tags)"
+                @remove-tag="(id) => handleRemoveTag(editingGoalTagIds, id)"
+              />
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Status</label>
                 <Select 

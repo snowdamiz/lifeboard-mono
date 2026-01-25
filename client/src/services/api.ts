@@ -31,7 +31,8 @@ import type {
   TaskTemplate,
   UserPreferences,
   ApiResponse,
-  Driver
+  Driver,
+  TripReceipt
 } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
@@ -284,6 +285,23 @@ class ApiClient {
 
   async deleteItem(id: string): Promise<void> {
     return this.request(`/inventory/items/${id}`, { method: 'DELETE' })
+  }
+
+  // Trip Receipts (grouped inventory items from shopping trips)
+  async listTripReceipts(): Promise<ApiResponse<TripReceipt[]>> {
+    return this.request('/inventory/trip-receipts')
+  }
+
+  async findMatchingItems(brand: string, name: string): Promise<ApiResponse<(InventoryItem & { sheet: { id: string; name: string } })[]>> {
+    const params = new URLSearchParams({ brand, name })
+    return this.request(`/inventory/items/find-matching?${params}`)
+  }
+
+  async transferItem(sourceId: string, targetSheetId: string, quantity: number): Promise<{ success: boolean } | { error: string }> {
+    return this.request('/inventory/items/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ source_id: sourceId, target_sheet_id: targetSheetId, quantity })
+    })
   }
 
   // Shopping Lists
@@ -562,10 +580,12 @@ class ApiClient {
   async listPurchases(params?: {
     stop_id?: string
     brand?: string
+    source_id?: string
   }): Promise<ApiResponse<Purchase[]>> {
     const searchParams = new URLSearchParams()
     if (params?.stop_id) searchParams.set('stop_id', params.stop_id)
     if (params?.brand) searchParams.set('brand', params.brand)
+    if (params?.source_id) searchParams.set('source_id', params.source_id)
 
     const query = searchParams.toString()
     return this.request(`/receipts/purchases${query ? `?${query}` : ''}`)
@@ -603,6 +623,22 @@ class ApiClient {
 
   async suggestByItem(item: string): Promise<ApiResponse<BrandSuggestion[]>> {
     return this.request(`/receipts/purchases/suggest/item?item=${encodeURIComponent(item)}`)
+  }
+
+  async suggestStores(query: string): Promise<ApiResponse<Store[]>> {
+    return this.request(`/receipts/purchases/suggest/store?search=${encodeURIComponent(query)}`)
+  }
+
+  async suggestStoreCodes(query: string): Promise<ApiResponse<string[]>> {
+    return this.request(`/receipts/purchases/suggest/store-code?search=${encodeURIComponent(query)}`)
+  }
+
+  async suggestReceiptItems(query: string): Promise<ApiResponse<string[]>> {
+    return this.request(`/receipts/purchases/suggest/receipt-item?search=${encodeURIComponent(query)}`)
+  }
+
+  async suggestItems(query: string): Promise<ApiResponse<string[]>> {
+    return this.request(`/receipts/purchases/suggest/item-name?search=${encodeURIComponent(query)}`)
   }
 
   async addPurchasesToInventory(data: {
@@ -903,6 +939,41 @@ class ApiClient {
 
   async getGoalHistory(goalId: string): Promise<ApiResponse<GoalHistoryItem[]>> {
     return this.request(`/goals/${goalId}/history`)
+  }
+
+  async suggestGoalTitles(query: string): Promise<ApiResponse<string[]>> {
+    return this.request(`/goals/suggest/titles?query=${encodeURIComponent(query)}`)
+  }
+
+  async suggestMilestoneTitles(query: string): Promise<ApiResponse<string[]>> {
+    return this.request(`/goals/suggest/milestones?query=${encodeURIComponent(query)}`)
+  }
+
+  async saveMilestoneTemplate(title: string): Promise<void> {
+    return this.request('/goals/templates/milestones', {
+      method: 'POST',
+      body: JSON.stringify({ title })
+    })
+  }
+
+  // Generic Templates
+  async suggestTemplates(type: string, query: string): Promise<ApiResponse<string[]>> {
+    const params = new URLSearchParams({ type, query })
+    return this.request(`/templates/suggest?${params.toString()}`)
+  }
+
+  async saveTemplate(type: string, value: string): Promise<void> {
+    return this.request('/text-templates', {
+      method: 'POST',
+      body: JSON.stringify({ type, value })
+    })
+  }
+
+  async deleteTextTemplate(type: string, value: string): Promise<void> {
+    const params = new URLSearchParams({ type, value })
+    return this.request(`/text-templates?${params.toString()}`, {
+      method: 'DELETE'
+    })
   }
 
   // Habits

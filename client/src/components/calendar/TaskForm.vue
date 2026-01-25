@@ -9,9 +9,15 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import { useCalendarStore } from '@/stores/calendar'
 import { useReceiptsStore } from '@/stores/receipts'
-import TagSelector from '@/components/shared/TagSelector.vue'
+import { useTagsStore } from '@/stores/tags'
+import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
 import PurchaseForm from '@/components/budget/PurchaseForm.vue'
 import PurchaseList from '@/components/budget/PurchaseList.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
+import { useTextTemplate } from '@/composables/useTextTemplate'
+
+// Templates
+const taskTitleTemplate = useTextTemplate('task_title')
 
 interface Props {
   task?: Task
@@ -28,7 +34,15 @@ const emit = defineEmits<{
 
 const calendarStore = useCalendarStore()
 const receiptsStore = useReceiptsStore()
+const tagsStore = useTagsStore()
 const saving = ref(false)
+
+// Resolve tags from IDs
+const resolvedTags = computed(() => {
+  return Array.from(selectedTags.value)
+    .map(id => tagsStore.tags.find((t: Tag) => t.id === id))
+    .filter((t): t is Tag => t !== undefined)
+})
 
 // Form state - initialized by initForm
 const form = ref({
@@ -42,9 +56,12 @@ const form = ref({
 })
 
 const steps = ref<Array<{ id?: string; content: string; completed: boolean; isNew?: boolean }>>([])
-const selectedTags = ref<Tag[]>([])
+const selectedTags = ref<Set<string>>(new Set())
 
 const newStepContent = ref('')
+
+// Track modal state for CollapsibleTagManager reset
+const showModal = ref(true)
 
 // Trip-specific state
 const tripDriverId = ref<string | null>(null)
@@ -55,6 +72,11 @@ const newDriverName = ref('')
 const isEditing = computed(() => !!props.task)
 
 const drivers = computed(() => receiptsStore.drivers)
+
+const searchDrivers = async (query: string) => {
+    const q = query.toLowerCase()
+    return drivers.value.filter(d => d.name.toLowerCase().includes(q))
+}
 
 // Initialize form with task data or fresh values
 const initForm = () => {
@@ -93,7 +115,7 @@ const initForm = () => {
       status: 'not_started'
     }
     steps.value = []
-    selectedTags.value = []
+    selectedTags.value = new Set()
     tripId.value = null
     tripDriverId.value = null
   }
@@ -106,18 +128,24 @@ onMounted(async () => {
     
     // Load tags from task if editing
     if (props.task && props.task.tags) {
-        selectedTags.value = [...props.task.tags]
+        selectedTags.value = new Set(props.task.tags.map(t => t.id))
     }
+    
+    showModal.value = true
 })
 
-const createDriver = async () => {
-    if (!newDriverName.value.trim()) return
+// Watch for task changes to reset showModal
+watch(() => props.task, () => {
+    showModal.value = false
+    setTimeout(() => showModal.value = true, 50)
+})
+
+const createDriver = async (name: string) => {
+    if (!name.trim()) return
     
     try {
-        const driver = await receiptsStore.createDriver(newDriverName.value)
+        const driver = await receiptsStore.createDriver(name)
         tripDriverId.value = driver.id
-        isAddingDriver.value = false
-        newDriverName.value = ''
     } catch (e) {
         console.error('Failed to create driver', e)
     }
@@ -165,6 +193,9 @@ const save = async () => {
 
   if (!form.value.title.trim()) return
   
+  // Save template
+  taskTitleTemplate.save(form.value.title)
+
   if (saving.value) return
   saving.value = true
   
@@ -214,7 +245,7 @@ const save = async () => {
       ...form.value,
       duration_minutes: (form.value.task_type === 'timed' || form.value.task_type === 'floating') ? form.value.duration_minutes : null,
       start_time: form.value.task_type === 'timed' ? form.value.start_time : null,
-      tag_ids: selectedTags.value.map(t => t.id),
+      tag_ids: Array.from(selectedTags.value),
       steps: taskSteps as unknown as TaskStep[],
       trip_id: createdTripId || tripId.value || undefined
     }
@@ -269,7 +300,13 @@ const save = async () => {
         <form class="flex-1 overflow-auto p-4 space-y-4" @submit.prevent="save">
           <div>
             <label class="text-sm font-medium">Title</label>
-            <Input v-model="form.title" placeholder="Task title" class="mt-1.5" />
+            <SearchableInput 
+                v-model="form.title" 
+                placeholder="Task title" 
+                class="mt-1.5"
+                :search-function="taskTitleTemplate.search"
+                :min-chars="1"
+            />
           </div>
 
           <div>
@@ -317,33 +354,25 @@ const save = async () => {
           <div v-if="form.task_type === 'trip'" class="space-y-3">
             <div>
               <label class="text-sm font-medium">Driver</label>
-              <div v-if="!isAddingDriver" class="flex gap-2 mt-1.5">
-                  <Select
-                    :model-value="tripDriverId || undefined"
-                    @update:model-value="val => tripDriverId = val as string"
-                    :options="drivers.map(d => ({ value: d.id, label: d.name }))"
-                    placeholder="Select driver"
-                    class="flex-1"
+              <div class="mt-1.5">
+                  <SearchableInput 
+                      :model-value="(() => {
+                          const d = drivers.find(d => d.id === tripDriverId)
+                          return d ? d.name : ''
+                      })()"
+                      @update:model-value="(val) => {
+                           // If cleared, set to null
+                           if (!val) tripDriverId = null
+                      }"
+                      @select="(driver) => tripDriverId = driver.id"
+                      :search-function="searchDrivers"
+                      :display-function="(d) => d.name"
+                      :value-function="(d) => d.name"
+                      :show-create-option="true"
+                      :min-chars="0"
+                      placeholder="Select or create driver"
+                      @create="createDriver"
                   />
-                  <Button variant="outline" size="icon" @click="isAddingDriver = true" title="Add new driver">
-                      <Plus class="h-4 w-4" />
-                  </Button>
-              </div>
-              <div v-else class="flex gap-2 mt-1.5">
-                  <Input 
-                      v-model="newDriverName" 
-                      placeholder="Driver name" 
-                      class="flex-1"
-                      @keydown.enter.prevent="createDriver"
-                      @keydown.esc="isAddingDriver = false"
-                      autoFocus
-                  />
-                  <Button size="sm" @click="createDriver" :disabled="!newDriverName.trim()">
-                      Add
-                  </Button>
-                  <Button variant="ghost" size="icon" @click="isAddingDriver = false">
-                      <X class="h-4 w-4" />
-                  </Button>
               </div>
             </div>
             <div v-if="!isEditing" class="text-xs text-muted-foreground p-3 bg-secondary/30 border border-border rounded-lg">
@@ -362,42 +391,47 @@ const save = async () => {
             </div>
           </div>
 
-          <div>
-            <label class="text-sm font-medium">Tags</label>
-            <TagSelector 
-              v-model="selectedTags" 
-              placeholder="Add tags..." 
-              class="mt-1.5" 
-              @tags-deleted="calendarStore.fetchWeekTasks()"
-            />
-          </div>
+          <!-- Steps and Tags in 2 columns -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Tags -->
+            <div>
+              <CollapsibleTagManager
+                :applied-tag-ids="selectedTags"
+                :tags="resolvedTags"
+                :reset-trigger="!showModal"
+                @add-tags="(tags) => tags.forEach(id => selectedTags.add(id))"
+                @remove-tag="(id) => selectedTags.delete(id)"
+              />
+            </div>
 
-          <div>
-            <label class="text-sm font-medium">Steps</label>
-            <div class="mt-2 space-y-2">
-              <div
-                v-for="(step, index) in steps"
-                :key="step.id || index"
-                class="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg"
-              >
-                <Checkbox v-model="step.completed" class="shrink-0" />
-                <Input v-model="step.content" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
-                <Button variant="ghost" size="icon" type="button" class="h-7 w-7 shrink-0" @click="removeStep(index)">
-                  <Trash class="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              </div>
+            <!-- Steps -->
+            <div>
+              <label class="text-sm font-medium">Steps</label>
+              <div class="mt-2 space-y-2">
+                <div
+                  v-for="(step, index) in steps"
+                  :key="step.id || index"
+                  class="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg"
+                >
+                  <Checkbox v-model="step.completed" class="shrink-0" />
+                  <Input v-model="step.content" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
+                  <Button variant="ghost" size="icon" type="button" class="h-7 w-7 shrink-0" @click="removeStep(index)">
+                    <Trash class="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
 
-              <div class="flex items-center gap-2">
-                <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
-                <Input 
-                  v-model="newStepContent" 
-                  placeholder="Add a step..."
-                  class="flex-1 h-9"
-                  @keydown.enter.prevent="addStep"
-                />
-                <Button variant="outline" size="sm" type="button" class="shrink-0" @click="addStep">
-                  Add
-                </Button>
+                <div class="flex items-center gap-2">
+                  <Plus class="h-4 w-4 text-muted-foreground shrink-0" />
+                  <Input 
+                    v-model="newStepContent" 
+                    placeholder="Add a step..."
+                    class="flex-1 h-9"
+                    @keydown.enter.prevent="addStep"
+                  />
+                  <Button variant="outline" size="sm" type="button" class="shrink-0" @click="addStep">
+                    Add
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -409,7 +443,7 @@ const save = async () => {
             Cancel
           </Button>
           <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto" :disabled="saving || !form.title.trim()" @click="save">
-            {{ saving ? 'Saving...' : (isEditing ? 'Update' : 'Create') }}
+            {{ saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create') }}
           </Button>
         </div>
       </div>

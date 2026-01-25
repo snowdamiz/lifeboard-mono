@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
+import ShoppingItemForm from '@/components/shopping/ShoppingItemForm.vue'
 import type { ShoppingList, ShoppingListItem, Tag } from '@/types'
 import { useTagsStore } from '@/stores/tags'
 
@@ -21,11 +22,7 @@ const successMessage = ref<string | null>(null)
 
 // UI state
 const showListModal = ref(false)
-const showAddItemModal = ref(false)
-const addingToListId = ref<string | null>(null)
 const expandedLists = ref<Set<string>>(new Set())
-const newItemName = ref('')
-const newItemQuantity = ref(1)
 const isFilterOpen = ref(false)
 
 // Edit state
@@ -36,12 +33,6 @@ const listFormData = ref({
 })
 const listTagManagerRef = ref<InstanceType<typeof TagManager> | null>(null)
 const listCheckedTagIds = ref<Set<string>>(new Set())
-
-const showEditItemModal = ref(false)
-const editingItem = ref<ShoppingListItem | null>(null)
-const editingListId = ref<string | null>(null)
-const editItemName = ref('')
-const editItemQuantity = ref(1)
 
 // Filter state
 const activeFilterCount = computed(() => inventoryStore.listFilterTags.length)
@@ -131,127 +122,109 @@ const openEditListModal = (list: ShoppingList) => {
   showListModal.value = true
 }
 
-const saveList = async () => {
-  if (!listFormData.value.name.trim()) return
-  try {
-    if (editingList.value) {
-      await inventoryStore.updateShoppingList(editingList.value.id, {
-        name: listFormData.value.name,
-        tag_ids: listFormData.value.tag_ids
-      })
-    } else {
-      const list = await inventoryStore.createShoppingList(listFormData.value.name, undefined, listFormData.value.tag_ids)
-      expandedLists.value.add(list.id)
+  const saveList = async () => {
+    if (!listFormData.value.name.trim()) return
+    try {
+      if (editingList.value) {
+        await inventoryStore.updateShoppingList(editingList.value.id, {
+          name: listFormData.value.name,
+          tag_ids: listFormData.value.tag_ids
+        })
+      } else {
+        const list = await inventoryStore.createShoppingList(listFormData.value.name, undefined, listFormData.value.tag_ids)
+        expandedLists.value.add(list.id)
+      }
+      showListModal.value = false
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to save list'
     }
-    showListModal.value = false
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to save list'
   }
-}
-
-// Add checked tags to the list form
-const addCheckedTagsToList = () => {
-  if (!listTagManagerRef.value) return
-  const allTags = listTagManagerRef.value.allTags || []
   
-  listCheckedTagIds.value.forEach(tagId => {
-    if (!listFormData.value.tag_ids.includes(tagId)) {
-      listFormData.value.tag_ids.push(tagId)
+  // Add checked tags to the list form
+  const addCheckedTagsToList = () => {
+    if (!listTagManagerRef.value) return
+    const allTags = listTagManagerRef.value.allTags || []
+    
+    listCheckedTagIds.value.forEach(tagId => {
+      if (!listFormData.value.tag_ids.includes(tagId)) {
+        listFormData.value.tag_ids.push(tagId)
+      }
+    })
+    listCheckedTagIds.value = new Set()
+  }
+  
+  // Remove checked tags from the list form
+  const removeCheckedTagsFromList = () => {
+    listFormData.value.tag_ids = listFormData.value.tag_ids.filter(
+      id => !listCheckedTagIds.value.has(id)
+    )
+    listCheckedTagIds.value = new Set()
+  }
+  
+  // Helper to get tag by ID
+  const getTagById = (tagId: string) => {
+    return tagsStore.tags.find(t => t.id === tagId)
+  }
+  
+  // Helper to get tag style for badges
+  const getTagStyle = (tagId: string) => {
+    const tag = getTagById(tagId)
+    if (!tag) return {}
+    return { 
+      backgroundColor: tag.color + '20', 
+      color: tag.color, 
+      borderColor: tag.color + '40' 
     }
-  })
-  listCheckedTagIds.value = new Set()
-}
-
-// Remove checked tags from the list form
-const removeCheckedTagsFromList = () => {
-  listFormData.value.tag_ids = listFormData.value.tag_ids.filter(
-    id => !listCheckedTagIds.value.has(id)
-  )
-  listCheckedTagIds.value = new Set()
-}
-
-// Helper to get tag by ID
-const getTagById = (tagId: string) => {
-  return tagsStore.tags.find(t => t.id === tagId)
-}
-
-// Helper to get tag style for badges
-const getTagStyle = (tagId: string) => {
-  const tag = getTagById(tagId)
-  if (!tag) return {}
-  return { 
-    backgroundColor: tag.color + '20', 
-    color: tag.color, 
-    borderColor: tag.color + '40' 
   }
-}
-
-// Helper to get tag color
-const getTagColor = (tagId: string) => {
-  const tag = getTagById(tagId)
-  return tag?.color || '#64748b'
-}
-
-// Helper to get tag name
-const getTagName = (tagId: string) => {
-  const tag = getTagById(tagId)
-  return tag?.name || 'Unknown'
-}
-
-const deleteList = async (listId: string) => {
-  const list = inventoryStore.shoppingLists.find(l => l.id === listId)
-  if (list?.is_auto_generated) {
-    error.value = 'Cannot delete the auto-generated list'
-    setTimeout(() => { error.value = null }, 3000)
-    return
+  
+  // Helper to get tag color
+  const getTagColor = (tagId: string) => {
+    const tag = getTagById(tagId)
+    return tag?.color || '#64748b'
   }
-  await inventoryStore.deleteShoppingList(listId)
-}
-
-const openAddItemModal = (listId: string) => {
-  addingToListId.value = listId
-  newItemName.value = ''
-  newItemQuantity.value = 1
-  showAddItemModal.value = true
-}
-
-const addManualItem = async () => {
-  if (!newItemName.value.trim() || !addingToListId.value) return
-  try {
-    await inventoryStore.addShoppingItem(addingToListId.value, {
-      name: newItemName.value,
-      quantity_needed: newItemQuantity.value
-    })
-    newItemName.value = ''
-    newItemQuantity.value = 1
-    showAddItemModal.value = false
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to add item'
+  
+  // Helper to get tag name
+  const getTagName = (tagId: string) => {
+    const tag = getTagById(tagId)
+    return tag?.name || 'Unknown'
   }
-}
-
-const openEditItemModal = (listId: string, item: ShoppingListItem) => {
-  editingListId.value = listId
-  editingItem.value = item
-  editItemName.value = item.name || item.inventory_item?.name || ''
-  editItemQuantity.value = item.quantity_needed
-  showEditItemModal.value = true
-}
-
-const updateItem = async () => {
-  if (!editItemName.value.trim() || !editingListId.value || !editingItem.value) return
-  try {
-    await inventoryStore.updateShoppingItem(editingListId.value, editingItem.value.id, {
-      name: editItemName.value,
-      quantity_needed: editItemQuantity.value
-    })
-    showEditItemModal.value = false
-    editingItem.value = null
-    editingListId.value = null
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to update item'
+  
+  const deleteList = async (listId: string) => {
+    const list = inventoryStore.shoppingLists.find(l => l.id === listId)
+    if (list?.is_auto_generated) {
+      error.value = 'Cannot delete the auto-generated list'
+      setTimeout(() => { error.value = null }, 3000)
+      return
+    }
+    await inventoryStore.deleteShoppingList(listId)
   }
-}
+  
+  // Item Modal State
+  const showItemModal = ref(false)
+  const activeListId = ref<string | null>(null)
+  const itemToEdit = ref<ShoppingListItem | null>(null)
+
+  const openAddItemModal = (listId: string) => {
+    activeListId.value = listId
+    itemToEdit.value = null
+    showItemModal.value = true
+  }
+
+  const openEditItemModal = (listId: string, item: ShoppingListItem) => {
+    activeListId.value = listId
+    itemToEdit.value = item
+    showItemModal.value = true
+  }
+
+  const handleItemSaved = () => {
+    // Refresh lists or just success message
+    // Store updates optimistic/reactive so should be fine
+    showItemModal.value = false
+    activeListId.value = null
+    itemToEdit.value = null
+    successMessage.value = itemToEdit.value ? 'Item updated' : 'Item added'
+    setTimeout(() => { successMessage.value = null }, 2000)
+  }
 
 const markPurchased = async (listId: string, itemId: string) => {
   await inventoryStore.markPurchased(listId, itemId)
@@ -643,101 +616,14 @@ const totalUnpurchased = computed(() =>
       </Transition>
     </Teleport>
 
-    <!-- Add Item Modal -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div 
-          v-if="showAddItemModal"
-          class="fixed inset-0 bg-background/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          @click="showAddItemModal = false"
-        >
-          <div 
-            class="w-full max-w-sm bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden"
-            @click.stop
-          >
-            <div class="px-5 py-4 border-b border-border/60">
-              <h2 class="text-lg font-semibold">Add Item</h2>
-            </div>
-            <div class="p-5 space-y-4">
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Item Name</label>
-                <Input 
-                  v-model="newItemName" 
-                  placeholder="What do you need to buy?"
-                />
-              </div>
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Quantity</label>
-                <Input 
-                  v-model.number="newItemQuantity" 
-                  type="number"
-                  min="1"
-                />
-              </div>
-            </div>
-            <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2">
-              <Button variant="ghost" @click="showAddItemModal = false">Cancel</Button>
-              <Button @click="addManualItem" :disabled="!newItemName.trim()">Add Item</Button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- Edit Item Modal -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div 
-          v-if="showEditItemModal"
-          class="fixed inset-0 bg-background/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          @click="showEditItemModal = false"
-        >
-          <div 
-            class="w-full max-w-sm bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden"
-            @click.stop
-          >
-            <div class="px-5 py-4 border-b border-border/60">
-              <h2 class="text-lg font-semibold">Edit Item</h2>
-            </div>
-            <div class="p-5 space-y-4">
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Item Name</label>
-                <Input 
-                  v-model="editItemName" 
-                  placeholder="Item name"
-                />
-              </div>
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Quantity</label>
-                <Input 
-                  v-model.number="editItemQuantity" 
-                  type="number"
-                  min="1"
-                />
-              </div>
-            </div>
-            <div class="px-5 py-4 border-t border-border/60 flex justify-end gap-2">
-              <Button variant="ghost" @click="showEditItemModal = false">Cancel</Button>
-              <Button @click="updateItem" :disabled="!editItemName.trim()">Save Changes</Button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- Shopping Item Form (Add/Edit) -->
+    <ShoppingItemForm 
+      v-if="showItemModal && activeListId"
+      :list-id="activeListId"
+      :item="itemToEdit"
+      @close="showItemModal = false"
+      @saved="handleItemSaved"
+    />
   </div>
 </template>
 

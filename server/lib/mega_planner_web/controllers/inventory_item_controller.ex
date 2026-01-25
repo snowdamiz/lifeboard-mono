@@ -73,4 +73,39 @@ defmodule MegaPlannerWeb.InventoryItemController do
       color: tag.color
     }
   end
+
+  # Find matching items across sheets
+
+  def find_matching(conn, params) do
+    user = Guardian.Plug.current_resource(conn)
+    brand = Map.get(params, "brand", "")
+    name = Map.get(params, "name", "")
+    
+    items = Inventory.find_matching_items(user.household_id, brand, name)
+    json(conn, %{data: Enum.map(items, &item_with_sheet_to_json/1)})
+  end
+
+  defp item_with_sheet_to_json(item) do
+    item_to_json(item)
+    |> Map.put(:sheet, %{
+      id: item.sheet.id,
+      name: item.sheet.name
+    })
+  end
+
+  # Transfer item between sheets
+
+  def transfer(conn, %{"source_id" => source_id, "target_sheet_id" => target_sheet_id, "quantity" => quantity}) do
+    quantity = if is_binary(quantity), do: String.to_integer(quantity), else: quantity
+    
+    case Inventory.transfer_item(source_id, target_sheet_id, quantity) do
+      {:ok, :ok} -> json(conn, %{success: true})
+      {:error, :insufficient_quantity} -> 
+        conn |> put_status(400) |> json(%{error: "Insufficient quantity"})
+      {:error, :item_not_found} ->
+        conn |> put_status(404) |> json(%{error: "Item not found"})
+      {:error, reason} -> 
+        conn |> put_status(400) |> json(%{error: inspect(reason)})
+    end
+  end
 end

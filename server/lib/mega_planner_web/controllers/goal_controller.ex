@@ -142,6 +142,29 @@ defmodule MegaPlannerWeb.GoalController do
     end
   end
 
+  def suggest_titles(conn, %{"query" => query}) do
+    user = Guardian.Plug.current_resource(conn)
+    titles = Goals.suggest_titles(user.household_id, query)
+    json(conn, %{data: titles})
+  end
+
+  def suggest_milestone_titles(conn, %{"query" => query}) do
+    user = Guardian.Plug.current_resource(conn)
+    titles = Goals.suggest_milestone_titles(user.household_id, query)
+    json(conn, %{data: titles})
+  end
+
+  def create_template(conn, %{"title" => title}) do
+    user = Guardian.Plug.current_resource(conn)
+    
+    {:ok, _template} = Goals.create_milestone_template(%{
+      "title" => title,
+      "household_id" => user.household_id
+    })
+    
+    send_resp(conn, :no_content, "")
+  end
+
   defp goal_to_json(goal) do
     %{
       id: goal.id,

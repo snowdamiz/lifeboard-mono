@@ -282,21 +282,12 @@ defineExpose({
         <div class="flex gap-2" v-if="!hideInput">
           <Input
             v-model="internalSearchQuery"
-            placeholder="Search tags or type to create..."
+            placeholder="Search tags..."
             class="flex-1"
             :class="compact ? 'h-8 text-sm' : ''"
-            @keydown.enter.prevent="handleSearchEnter"
           />
-          <Button :disabled="!canCreateNewTag" @click="handleSearchEnter" :size="compact ? 'sm' : 'default'">
-            <Plus class="h-4 w-4 mr-2" />
-            New Tag
-          </Button>
         </div>
-        <div class="flex items-center justify-between px-1">
-          <label class="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none" @click="useRegex = !useRegex">
-            <Checkbox :model-value="useRegex" class="pointer-events-none h-3.5 w-3.5" />
-            Use regex
-          </label>
+        <div v-if="false" class="flex items-center justify-between px-1">
           <span v-if="canCreateNewTag" class="text-xs text-primary">
             Press Enter to create
           </span>

@@ -201,6 +201,35 @@ export const useGoalsStore = defineStore('goals', () => {
     return response.data
   }
 
+  async function searchTitles(query: string): Promise<string[]> {
+    if (!query) return []
+    try {
+      const response = await api.suggestGoalTitles(query)
+      return response.data
+    } catch {
+      return []
+    }
+  }
+
+  async function searchMilestones(query: string): Promise<string[]> {
+    if (!query) return []
+    try {
+      const response = await api.suggestMilestoneTitles(query)
+      return response.data
+    } catch {
+      return []
+    }
+  }
+
+  async function saveMilestone(title: string): Promise<void> {
+    if (!title.trim()) return
+    try {
+      await api.saveMilestoneTemplate(title)
+    } catch (e) {
+      console.error('Failed to save milestone template', e)
+    }
+  }
+
   return {
     goals,
     currentGoal,
@@ -218,7 +247,10 @@ export const useGoalsStore = defineStore('goals', () => {
     addMilestone,
     updateMilestone,
     toggleMilestone,
-    deleteMilestone
+    deleteMilestone,
+    searchTitles,
+    searchMilestones,
+    saveMilestone
   }
 })
 

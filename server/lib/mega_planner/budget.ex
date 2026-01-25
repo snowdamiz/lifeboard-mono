@@ -90,6 +90,33 @@ defmodule MegaPlanner.Budget do
   defp update_source_tags(source, _), do: source
 
   @doc """
+  Gets an existing expense source for a store name, or creates one if it doesn't exist.
+  This is used to automatically create expense sources when purchases are made at stores.
+  """
+  def get_or_create_source_for_store(household_id, user_id, store_name) when is_binary(store_name) and store_name != "" do
+    # Find existing expense source with this store name
+    query = from s in Source,
+      where: s.household_id == ^household_id and s.name == ^store_name and s.type == "expense",
+      limit: 1
+
+    case Repo.one(query) do
+      nil ->
+        # Create new expense source for this store
+        create_source(%{
+          "name" => store_name,
+          "type" => "expense",
+          "amount" => "0",
+          "user_id" => user_id,
+          "household_id" => household_id
+        })
+      source ->
+        {:ok, Repo.preload(source, :tag_objects)}
+    end
+  end
+
+  def get_or_create_source_for_store(_household_id, _user_id, _store_name), do: {:ok, nil}
+
+  @doc """
   Deletes a source.
   """
   def delete_source(%Source{} = source) do

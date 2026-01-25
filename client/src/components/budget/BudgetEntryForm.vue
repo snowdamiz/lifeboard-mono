@@ -9,7 +9,12 @@ import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
 import { useTagsStore } from '@/stores/tags'
 import TagManager from '@/components/shared/TagManager.vue'
+import SearchableInput from '@/components/shared/SearchableInput.vue'
+import { useTextTemplate } from '@/composables/useTextTemplate'
 import type { BudgetEntry } from '@/types'
+
+// Templates
+const budgetDescriptionTemplate = useTextTemplate('budget_description')
 
 interface Props {
   initialDate?: Date | null
@@ -91,8 +96,13 @@ const getTagName = (tagId: string) => {
 }
 
 const filteredSources = computed(() => 
-  budgetStore.sources.filter(s => s.type === form.value.type)
+  budgetStore.sources.filter(s => s.type === form.value.type || (form.value.source_id && s.id === form.value.source_id))
 )
+
+const searchSources = async (query: string) => {
+    const q = query.toLowerCase()
+    return filteredSources.value.filter(s => s.name.toLowerCase().includes(q))
+}
 
 const sourceOptions = computed<SelectOption[]>(() => [
   { value: '', label: 'No source' },
@@ -115,6 +125,11 @@ const selectSource = (sourceId: string) => {
   }
 }
 
+const handleCreateSourceWithName = (name: string) => {
+    newSourceName.value = name
+    showNewSource.value = true
+}
+
 const createNewSource = async () => {
   if (!newSourceName.value.trim()) return
   
@@ -124,7 +139,6 @@ const createNewSource = async () => {
       name: newSourceName.value,
       type: form.value.type,
       amount: newSourceAmount.value || '0',
-      is_recurring: false,
       tags: []
     })
     // Select the newly created source
@@ -144,6 +158,11 @@ const createNewSource = async () => {
 const save = async () => {
   if (!form.value.amount) return
   
+  // Save template
+  if (form.value.notes) {
+    budgetDescriptionTemplate.save(form.value.notes)
+  }
+
   saving.value = true
   
   try {
@@ -222,26 +241,25 @@ const save = async () => {
 
           <div>
             <label class="text-sm font-medium">Source (optional)</label>
-            <div class="flex gap-2 mt-1">
-              <Select
-                v-model="form.source_id"
-                :options="sourceOptions"
-                placeholder="No source"
+              <SearchableInput 
+                :model-value="(() => {
+                    const s = budgetStore.sources.find(s => s.id === form.source_id)
+                    return s ? s.name : ''
+                })()"
+                @update:model-value="(val) => {
+                     if (!val) form.source_id = ''
+                }"
+                @select="(source) => selectSource(source.id)"
+                :search-function="searchSources"
+                :display-function="(s) => s.name"
+                :value-function="(s) => s.name"
+                :show-create-option="true"
+                :min-chars="0"
+                placeholder="Select or create source"
                 size="sm"
                 class="flex-1"
-                @update:model-value="selectSource(form.source_id)"
+                @create="handleCreateSourceWithName"
               />
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="icon" 
-                class="shrink-0"
-                @click="showNewSource = !showNewSource"
-                :title="showNewSource ? 'Cancel' : 'Add new source'"
-              >
-                <Plus :class="['h-4 w-4 transition-transform', showNewSource && 'rotate-45']" />
-              </Button>
-            </div>
             
             <!-- Quick add source form -->
             <div v-if="showNewSource" class="mt-3 p-3 rounded-lg border border-border bg-muted/30 space-y-3">

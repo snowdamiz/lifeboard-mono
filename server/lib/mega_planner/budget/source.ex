@@ -30,7 +30,7 @@ defmodule MegaPlanner.Budget.Source do
   @doc false
   def changeset(source, attrs) do
     source
-    |> cast(attrs, [:name, :type, :amount, :is_recurring, :recurrence_rule, :tags, :user_id, :household_id])
+    |> cast(attrs, [:name, :type, :amount, :tags, :user_id, :household_id])
     |> validate_required([:name, :type, :user_id, :household_id])
     |> validate_inclusion(:type, @types)
     |> validate_number(:amount, greater_than_or_equal_to: 0)

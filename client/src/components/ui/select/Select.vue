@@ -215,7 +215,7 @@ watch(highlightedIndex, (index) => {
           v-if="isOpen"
           ref="listboxRef"
           role="listbox"
-          class="fixed z-[9999] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl shadow-black/10"
+          class="fixed z-[9999] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl shadow-black/10 pointer-events-auto"
           :style="{
             top: dropdownStyle.top,
             left: dropdownStyle.left,
