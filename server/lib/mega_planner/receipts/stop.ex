@@ -10,6 +10,8 @@ defmodule MegaPlanner.Receipts.Stop do
     field :store_address, :string
     field :notes, :string
     field :position, :integer
+    field :time_arrived, :time
+    field :time_left, :time
 
     belongs_to :trip, MegaPlanner.Receipts.Trip
     belongs_to :store, MegaPlanner.Receipts.Store
@@ -21,8 +23,8 @@ defmodule MegaPlanner.Receipts.Stop do
   @doc false
   def changeset(stop, attrs) do
     stop
-    |> cast(attrs, [:store_name, :store_address, :notes, :position, :trip_id, :store_id])
-    |> validate_required([:trip_id, :position])
+    |> cast(attrs, [:store_name, :store_address, :notes, :position, :trip_id, :store_id, :time_arrived, :time_left])
+    |> validate_required([:trip_id, :position, :time_arrived, :time_left])
     |> foreign_key_constraint(:trip_id)
     |> foreign_key_constraint(:store_id)
   end

@@ -458,6 +458,7 @@ defmodule MegaPlanner.Inventory do
   Creates an inventory item from a purchase.
   """
   def create_item_from_purchase(%Purchase{} = purchase) do
+    IO.puts("[create_item_from_purchase] Starting for purchase ID: #{purchase.id}")
     purchase = Repo.preload(purchase, [:budget_entry, stop: :store])
     household_id = purchase.household_id
     
@@ -469,6 +470,8 @@ defmodule MegaPlanner.Inventory do
         1
       end
 
+    IO.puts("[create_item_from_purchase] Quantity to add: #{quantity_to_add}")
+
     # Normalize inputs for search
     search_brand = String.trim(purchase.brand || "")
     search_item = String.trim(purchase.item || "")
@@ -479,38 +482,56 @@ defmodule MegaPlanner.Inventory do
 
     # 1. Identify/Create the staging sheet
     user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
-    {:ok, purchases_sheet} = get_or_create_purchases_sheet(household_id, user_id)
+    
+    case get_or_create_purchases_sheet(household_id, user_id) do
+      {:ok, purchases_sheet} ->
+        IO.puts("[create_item_from_purchase] Purchases sheet ID: #{purchases_sheet.id}")
 
-    # 2. Try to find matching item in Purchases sheet
-    # Priority: Store Code -> (Brand + Name)
-    existing_item = 
-      if purchase.store_code do
-        Repo.one(from i in Item, where: i.sheet_id == ^purchases_sheet.id and i.store_code == ^purchase.store_code)
-      end
+        # 2. Try to find matching item in Purchases sheet FOR THIS SPECIFIC STOP
+        # Priority: Store Code -> (Brand + Name + Stop)
+        existing_item = 
+          if purchase.store_code do
+            Repo.one(from i in Item, 
+              where: i.sheet_id == ^purchases_sheet.id and 
+                     i.store_code == ^purchase.store_code and 
+                     i.stop_id == ^purchase.stop_id)
+          end
 
-    # Fallback to Name + Brand if no store code match found (or no store code present)
-    existing_item = existing_item || Repo.one(
-      from i in Item,
-        where: i.sheet_id == ^purchases_sheet.id and 
-               ilike(i.brand, ^search_brand) and 
-               ilike(i.name, ^search_item),
-        limit: 1
-    )
+        # Fallback to Name + Brand + Stop if no store code match found
+        existing_item = existing_item || Repo.one(
+          from i in Item,
+            where: i.sheet_id == ^purchases_sheet.id and 
+                   ilike(i.brand, ^search_brand) and 
+                   ilike(i.name, ^search_item) and
+                   i.stop_id == ^purchase.stop_id,
+            limit: 1
+        )
 
-    case existing_item do
-      nil ->
-        # Create new item in Purchases sheet
-        create_new_inventory_item(purchase, quantity_to_add)
+        IO.puts("[create_item_from_purchase] Existing item: #{inspect(existing_item)}")
+
+        result = case existing_item do
+          nil ->
+            IO.puts("[create_item_from_purchase] Creating new inventory item")
+            # Create new item in Purchases sheet
+            create_new_inventory_item(purchase, quantity_to_add)
+          
+          item ->
+            IO.puts("[create_item_from_purchase] Updating existing inventory item")
+            # Update existing item quantity in Purchases sheet
+            update_item(item, %{quantity: item.quantity + quantity_to_add})
+        end
+
+        IO.puts("[create_item_from_purchase] Result: #{inspect(result)}")
+        result
       
-      item ->
-        # Update existing item quantity in Purchases sheet
-        update_item(item, %{quantity: item.quantity + quantity_to_add})
+      error ->
+        IO.puts("[create_item_from_purchase] ✗ Failed to get/create purchases sheet: #{inspect(error)}")
+        error
     end
-
-
   end
 
   defp create_new_inventory_item(purchase, quantity) do
+    Logger.info("[create_new_inventory_item] Starting for purchase ID: #{purchase.id}, quantity: #{quantity}")
     # We need a user to assign the sheet to. 
     user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
 
@@ -539,8 +560,13 @@ defmodule MegaPlanner.Inventory do
             taxable: purchase.taxable,
           }
           
-          create_item(attrs)
-       error -> error
+          Logger.info("[create_new_inventory_item] Creating item with attrs: #{inspect(attrs)}")
+          result = create_item(attrs)
+          Logger.info("[create_new_inventory_item] Create result: #{inspect(result)}")
+          result
+       error -> 
+          Logger.error("[create_new_inventory_item] Failed to get purchases sheet: #{inspect(error)}")
+          error
     end
   end
 

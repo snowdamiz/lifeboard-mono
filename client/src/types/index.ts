@@ -205,6 +205,8 @@ export interface Stop {
   store_address: string | null
   notes: string | null
   position: number
+  time_arrived: string | null
+  time_left: string | null
   purchases?: Purchase[]
   inserted_at: string
 }

@@ -108,6 +108,13 @@ watch(() => isPurchasesSheet.value, (isPurchases) => {
   }
 })
 
+// Refresh trip receipts when navigating to this page
+watch(() => route.fullPath, () => {
+  if (isPurchasesSheet.value) {
+    fetchTripReceipts()
+  }
+})
+
 const refreshKey = ref(0)
 
 const fetchTripReceipts = async () => {

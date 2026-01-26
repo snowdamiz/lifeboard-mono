@@ -64,20 +64,9 @@ const newStepContent = ref('')
 const showModal = ref(true)
 
 // Trip-specific state
-const tripDriverId = ref<string | null>(null)
 const tripId = ref<string | null>(null)
-const isAddingDriver = ref(false)
-const newDriverName = ref('')
-const driverSearchText = ref('')
 
 const isEditing = computed(() => !!props.task)
-
-const drivers = computed(() => receiptsStore.drivers)
-
-const searchDrivers = async (query: string) => {
-    const q = query.toLowerCase()
-    return drivers.value.filter(d => d.name.toLowerCase().includes(q))
-}
 
 // Initialize form with task data or fresh values
 const initForm = () => {
@@ -93,21 +82,6 @@ const initForm = () => {
     }
     steps.value = props.task.steps.map(s => ({ ...s }))
     tripId.value = props.task.trip_id
-    // Set trip driver
-    if (props.task.trip_id) {
-         // We might need to fetch the trip to get the driver_id if it's not on the task
-         // But usually we load trip details separately. 
-         // For now let's assume if it's a trip task, we want to try to load the trip context
-         if (props.task.trip_id) {
-             receiptsStore.fetchTrip(props.task.trip_id).then(trip => {
-                 if (trip) {
-                     tripDriverId.value = trip.driver_id
-                     const d = drivers.value.find(d => d.id === trip.driver_id)
-                     driverSearchText.value = d ? d.name : ''
-                 }
-             })
-         }
-    }
   } else {
     // Fresh form for new task
     form.value = {
@@ -122,15 +96,12 @@ const initForm = () => {
     steps.value = []
     selectedTags.value = new Set()
     tripId.value = null
-    tripDriverId.value = null
-    driverSearchText.value = ''
   }
   newStepContent.value = ''
 }
 
 onMounted(async () => {
     initForm()
-    await receiptsStore.fetchDrivers()
     
     // Load tags from task if editing
     if (props.task && props.task.tags) {
@@ -146,24 +117,7 @@ watch(() => props.task, () => {
     setTimeout(() => showModal.value = true, 50)
 })
 
-const createDriver = async (name: string) => {
-    if (!name.trim()) return
-    
-    const existing = drivers.value.find(d => d.name.toLowerCase() === name.trim().toLowerCase())
-    if (existing) {
-        tripDriverId.value = existing.id
-        driverSearchText.value = existing.name
-        return
-    }
 
-    try {
-        const driver = await receiptsStore.createDriver(name)
-        tripDriverId.value = driver.id
-        driverSearchText.value = driver.name
-    } catch (e) {
-        console.error('Failed to create driver', e)
-    }
-}
 
 const addStep = () => {
   if (!newStepContent.value.trim()) return
@@ -180,17 +134,35 @@ const removeStep = (index: number) => {
 }
 
 const onManageTripClick = async () => {
-  // Auto-save driver change if present so the modal sees it
-  if (tripId.value && form.value.task_type === 'trip') {
-      try {
-          await receiptsStore.updateTrip(tripId.value, {
-            driver_id: tripDriverId.value || null
-        })
-      } catch (e) {
-          console.error("Failed to auto-save trip details", e)
+  // If no trip exists yet, create one first
+  if (!tripId.value) {
+    try {
+      const trip = await receiptsStore.createTrip({
+        driver: null,
+        driver_id: null,
+        trip_start: form.value.date ? `${form.value.date}T00:00:00` : null,
+        trip_end: null,
+        notes: null
+      })
+      tripId.value = trip.id
+      
+      // Create first stop with default times
+      await receiptsStore.createStop(trip.id, {
+        position: 0,
+        time_arrived: '00:00',
+        time_left: '00:00'
+      })
+      
+      // Update the task with the trip_id
+      if (props.task) {
+        await calendarStore.updateTask(props.task.id, { trip_id: trip.id })
       }
+    } catch (e) {
+      console.error('Failed to create trip', e)
+      return
+    }
   }
-
+  
   if (props.manageTripAction) {
     props.manageTripAction(tripId.value!)
   } else {
@@ -218,21 +190,7 @@ const save = async () => {
     let savedTask: Task
     let createdTripId: string | null = null
     
-    // Ensure driver is resolved from text if not selected
-    if (form.value.task_type === 'trip' && !tripDriverId.value && driverSearchText.value.trim()) {
-        const name = driverSearchText.value.trim()
-        const existing = drivers.value.find(d => d.name.toLowerCase() === name.toLowerCase())
-        if (existing) {
-             tripDriverId.value = existing.id
-        } else {
-             try {
-                 const d = await receiptsStore.createDriver(name)
-                 tripDriverId.value = d.id
-             } catch (e) {
-                 console.error("Failed to auto-create driver on save", e)
-             }
-        }
-    }
+
 
     // If task type is trip and we don't have a trip yet, create one
     if (form.value.task_type === 'trip' && !tripId.value) {
@@ -252,7 +210,7 @@ const save = async () => {
       
       const trip = await receiptsStore.createTrip({
         driver: null, // Legacy field
-        driver_id: tripDriverId.value || null,
+        driver_id: null,
         trip_start: tripStart,
         trip_end: null,
         notes: null
@@ -260,8 +218,12 @@ const save = async () => {
       createdTripId = trip.id
       tripId.value = trip.id
       
-      // Create first stop for the trip
-      await receiptsStore.createStop(trip.id, { position: 0 })
+      // Create first stop for the trip with default times
+      await receiptsStore.createStop(trip.id, { 
+        position: 0,
+        time_arrived: '00:00:00',
+        time_left: '00:00:00'
+      })
     }
     
     // Prepare steps with positions
@@ -280,12 +242,7 @@ const save = async () => {
       trip_id: createdTripId || tripId.value || undefined
     }
 
-    // Ensure driver is updated for existing trips
-    if (form.value.task_type === 'trip' && tripId.value && !createdTripId) {
-        await receiptsStore.updateTrip(tripId.value, {
-            driver_id: tripDriverId.value || null
-        })
-    }
+
 
     if (isEditing.value) {
       // Backend handles nested update/delete via cast_assoc + on_replace: :delete
@@ -335,7 +292,9 @@ const save = async () => {
                 placeholder="Task title" 
                 class="mt-1.5"
                 :search-function="taskTitleTemplate.search"
-                :min-chars="1"
+                :show-create-option="true"
+                :min-chars="0"
+                @create="(val) => form.title = val"
             />
           </div>
 
@@ -382,33 +341,10 @@ const save = async () => {
 
           <!-- Trip-specific fields -->
           <div v-if="form.task_type === 'trip'" class="space-y-3">
-            <div>
-              <label class="text-sm font-medium">Driver</label>
-              <div class="mt-1.5">
-                  <SearchableInput 
-                      v-model="driverSearchText"
-                      @select="(driver) => { 
-                          tripDriverId = driver.id
-                          driverSearchText = driver.name 
-                      }"
-                      @update:model-value="(val) => {
-                           if (!val) tripDriverId = null
-                      }"
-                      :search-function="searchDrivers"
-                      :display-function="(d) => d.name"
-                      :value-function="(d) => d.name"
-                      :show-create-option="true"
-                      :min-chars="0"
-                      placeholder="Select or create driver"
-                      @create="createDriver"
-                      @keydown.enter="save"
-                  />
-              </div>
-            </div>
             <div v-if="!isEditing" class="text-xs text-muted-foreground p-3 bg-secondary/30 border border-border rounded-lg">
-              💡 After creating this trip, you'll be able to add stops and purchases.
+              💡 After saving this trip, you can reopen it to manage driver, stops, and purchases.
             </div>
-            <div v-if="isEditing && tripId" class="pt-2">
+            <div v-if="isEditing" class="pt-2">
                 <Button 
                   type="button" 
                   variant="outline" 

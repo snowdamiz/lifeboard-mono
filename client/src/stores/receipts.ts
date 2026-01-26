@@ -146,7 +146,7 @@ export const useReceiptsStore = defineStore('receipts', () => {
         if (currentTrip.value) {
             const stopIndex = currentTrip.value.stops.findIndex(s => s.id === id)
             if (stopIndex !== -1) {
-                currentTrip.value.stops[stopIndex] = response.data
+                currentTrip.value.stops[stopIndex] = { ...currentTrip.value.stops[stopIndex], ...response.data }
             }
         }
 
@@ -154,7 +154,7 @@ export const useReceiptsStore = defineStore('receipts', () => {
         for (const trip of trips.value) {
             const stopIndex = trip.stops.findIndex(s => s.id === id)
             if (stopIndex !== -1) {
-                trip.stops[stopIndex] = response.data
+                trip.stops[stopIndex] = { ...trip.stops[stopIndex], ...response.data }
                 break
             }
         }

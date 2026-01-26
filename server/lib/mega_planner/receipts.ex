@@ -366,6 +366,10 @@ defmodule MegaPlanner.Receipts do
     trip = Repo.preload(trip, stops: [purchases: :budget_entry])
     
     Repo.transaction(fn ->
+      # Unlink Calendar Tasks linked to this trip
+      from(t in MegaPlanner.Calendar.Task, where: t.trip_id == ^trip.id)
+      |> Repo.update_all(set: [trip_id: nil])
+      
       # Unlink Inventory Items linked to this trip
       from(i in MegaPlanner.Inventory.Item, where: i.trip_id == ^trip.id)
       |> Repo.update_all(set: [trip_id: nil, stop_id: nil, purchase_id: nil])
@@ -700,8 +704,25 @@ defmodule MegaPlanner.Receipts do
            changeset <- Purchase.changeset(%Purchase{}, purchase_attrs),
            {:ok, purchase} <- Repo.insert(changeset),
            purchase <- update_purchase_tags(purchase, tag_ids),
-           {:ok, _entry} <- Budget.update_entry(entry, %{"purchase_id" => purchase.id}),
-           {:ok, _inv_item} <- MegaPlanner.Inventory.create_item_from_purchase(purchase) do
+           {:ok, _entry} <- Budget.update_entry(entry, %{"purchase_id" => purchase.id}) do
+        
+        # Try to create inventory item, but don't fail the whole transaction if it errors
+        File.write!("purchase_debug.log", "[#{DateTime.utc_now()}] Creating inventory for purchase #{purchase.id}\n", [:append])
+        
+        try do
+          case MegaPlanner.Inventory.create_item_from_purchase(purchase) do
+            {:ok, inv_item} ->
+              File.write!("purchase_debug.log", "  ✓ Success! Created item #{inv_item.id}\n", [:append])
+            {:error, reason} ->
+              File.write!("purchase_debug.log", "  ✗ Error: #{inspect(reason)}\n", [:append])
+            other ->
+              File.write!("purchase_debug.log", "  ✗ Unexpected: #{inspect(other)}\n", [:append])
+          end
+        rescue
+          e ->
+            File.write!("purchase_debug.log", "  ✗ Exception: #{inspect(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}\n", [:append])
+        end
+        
         upsert_brand_defaults(purchase)
         Repo.preload(purchase, [:budget_entry, :stop, :tags], force: true)
       else

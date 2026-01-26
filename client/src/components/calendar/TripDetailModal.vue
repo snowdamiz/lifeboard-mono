@@ -32,12 +32,25 @@ const selectedStopId = ref<string | null>(null)
 const editingPurchase = ref<Purchase | null>(null)
 const storeSearchMap = ref<Record<string, string>>({})
 
+// Driver state
+const driverSearchText = ref('')
+const drivers = computed(() => receiptsStore.drivers)
+
 const loadTrip = async () => {
   loading.value = true
   try {
     trip.value = await receiptsStore.fetchTrip(props.tripId)
     stops.value = trip.value.stops
     await receiptsStore.fetchStores()
+    await receiptsStore.fetchDrivers()
+    
+    // Set driver search text from trip
+    if (trip.value?.driver_id) {
+      const driver = drivers.value.find(d => d.id === trip.value?.driver_id)
+      if (driver) {
+        driverSearchText.value = driver.name
+      }
+    }
     
     // Initialize search values from stops
     if (trip.value?.stops) {
@@ -61,7 +74,11 @@ const addStop = async () => {
   if (addingStop.value) return  // Prevent double-clicks
   addingStop.value = true
   try {
-    await receiptsStore.createStop(props.tripId, { position: stops.value.length })
+    await receiptsStore.createStop(props.tripId, { 
+      position: stops.value.length,
+      time_arrived: '00:00',
+      time_left: '00:00'
+    })
     // Reload trip to get updated stops from store
     const updatedTrip = await receiptsStore.fetchTrip(props.tripId)
     stops.value = updatedTrip.stops
@@ -102,6 +119,7 @@ const handlePurchaseSaved = async () => {
   showPurchaseForm.value = false
   editingPurchase.value = null
   selectedStopId.value = null
+  // Reload trip to refresh purchases list
   await loadTrip()
 }
 
@@ -127,6 +145,41 @@ const getStoreSearch = (stopId: string) => storeSearchMap.value[stopId] || ''
 
 const setStoreSearch = (stopId: string, value: string) => {
   storeSearchMap.value[stopId] = value
+}
+
+const searchDrivers = async (query: string) => {
+  const q = query.toLowerCase()
+  return drivers.value.filter(d => d.name.toLowerCase().includes(q))
+}
+
+const createDriver = async (name: string) => {
+  if (!name.trim()) return
+  const existing = drivers.value.find(d => d.name.toLowerCase() === name.trim().toLowerCase())
+  if (existing) {
+    await updateTripDriver(existing.id)
+    driverSearchText.value = existing.name
+    return
+  }
+  try {
+    const driver = await receiptsStore.createDriver(name)
+    await updateTripDriver(driver.id)
+    driverSearchText.value = driver.name
+  } catch (e) {
+    console.error('Failed to create driver', e)
+  }
+}
+
+const selectDriver = async (driver: any) => {
+  await updateTripDriver(driver.id)
+  driverSearchText.value = driver.name
+}
+
+const updateTripDriver = async (driverId: string | null) => {
+  if (!trip.value) return
+  await receiptsStore.updateTrip(trip.value.id, {
+    driver_id: driverId
+  })
+  await loadTrip()
 }
 
 
@@ -199,10 +252,8 @@ const updateTripDate = async (newDate: string) => {
 
 const handleDeleteTrip = async () => {
   if (!trip.value) return
-  if (confirm('Are you sure you want to delete this entire trip? This will remove all stops and purchases.')) {
-    await receiptsStore.deleteTrip(trip.value.id)
-    emit('close')
-  }
+  await receiptsStore.deleteTrip(trip.value.id)
+  emit('close')
 }
 
 onMounted(() => {
@@ -217,18 +268,31 @@ onMounted(() => {
       <div class="w-full sm:max-w-4xl bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[95vh] sm:max-h-[92vh] flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-border shrink-0 bg-secondary/30">
-          <div>
+          <div class="flex-1">
             <h2 class="text-lg font-semibold">Manage Trip</h2>
-            <div class="flex items-center gap-2 mt-1">
+            <div class="flex items-center gap-3 mt-2">
                <input 
                  type="date"
                  :value="getPurchaseDate()"
                  class="bg-transparent text-sm border border-border rounded px-2 py-0.5"
                  @change="(e) => updateTripDate((e.target as HTMLInputElement).value)"
                />
-               <p v-if="trip" class="text-sm text-muted-foreground border-l border-border pl-2">
-                 Driver: {{ trip.driver || 'Not specified' }}
-               </p>
+               <div class="flex items-center gap-2 border-l border-border pl-3">
+                 <label class="text-xs font-medium text-muted-foreground">Driver:</label>
+                 <SearchableInput 
+                   v-model="driverSearchText"
+                   @select="selectDriver"
+                   @update:model-value="(val) => { if (!val && trip) updateTripDriver(null) }"
+                   :search-function="searchDrivers"
+                   :display-function="(d) => d.name"
+                   :value-function="(d) => d.name"
+                   :show-create-option="true"
+                   :min-chars="0"
+                   placeholder="Select or create driver"
+                   class="w-48 text-sm"
+                   @create="createDriver"
+                 />
+               </div>
             </div>
           </div>
           <Button variant="ghost" size="icon" @click="emit('close')">
@@ -250,31 +314,72 @@ onMounted(() => {
                 <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                   <MapPin class="h-4 w-4 text-primary" />
                 </div>
-                <div class="flex-1 space-y-3">
-                  <!-- Store Selection -->
-                  <div class="space-y-2">
-                     <SearchableInput 
-                       :model-value="getStoreSearch(stop.id)"
-                       @update:model-value="(val) => setStoreSearch(stop.id, val)"
-                       :search-function="searchStopStores"
-                       :display-function="(s) => s.name"
-                       :value-function="(s) => s.name"
-                       :show-create-option="true"
-                       :min-chars="0"
-                       placeholder="Search or create store..." 
-                       class="flex-1"
-                       @select="(store) => selectStore(stop, store)"
-                       @create="(name) => createAndSelectStore(stop, name)"
-                     />
-                  </div>
+                 <div class="flex-1 space-y-3">
+                   <!-- Store Selection -->
+                   <div class="space-y-2">
+                      <SearchableInput 
+                        :model-value="getStoreSearch(stop.id)"
+                        @update:model-value="(val) => setStoreSearch(stop.id, val)"
+                        :search-function="searchStopStores"
+                        :display-function="(s) => s.name"
+                        :value-function="(s) => s.name"
+                        :show-create-option="true"
+                        :min-chars="0"
+                        placeholder="Search or create store..." 
+                        class="flex-1"
+                        @select="(store) => selectStore(stop, store)"
+                        @create="(name) => createAndSelectStore(stop, name)"
+                      />
+                   </div>
 
-                  <Input
-                    :model-value="stop.notes || ''"
-                    @blur="(e: FocusEvent) => updateStop(stop, { notes: (e.target as HTMLInputElement).value })"
-                    placeholder="Notes for this stop..."
-                    class="text-sm"
-                  />
-                </div>
+                   <!-- Time Tracking -->
+                   <div class="grid grid-cols-2 gap-2">
+                     <div>
+                       <label class="text-xs font-medium text-muted-foreground">Time Arrived</label>
+                        <Input
+                          :model-value="stop.time_arrived || ''"
+                          type="text"
+                          placeholder="0800 or 08:00"
+                          maxlength="5"
+                          class="mt-1 text-sm"
+                          @blur="(e: FocusEvent) => {
+                            const input = (e.target as HTMLInputElement).value.trim()
+                            if (!input) return
+                            const formatted = input.replace(/^(\d{1,2})(\d{2})$/, '$1:$2').replace(/^(\d):/, '0$1:').replace(/:(\d)$/, ':0$1')
+                            if (/^\d{2}:\d{2}$/.test(formatted)) {
+                              stop.time_arrived = formatted
+                              updateStop(stop, { time_arrived: formatted })
+                            }
+                          }"
+                        />
+                     </div>
+                     <div>
+                       <label class="text-xs font-medium text-muted-foreground">Time Left</label>
+                        <Input
+                          :model-value="stop.time_left || ''"
+                          type="text"
+                          placeholder="1700 or 17:00"
+                          maxlength="5"
+                          class="mt-1 text-sm"
+                          @blur="(e: FocusEvent) => {
+                            const input = (e.target as HTMLInputElement).value.trim()
+                            if (!input) return
+                            const formatted = input.replace(/^(\d{1,2})(\d{2})$/, '$1:$2').replace(/^(\d):/, '0$1:').replace(/:(\d)$/, ':0$1')
+                            if (/^\d{2}:\d{2}$/.test(formatted)) {
+                              stop.time_left = formatted
+                              updateStop(stop, { time_left: formatted })
+                            }
+                          }"
+                        />
+                     </div>
+                   </div>
+
+                   <Input
+                     :model-value="stop.notes || ''"
+                     @blur="(e: FocusEvent) => updateStop(stop, { notes: (e.target as HTMLInputElement).value })"
+                     placeholder="Notes for this stop..."
+                   />
+                 </div>
                 <Button
                   variant="ghost"
                   size="icon"

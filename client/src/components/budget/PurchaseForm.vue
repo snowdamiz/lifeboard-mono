@@ -77,6 +77,38 @@ const handleUnitCreate = async (name: string) => {
   }
 }
 
+const handleBrandCreate = async (name: string) => {
+  if (!name.trim()) return
+  const existing = receiptsStore.brands.find(b => b.name.toLowerCase() === name.trim().toLowerCase())
+  if (existing) {
+    form.value.brand = existing.name
+    await selectBrand(existing)
+    return
+  }
+  try {
+    const brand = await receiptsStore.createBrand({ name })
+    form.value.brand = brand.name
+    await selectBrand(brand)
+  } catch (e) {
+    console.error('Failed to create brand', e)
+  }
+}
+
+const handleItemCreate = async (name: string) => {
+  if (!name.trim()) return
+  form.value.item = name.trim()
+}
+
+const handleStoreCodeCreate = async (code: string) => {
+  if (!code.trim()) return
+  form.value.store_code = code.trim()
+}
+
+const handleItemNameCreate = async (name: string) => {
+  if (!name.trim()) return
+  form.value.item_name = name.trim()
+}
+
 // Form data
 // Helper to extract pre-tax price from stored total
 const getInitialPrice = () => {
@@ -264,6 +296,8 @@ const selectBrand = async (brand: Brand) => {
        if (!unitSet) {
           const val = findVal('unit_measurement')
           if (val && typeof val === 'string') { 
+              console.log('Found unit_measurement in history:', val)
+              form.value.unit_measurement = val
               unitSet = true
           }
        }
@@ -290,11 +324,18 @@ const selectBrand = async (brand: Brand) => {
        }
        
        // Store fields - search whole history
+       console.log('Looking for store fields in history:', history.length, 'purchases')
        const code = findVal('store_code')
-       if (code && typeof code === 'string') form.value.store_code = code
+       if (code && typeof code === 'string') {
+           console.log('Found store_code:', code)
+           form.value.store_code = code
+       }
        
        const name = findVal('item_name')
-       if (name && typeof name === 'string') form.value.item_name = name
+       if (name && typeof name === 'string') {
+           console.log('Found item_name:', name)
+           form.value.item_name = name
+       }
   }
   
   applyStoreTaxRate()
@@ -475,10 +516,12 @@ const save = async () => {
               :search-function="(q) => receiptsStore.searchBrands(q)"
               :display-function="(b) => b.name"
               :value-function="(b) => b.name"
-              :min-chars="1"
-              placeholder="Start typing brand name..." 
+              :show-create-option="true"
+              :min-chars="0"
+              placeholder="Search or create brand..." 
               class="mt-1" 
               @select="selectBrand"
+              @create="handleBrandCreate"
             />
           </div>
 
@@ -488,9 +531,11 @@ const save = async () => {
             <SearchableInput 
               v-model="form.item" 
               :search-function="receiptsStore.searchItemNames"
-              :min-chars="1"
-              placeholder="e.g., Milk, Bread, etc." 
-              class="mt-1" 
+              :show-create-option="true"
+              :min-chars="0"
+              placeholder="Search or create item..." 
+              class="mt-1"
+              @create="handleItemCreate"
             />
           </div>
 
@@ -555,7 +600,7 @@ const save = async () => {
                 :display-function="(u) => u.name"
                 :value-function="(u) => u.name"
                 :show-create-option="true"
-                :min-chars="1"
+                :min-chars="0"
                 placeholder="Search or create unit..." 
                 class="mt-1"
                 @create="handleUnitCreate"
@@ -609,9 +654,11 @@ const save = async () => {
               <SearchableInput 
                 v-model="form.store_code" 
                 :search-function="receiptsStore.searchStoreCodes"
-                :min-chars="1"
-                placeholder="Receipt item code" 
-                class="mt-1 font-mono text-xs" 
+                :show-create-option="true"
+                :min-chars="0"
+                placeholder="Search or create code..." 
+                class="mt-1 font-mono text-xs"
+                @create="handleStoreCodeCreate"
               />
             </div>
             <div>
@@ -619,9 +666,11 @@ const save = async () => {
               <SearchableInput 
                 v-model="form.item_name" 
                 :search-function="receiptsStore.searchReceiptItemNames"
-                :min-chars="1"
-                placeholder="Name on receipt" 
-                class="mt-1 text-xs" 
+                :show-create-option="true"
+                :min-chars="0"
+                placeholder="Search or create name..." 
+                class="mt-1 text-xs"
+                @create="handleItemNameCreate"
               />
             </div>
           </div>
