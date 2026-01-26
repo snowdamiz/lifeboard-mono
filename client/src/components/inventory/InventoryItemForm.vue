@@ -259,8 +259,34 @@ const selectUnit = (unit: Unit) => {
 
 const createAndSelectUnit = async () => {
   if (!unitSearch.value) return
-  const newUnit = await receiptsStore.createUnit(unitSearch.value)
-  selectUnit(newUnit)
+  
+  // 1. Check local
+  let existing = receiptsStore.units.find(u => u.name.toLowerCase() === unitSearch.value.toLowerCase())
+  
+  // 2. Refresh
+  if (!existing) {
+      await receiptsStore.fetchUnits()
+      existing = receiptsStore.units.find(u => u.name.toLowerCase() === unitSearch.value.toLowerCase())
+  }
+  
+  // 3. Select if found
+  if (existing) {
+      selectUnit(existing)
+      return
+  }
+
+  // 4. Create
+  try {
+    const newUnit = await receiptsStore.createUnit(unitSearch.value)
+    selectUnit(newUnit)
+  } catch (error: any) {
+    if (error.response?.status === 422) {
+       form.value.unit_of_measure = unitSearch.value
+       showUnitDropdown.value = false
+    } else {
+       console.warn('Failed to create unit:', error)
+    }
+  }
 }
 
 const searchStoreNames = async (query: string) => {
@@ -368,11 +394,28 @@ const save = async () => {
     }
 
     if (form.value.unit_of_measure) {
-      const existingUnit = receiptsStore.units.find(
+      // Check local
+      let existingUnit = receiptsStore.units.find(
         u => u.name.toLowerCase() === form.value.unit_of_measure.toLowerCase()
       )
+      
+      // If not local, refresh
       if (!existingUnit) {
-        await receiptsStore.createUnit(form.value.unit_of_measure)
+          await receiptsStore.fetchUnits()
+          existingUnit = receiptsStore.units.find(
+            u => u.name.toLowerCase() === form.value.unit_of_measure.toLowerCase()
+          )
+      }
+
+      // Only create if really missing
+      if (!existingUnit) {
+        try {
+          await receiptsStore.createUnit(form.value.unit_of_measure)
+        } catch (error: any) {
+             if (error.response?.status !== 422) {
+                 console.error('Unit creation failed', error)
+             }
+        }
       }
     }
 

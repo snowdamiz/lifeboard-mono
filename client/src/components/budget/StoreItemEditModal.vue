@@ -190,18 +190,40 @@ const selectUnit = (unit: Unit) => {
 
 const createAndSelectUnit = async (name: string) => {
     if (!name) return
-    // Check if exists
-    const existing = receiptsStore.units.find(u => u.name.toLowerCase() === name.toLowerCase())
+    
+    // 1. Check local
+    let existing = receiptsStore.units.find(u => u.name.toLowerCase() === name.toLowerCase())
+    
+    // 2. Refresh if missing
+    if (!existing) {
+        await receiptsStore.fetchUnits()
+        existing = receiptsStore.units.find(u => u.name.toLowerCase() === name.toLowerCase())
+    }
+    
+    // 3. Select if found
     if (existing) {
         selectUnit(existing)
         return
     }
     
+    // 4. Create
     try {
         const newUnit = await receiptsStore.createUnit(name)
         selectUnit(newUnit)
-    } catch (e) {
-        console.error("Failed to create unit", e)
+    } catch (e: any) {
+        if (e.response?.status === 422) {
+             // Handle race condition/duplicate gracefully
+             const manualUnit = { 
+                 id: 'temp', 
+                 name: name,
+                 household_id: 'temp',
+                 inserted_at: new Date().toISOString(),
+                 updated_at: new Date().toISOString()
+             }
+             selectUnit(manualUnit)
+        } else {
+             console.error("Failed to create unit", e)
+        }
     }
 }
 
@@ -294,7 +316,7 @@ const handleSubmit = async () => {
         <!-- Store Code & Receipt Item Name -->
         <div class="grid grid-cols-2 gap-4 relative z-40 bg-muted/30 p-2 rounded-lg border border-border/50">
            <div class="col-span-1 relative">
-            <label class="text-xs font-medium mb-1.5 block text-muted-foreground">Store Code</label>
+            <label class="text-xs font-medium mb-1.5 block text-muted-foreground">Store Item Code</label>
             <Input 
                 v-model="form.store_code" 
                 placeholder="Code"
@@ -304,7 +326,7 @@ const handleSubmit = async () => {
            </div>
            
            <div class="col-span-1 relative">
-            <label class="text-xs font-medium mb-1.5 block text-muted-foreground">Receipt Item Name</label>
+            <label class="text-xs font-medium mb-1.5 block text-muted-foreground">Store Item Name</label>
             <Input 
                 v-model="form.item_name" 
                 placeholder="Name on receipt"

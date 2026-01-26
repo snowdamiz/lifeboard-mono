@@ -222,6 +222,7 @@ watch(highlightedIndex, (index) => {
             width: dropdownStyle.width,
             minWidth: '8rem'
           }"
+          @pointerdown.stop
         >
           <div class="max-h-60 overflow-auto p-1">
             <div
@@ -236,7 +237,7 @@ watch(highlightedIndex, (index) => {
                 highlightedIndex === index && 'bg-secondary',
                 option.value === modelValue && highlightedIndex !== index && 'bg-primary/5'
               ]"
-              @click="selectOption(option)"
+              @click.stop.prevent="selectOption(option)"
               @mouseenter="highlightedIndex = index"
             >
               <span class="flex-1 truncate">{{ option.label }}</span>

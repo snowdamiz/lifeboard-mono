@@ -34,6 +34,7 @@ const targetSheetId = ref<string>('')
 const isTransferring = ref(false)
 const isLoadingMatches = ref(false)
 const matchingItems = ref<(InventoryItem & { sheet: { id: string; name: string } })[]>([])
+const errorMessage = ref('')
 
 const nonPurchasesSheets = computed(() => 
   inventoryStore.sheets.filter(s => s.name !== 'Purchases')
@@ -51,6 +52,7 @@ watch(() => props.item, async (newItem) => {
   if (newItem) {
     transferQuantity.value = Math.min(1, newItem.quantity)
     targetSheetId.value = ''
+    errorMessage.value = ''
     // Fetch matching items across sheets
     isLoadingMatches.value = true
     try {
@@ -73,24 +75,37 @@ onMounted(() => {
 
 const maxQuantity = computed(() => props.item?.quantity || 0)
 
+
+
+
 const handleTransfer = async () => {
-  if (!props.item || !targetSheetId.value || transferQuantity.value < 1) return
+  if (!props.item || !targetSheetId.value || transferQuantity.value < 1) {
+    // We let the user click, but show an error if invalid
+    errorMessage.value = 'Please select a destination sheet and valid quantity'
+    return
+  }
   
   isTransferring.value = true
+  errorMessage.value = ''
+
   try {
     const result = await api.transferItem(props.item.id, targetSheetId.value, transferQuantity.value)
+
     if ('success' in result && result.success) {
       emit('transferred')
       emit('update:open', false)
     } else if ('error' in result) {
-      console.error('Transfer failed:', result.error)
+      errorMessage.value = result.error
+    } else {
+      errorMessage.value = 'Failed to transfer item'
     }
   } catch (err) {
-    console.error('Transfer failed:', err)
+    errorMessage.value = err instanceof Error ? err.message : 'An unexpected error occurred'
   } finally {
     isTransferring.value = false
   }
 }
+
 
 const handleTransferAll = () => {
   if (props.item) {
@@ -176,13 +191,22 @@ const handleTransferAll = () => {
         </div>
       </div>
 
+        <div v-if="errorMessage" class="p-3 mb-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+          {{ errorMessage }}
+        </div>
+
+
+
+
+
+
       <DialogFooter>
         <Button variant="outline" @click="emit('update:open', false)">
           Cancel
         </Button>
         <Button
           @click="handleTransfer"
-          :disabled="!targetSheetId || transferQuantity < 1 || transferQuantity > maxQuantity || isTransferring"
+          :disabled="isTransferring"
         >
           <Loader2 v-if="isTransferring" class="h-4 w-4 mr-2 animate-spin" />
           Transfer

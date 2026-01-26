@@ -213,7 +213,7 @@ onMounted(() => {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" style="z-index: 9999;">
+    <div class="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" style="z-index: 50;">
       <div class="w-full sm:max-w-4xl bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[95vh] sm:max-h-[92vh] flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-border shrink-0 bg-secondary/30">

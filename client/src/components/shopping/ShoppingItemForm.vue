@@ -229,8 +229,36 @@ const selectUnit = (unit: Unit) => {
 
 const createAndSelectUnit = async () => {
   if (!unitSearch.value) return
-  const newUnit = await receiptsStore.createUnit(unitSearch.value)
-  selectUnit(newUnit)
+  
+  // 1. Check local
+  let existing = receiptsStore.units.find(u => u.name.toLowerCase() === unitSearch.value.toLowerCase())
+  
+  // 2. Refresh
+  if (!existing) {
+      await receiptsStore.fetchUnits()
+      existing = receiptsStore.units.find(u => u.name.toLowerCase() === unitSearch.value.toLowerCase())
+  }
+  
+  // 3. Select if found
+  if (existing) {
+      selectUnit(existing)
+      return
+  }
+
+  // 4. Create
+  try {
+    const newUnit = await receiptsStore.createUnit(unitSearch.value)
+    selectUnit(newUnit)
+  } catch (error: any) {
+    // Handling race condition
+    if (error.response?.status === 422) {
+        // Just select it conceptually
+        form.value.unit_of_measure = unitSearch.value
+        showUnitDropdown.value = false
+    } else {
+        console.warn('Failed to create unit:', error)
+    }
+  }
 }
 
 const searchStoreNames = async (query: string) => {
@@ -450,7 +478,7 @@ const save = async () => {
                   />
               </div>
               <div>
-                  <label class="text-xs font-medium text-muted-foreground">Receipt Item Name</label>
+                  <label class="text-xs font-medium text-muted-foreground">Store Item Name</label>
                   <SearchableInput
                       v-model="form.item_name"
                       :search-function="receiptsStore.searchReceiptItemNames"

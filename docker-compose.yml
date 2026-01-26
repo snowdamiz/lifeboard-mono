@@ -11,11 +11,28 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  server:
+    build: ./server
+    container_name: mega_planner_server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@postgres/mega_planner_dev
+      # Other variables (PHX_HOST, PORT, etc.) are loaded from server/.env
+    command: /app/bin/mega_planner start
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+
 

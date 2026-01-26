@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ShoppingCart, Tag, DollarSign, Package, Trash2, Edit } from 'lucide-vue-next'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { ShoppingCart, Trash2, Edit } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
 import type { Purchase } from '@/types'
 
 interface Props {
@@ -12,7 +10,7 @@ interface Props {
   showActions?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   loading: false,
   showActions: true
 })
@@ -22,114 +20,61 @@ const emit = defineEmits<{
   delete: [id: string]
 }>()
 
-const formatCurrency = (amount: string) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(parseFloat(amount))
+const getQuantity = (p: Purchase) => {
+  if (p.count) return p.count
+  if (p.units) return p.units
+  return '1'
 }
 
-const getPricingInfo = (purchase: Purchase) => {
-  if (purchase.count && purchase.price_per_count) {
-    return `${purchase.count} × ${formatCurrency(purchase.price_per_count)}`
-  } else if (purchase.units && purchase.price_per_unit) {
-    return `${purchase.units}${purchase.unit_measurement || ''} × ${formatCurrency(purchase.price_per_unit)}`
-  }
+const getUnitLabel = (p: Purchase) => {
+  if (p.unit_measurement) return p.unit_measurement
+  return ''
+}
+
+const getUnitPrice = (p: Purchase) => {
+  if (p.count && p.price_per_count) return p.price_per_count
+  if (p.units && p.price_per_unit) return p.price_per_unit
   return null
 }
 </script>
 
 <template>
-  <div class="space-y-3">
-    <div v-if="loading" class="text-center py-8 text-muted-foreground text-sm">
+  <div class="space-y-1.5">
+    <div v-if="loading" class="text-center py-4 text-muted-foreground text-xs">
       Loading purchases...
     </div>
 
-    <div v-else-if="purchases.length === 0" class="text-center py-12">
-      <div class="h-16 w-16 rounded-full bg-muted/40 flex items-center justify-center mx-auto mb-4">
-        <ShoppingCart class="h-8 w-8 text-muted-foreground/60" />
+    <div v-else-if="purchases.length === 0" class="text-center py-8">
+      <div class="h-10 w-10 rounded-full bg-muted/40 flex items-center justify-center mx-auto mb-2">
+        <ShoppingCart class="h-5 w-5 text-muted-foreground/60" />
       </div>
-      <h3 class="text-lg font-medium mb-1">No purchases yet</h3>
-      <p class="text-sm text-muted-foreground">Add your first purchase to get started</p>
+      <h3 class="text-sm font-medium mb-0.5">No purchases yet</h3>
+      <p class="text-xs text-muted-foreground">Add your first purchase to get started</p>
     </div>
 
-    <Card 
-      v-for="purchase in purchases" 
+    <BaseItemEntry
+      v-for="purchase in purchases"
       :key="purchase.id"
-      class="hover:border-primary/50 transition-colors"
+      :name="purchase.item"
+      :brand="purchase.brand"
+      :quantity="getQuantity(purchase)"
+      :unit="getUnitLabel(purchase)"
+      :price="getUnitPrice(purchase)"
+      :total="purchase.total_price"
+      :store-code="purchase.store_code"
+      :taxable="purchase.taxable"
+      :tags="purchase.tags"
     >
-      <CardContent class="p-4">
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex items-start gap-3 flex-1 min-w-0">
-            <div class="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Package class="h-5 w-5 text-primary" />
-            </div>
-            
-            <div class="flex-1 min-w-0">
-              <div class="flex items-start justify-between gap-2 mb-1">
-                <div class="flex-1 min-w-0">
-                  <h4 class="font-semibold text-base truncate">{{ purchase.item }}</h4>
-                  <p class="text-sm text-muted-foreground">{{ purchase.brand }}</p>
-                </div>
-                <div class="text-right flex-shrink-0">
-                  <div class="text-lg font-semibold">{{ formatCurrency(purchase.total_price) }}</div>
-                  <div v-if="getPricingInfo(purchase)" class="text-xs text-muted-foreground">
-                    {{ getPricingInfo(purchase) }}
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-2 mt-2">
-                <Badge v-if="purchase.taxable" variant="outline" class="text-xs">
-                  Taxable
-                </Badge>
-                <Badge v-if="purchase.unit_measurement" variant="secondary" class="text-xs">
-                  {{ purchase.unit_measurement }}
-                </Badge>
-                <Badge v-if="purchase.store_code" variant="secondary" class="text-xs font-mono">
-                  {{ purchase.store_code }}
-                </Badge>
-              </div>
-
-              <div v-if="purchase.tags && purchase.tags.length > 0" class="flex flex-wrap gap-1.5 mt-2">
-                <Badge
-                  v-for="tag in purchase.tags"
-                  :key="tag.id"
-                  variant="outline"
-                  class="text-xs gap-1"
-                  :style="{
-                    backgroundColor: tag.color + '20',
-                    color: tag.color,
-                    borderColor: tag.color + '40'
-                  }"
-                >
-                  <div class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: tag.color }" />
-                  {{ tag.name }}
-                </Badge>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="showActions" class="flex gap-1 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8"
-              @click="emit('edit', purchase)"
-            >
-              <Edit class="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 hover:text-destructive"
-              @click="() => { console.log('Delete clicked for', purchase.id); emit('delete', purchase.id); }"
-            >
-              <Trash2 class="h-4 w-4" />
-            </Button>
-          </div>
+      <template #actions v-if="showActions">
+        <div class="flex gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity self-center pl-1">
+          <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-primary" @click="emit('edit', purchase)">
+            <Edit class="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-destructive" @click="emit('delete', purchase.id)">
+            <Trash2 class="h-3.5 w-3.5" />
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </template>
+    </BaseItemEntry>
   </div>
 </template>

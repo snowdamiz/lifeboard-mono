@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ChevronDown, ChevronRight, Store, Calendar, Package, ArrowRightLeft } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Store, Calendar, Package, ArrowRightLeft, Trash } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
 import type { TripReceipt, InventoryItem } from '@/types'
 
 const props = defineProps<{
@@ -12,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'transfer', item: InventoryItem): void
+  (e: 'delete', item: InventoryItem): void
 }>()
 
 const expandedReceipts = ref<Set<string>>(new Set())
@@ -83,117 +85,51 @@ const getTotalItems = (receipt: TripReceipt) => {
         </div>
       </CardHeader>
 
-      <CardContent v-if="expandedReceipts.has(receipt.id)" class="p-0 border-t border-border">
-        <!-- Desktop Table View -->
-        <div class="hidden md:block overflow-x-auto">
-          <table class="w-full">
-            <thead class="bg-secondary/50">
-              <tr>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-36">Brand</th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground">Name</th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-32">Store</th>
-                <th class="text-center p-3 text-sm font-medium text-muted-foreground w-24">Quantity</th>
-                <th class="text-center p-3 text-sm font-medium text-muted-foreground w-20">Unit</th>
-                <th class="w-24"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="item in receipt.items"
-                :key="item.id"
-                class="border-t border-border hover:bg-secondary/30 transition-colors"
-              >
-                <td class="p-3 text-muted-foreground text-sm">
-                  {{ item.brand || '-' }}
-                </td>
-                <td class="p-3">
-                  <div class="min-w-0">
-                    <span class="font-medium">{{ item.name }}</span>
-                    <div class="text-xs text-muted-foreground mt-0.5" v-if="item.store_code">Code: {{ item.store_code }}</div>
-                    <div v-if="item.tags?.length" class="flex gap-1 mt-1 flex-wrap">
-                      <Badge
-                        v-for="tag in item.tags"
-                        :key="tag.id"
-                        :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
-                        variant="outline"
-                        class="text-[9px] px-1 h-4"
-                      >
-                        {{ tag.name }}
-                      </Badge>
-                    </div>
-                  </div>
-                </td>
-                <td class="p-3 text-muted-foreground text-sm">
-                  {{ item.store || '-' }}
-                </td>
-                <td class="p-3 text-center">
-                  <span class="font-mono text-sm">{{ item.quantity }}</span>
-                </td>
-                <td class="p-3 text-center text-muted-foreground text-xs">
-                  {{ item.unit_of_measure || '-' }}
-                </td>
-                <td class="p-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 gap-1.5 ml-auto"
-                    @click.stop="emit('transfer', item)"
-                  >
-                    <ArrowRightLeft class="h-4 w-4" />
-                    <span class="hidden lg:inline">Transfer</span>
-                  </Button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <CardContent v-if="expandedReceipts.has(receipt.id)" class="p-2 border-t border-border space-y-1.5">
+        <BaseItemEntry
+          v-for="item in receipt.items"
+          :key="item.id"
+          :name="item.name"
+          :brand="item.brand"
+          :quantity="item.quantity"
+          :unit="item.unit_of_measure"
+          :store="item.store"
+          :store-code="item.store_code"
+          :tags="item.tags"
+        >
+          <!-- Right value: Quantity badge -->
+          <template #right-value>
+            <Badge variant="outline" class="font-mono">
+              {{ item.quantity }} {{ item.unit_of_measure || '' }}
+            </Badge>
+          </template>
 
-        <!-- Mobile Item View -->
-        <div class="md:hidden divide-y divide-border">
-          <div
-            v-for="item in receipt.items"
-            :key="item.id"
-            class="p-3 hover:bg-secondary/30 transition-colors"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex-1 min-w-0">
-                <h3 class="font-medium text-sm truncate">{{ item.name }}</h3>
-                <div class="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
-                  <span v-if="item.brand" class="font-medium">{{ item.brand }}</span>
-                  <span v-if="item.store">{{ item.store }}</span>
-                  <span v-if="item.store_code" class="opacity-70">({{ item.store_code }})</span>
-                </div>
-                <div v-if="item.tags?.length" class="flex gap-1 mt-1.5 flex-wrap">
-                  <Badge
-                    v-for="tag in item.tags"
-                    :key="tag.id"
-                    :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
-                    variant="outline"
-                    class="text-[9px] px-1 h-4"
-                  >
-                    {{ tag.name }}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div class="flex flex-col items-end gap-2">
-                 <Badge variant="outline" class="font-mono">
-                  {{ item.quantity }} {{ item.unit_of_measure || '' }}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-7 px-2 text-xs"
-                  @click.stop="emit('transfer', item)"
-                >
-                  <ArrowRightLeft class="h-3 w-3 mr-1" />
-                  Transfer
-                </Button>
-              </div>
+          <!-- Actions -->
+          <template #actions>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 gap-1.5"
+                @click.stop="emit('transfer', item)"
+              >
+                <ArrowRightLeft class="h-3.5 w-3.5" />
+                <span class="hidden sm:inline text-xs">Transfer</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 gap-1.5 text-destructive hover:text-destructive"
+                @click.stop="emit('delete', item)"
+              >
+                <Trash class="h-3.5 w-3.5" />
+                <span class="hidden sm:inline text-xs">Delete</span>
+              </Button>
             </div>
-          </div>
-        </div>
+          </template>
+        </BaseItemEntry>
       </CardContent>
     </Card>
   </div>
 </template>
+

@@ -10,6 +10,7 @@ import { useInventoryStore } from '@/stores/inventory'
 import InventoryItemForm from '@/components/inventory/InventoryItemForm.vue'
 import TripReceiptList from '@/components/inventory/TripReceiptList.vue'
 import ItemTransferModal from '@/components/inventory/ItemTransferModal.vue'
+import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
 import type { InventoryItem, TripReceipt } from '@/types'
 import { api } from '@/services/api'
 
@@ -107,11 +108,15 @@ watch(() => isPurchasesSheet.value, (isPurchases) => {
   }
 })
 
+const refreshKey = ref(0)
+
 const fetchTripReceipts = async () => {
   isLoadingReceipts.value = true
   try {
     const res = await api.listTripReceipts()
+    console.log(`[DEBUG] Fetched ${res.data.length} trips. First trip has ${res.data[0]?.items?.length} items.`)
     tripReceipts.value = res.data
+    refreshKey.value++ // Force re-render
   } catch (err) {
     console.error('Failed to fetch trip receipts:', err)
   } finally {
@@ -119,15 +124,33 @@ const fetchTripReceipts = async () => {
   }
 }
 
+const handleRefresh = async () => {
+  await fetchTripReceipts()
+  await inventoryStore.fetchSheet(sheetId.value)
+}
+
 const handleTransferClick = (item: InventoryItem) => {
   transferItem.value = item
   showTransferModal.value = true
 }
 
-const onTransferComplete = () => {
+const onTransferComplete = async () => {
+  console.log('Transfer complete, refreshing data...')
+  // Clear lists to force reactivity
+  tripReceipts.value = []
+  
   // Refresh receipts to show updated quantities/items
-  fetchTripReceipts()
+  await fetchTripReceipts()
   // Also refresh the sheet items if needed
+  await inventoryStore.fetchSheet(sheetId.value)
+
+}
+
+const handleDeleteClick = async (item: InventoryItem) => {
+  await inventoryStore.deleteItem(item.id)
+  
+  // Refresh views
+  fetchTripReceipts()
   inventoryStore.fetchSheet(sheetId.value)
 }
 
@@ -224,27 +247,36 @@ const onItemSaved = () => {
       </Button>
     </div>
 
-    <!-- Special Purchases Sheet View - Trip Receipts -->
-    <template v-if="isPurchasesSheet">
-      <!-- Loading state -->
-      <div v-if="isLoadingReceipts" class="flex items-center justify-center py-12">
-        <Loader2 class="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <div v-if="isPurchasesSheet" class="space-y-4">
+        <div class="flex items-center justify-between">
+           <h2 class="text-lg font-semibold">Trip Receipts</h2>
+           <Button variant="outline" size="sm" @click="handleRefresh" :disabled="isLoadingReceipts">
+             <Loader2 v-if="isLoadingReceipts" class="h-4 w-4 mr-2 animate-spin" />
+             Refresh
+           </Button>
+        </div>
+        
+        <!-- Loading state -->
+        <div v-if="isLoadingReceipts" class="flex items-center justify-center py-12">
+          <Loader2 class="h-8 w-8 animate-spin text-primary" />
+        </div>
 
-      <!-- Trip Receipt List -->
-      <TripReceiptList 
-        v-else
-        :receipts="tripReceipts" 
-        @transfer="handleTransferClick" 
-      />
-      
-      <!-- Transfer Modal -->
-      <ItemTransferModal
-        v-model:open="showTransferModal"
-        :item="transferItem"
-        @transferred="onTransferComplete"
-      />
-    </template>
+        <!-- TripReceiptList -->
+        <TripReceiptList 
+          v-else
+          :key="refreshKey"
+          :receipts="tripReceipts" 
+          @transfer="handleTransferClick" 
+          @delete="handleDeleteClick"
+        />
+        
+        <!-- Transfer Modal -->
+        <ItemTransferModal
+          v-model:open="showTransferModal"
+          :item="transferItem"
+          @transferred="onTransferComplete"
+        />
+      </div>
 
     <!-- Normal Sheet View -->
     <template v-else>
@@ -315,187 +347,84 @@ const onItemSaved = () => {
       </Button>
     </div>
 
-    <!-- Desktop Table View -->
-    <Card class="hidden md:block">
-      <CardContent class="p-0">
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead class="bg-secondary/50">
-              <tr>
-                <th class="w-10 p-3">
-                  <Checkbox 
-                    :model-value="selectedItems.size > 0 && selectedItems.size === groupedItems.length"
-                    @update:model-value="$event ? selectAll() : clearSelection()"
-                  />
-                </th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-36">Brand</th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground">Name</th>
-                <th class="text-left p-3 text-sm font-medium text-muted-foreground w-32">Store</th>
-                <th class="text-center p-3 text-sm font-medium text-muted-foreground w-28">Quantity</th>
-                <th class="text-center p-3 text-sm font-medium text-muted-foreground w-20">Unit</th>
-                <th class="text-center p-3 text-sm font-medium text-muted-foreground w-20">Min</th>
-                <th class="w-20"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="item in groupedItems"
-                :key="item.id"
-                :class="[
-                  'border-t border-border hover:bg-secondary/30 transition-colors',
-                  item.quantity < item.min_quantity && 'bg-destructive/5'
-                ]"
-              >
-                <td class="p-3" @click.stop>
-                  <Checkbox 
-                    :model-value="selectedItems.has(item.id)"
-                    @update:model-value="toggleSelection(item.id)"
-                  />
-                </td>
-                <td class="p-3 text-muted-foreground text-sm">
-                  {{ item.brand || '-' }}
-                </td>
-                <td class="p-3">
-                  <div class="flex items-center gap-2">
-                    <AlertTriangle 
-                      v-if="item.quantity < item.min_quantity"
-                      class="h-4 w-4 text-destructive shrink-0"
-                    />
-                    <div class="min-w-0">
-                      <span class="font-medium">{{ item.name }}</span>
-                      <div v-if="item.tags?.length" class="flex gap-1 mt-1 flex-wrap">
-                        <Badge
-                          v-for="tag in item.tags"
-                          :key="tag.id"
-                          :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
-                          variant="outline"
-                          class="text-[9px] px-1 h-4"
-                        >
-                          {{ tag.name }}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-                <td class="p-3 text-muted-foreground text-sm">
-                  {{ item.store || '-' }}
-                </td>
-                <td class="p-3">
-                  <div class="flex items-center justify-center gap-1.5">
-                    <Button variant="outline" size="icon" class="h-7 w-7" @click="updateQuantity(item as unknown as GroupedInventoryItem, -1)">
-                      -
-                    </Button>
-                    <span class="w-8 text-center font-mono text-sm">{{ item.quantity }}</span>
-                    <Button variant="outline" size="icon" class="h-7 w-7" @click="updateQuantity(item as unknown as GroupedInventoryItem, 1)">
-                      +
-                    </Button>
-                  </div>
-                </td>
-                <td class="p-3 text-center text-muted-foreground text-xs">
-                  {{ item.unit_of_measure || '-' }}
-                </td>
-                <td class="p-3 text-center text-muted-foreground text-sm">
-                  {{ item.min_quantity }}
-                </td>
-                <td class="p-3">
-                  <div class="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" class="h-8 w-8" @click="startEdit(item)">
-                      <Edit class="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive" @click="deleteItem(item as unknown as GroupedInventoryItem)">
-                      <Trash class="h-4 w-4" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="!groupedItems.length">
-                <td colspan="8" class="p-10 text-center text-muted-foreground">
-                  No items yet. Add your first item to get started.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Mobile Card View -->
-    <div class="md:hidden space-y-2">
-      <div
+    <!-- Inventory Items - Unified Card Layout -->
+    <div class="space-y-2">
+      <BaseItemEntry
         v-for="item in groupedItems"
         :key="item.id"
-        :class="[
-          'bg-card rounded-xl border border-border/60 p-3 transition-colors',
-          item.quantity < item.min_quantity && 'border-destructive/30 bg-destructive/5'
-        ]"
+        :name="item.name"
+        :brand="item.brand"
+        :store="item.store"
+        :unit="item.unit_of_measure"
+        :tags="item.tags"
+        :highlighted="item.quantity < item.min_quantity"
+        highlight-class="border-destructive/30 bg-destructive/5"
       >
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <AlertTriangle 
-                v-if="item.quantity < item.min_quantity"
-                class="h-4 w-4 text-destructive shrink-0"
-              />
-              <h3 class="font-medium text-sm truncate">{{ item.name }}</h3>
-              <!-- Removed Essential Badge -->
-            </div>
-            <div class="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
-              <span v-if="item.brand" class="font-medium">{{ item.brand }}</span>
-              <span>Min: {{ item.min_quantity }}{{ item.unit_of_measure ? ` ${item.unit_of_measure}` : '' }}</span>
-              <span v-if="item.store">{{ item.store }}</span>
-            </div>
-            <div v-if="item.tags?.length" class="flex gap-1 mt-1.5 flex-wrap">
-              <Badge
-                v-for="tag in item.tags"
-                :key="tag.id"
-                :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }"
-                variant="outline"
-                class="text-[9px] px-1 h-4"
-              >
-                {{ tag.name }}
-              </Badge>
+        <!-- Leading: Checkbox + optional warning icon -->
+        <template #leading>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <Checkbox 
+              :model-value="selectedItems.has(item.id)"
+              @update:model-value="toggleSelection(item.id)"
+              @click.stop
+            />
+            <div class="h-8 w-8 rounded-md flex items-center justify-center" :class="item.quantity < item.min_quantity ? 'bg-destructive/10' : 'bg-primary/10'">
+              <AlertTriangle v-if="item.quantity < item.min_quantity" class="h-4 w-4 text-destructive" />
+              <Package v-else class="h-4 w-4 text-primary" />
             </div>
           </div>
+        </template>
 
-          <div class="flex items-center gap-1">
+        <!-- Right value: Min quantity info -->
+        <template #right-value>
+          <div class="text-sm text-muted-foreground whitespace-nowrap">
+            Min: {{ item.min_quantity }}{{ item.unit_of_measure ? ` ${item.unit_of_measure}` : '' }}
+          </div>
+        </template>
+
+        <!-- Extension: Quantity controls (inventory-specific) -->
+        <template #extension>
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
+            <span class="text-xs text-muted-foreground">Quantity</span>
+            <div class="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                class="h-8 w-8 rounded-full" 
+                @click="updateQuantity(item as unknown as GroupedInventoryItem, -1)"
+              >
+                <Minus class="h-4 w-4" />
+              </Button>
+              <span :class="[
+                'w-10 text-center font-mono text-lg font-semibold',
+                item.quantity < item.min_quantity && 'text-destructive'
+              ]">
+                {{ item.quantity }}
+              </span>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                class="h-8 w-8 rounded-full" 
+                @click="updateQuantity(item as unknown as GroupedInventoryItem, 1)"
+              >
+                <Plus class="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Actions -->
+        <template #actions>
+          <div class="flex items-center gap-1 flex-shrink-0">
             <Button variant="ghost" size="icon" class="h-7 w-7" @click.stop="startEdit(item)">
               <Edit class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="h-7 w-7 text-destructive" @click.stop="deleteItem(item as unknown as GroupedInventoryItem)">
+            <Button variant="ghost" size="icon" class="h-7 w-7 text-destructive hover:text-destructive" @click.stop="deleteItem(item as unknown as GroupedInventoryItem)">
               <Trash class="h-3.5 w-3.5" />
             </Button>
           </div>
-        </div>
-
-        <!-- Quantity Controls -->
-        <div class="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
-          <span class="text-xs text-muted-foreground">Quantity</span>
-          <div class="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              class="h-8 w-8 rounded-full" 
-              @click="updateQuantity(item as unknown as GroupedInventoryItem, -1)"
-            >
-              <Minus class="h-4 w-4" />
-            </Button>
-            <span :class="[
-              'w-10 text-center font-mono text-lg font-semibold',
-              item.quantity < item.min_quantity && 'text-destructive'
-            ]">
-              {{ item.quantity }}
-            </span>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              class="h-8 w-8 rounded-full" 
-              @click="updateQuantity(item as unknown as GroupedInventoryItem, 1)"
-            >
-              <Plus class="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
+        </template>
+      </BaseItemEntry>
 
       <div v-if="!groupedItems.length" class="text-center py-12 text-muted-foreground">
         <Package class="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -505,7 +434,7 @@ const onItemSaved = () => {
           Add Item
         </Button>
       </div>
-      </div>
+    </div>
     </template>
 
     <!-- New Item Modal -->

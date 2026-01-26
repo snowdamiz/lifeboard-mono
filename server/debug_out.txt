@@ -1,0 +1,101 @@
+     warning: variable "store_name" is unused (if the variable is not meant to be used, prefix it with an underscore)
+     │
+ 477 │     store_name = if purchase.stop && purchase.stop.store, do: String.trim(purchase.stop.store.name), else: nil
+     │     ~~~~~~~~~~
+     │
+     └─ lib/mega_planner/inventory.ex:477:5: MegaPlanner.Inventory.create_item_from_purchase/1
+
+[INFO] Loaded environment from: c:/Users/yurlo/.gemini/antigravity/scratch/lifeboard-mono/server/config/../.env
+Repo started.
+
+=== Setup ===
+
+16:47:54.985 [debug] QUERY OK source="users" db=3.8ms decode=0.5ms queue=62.8ms idle=0.0ms
+SELECT u0."id", u0."email", u0."name", u0."avatar_url", u0."provider", u0."provider_id", u0."household_id", u0."inserted_at", u0."updated_at" FROM "users" AS u0 LIMIT 1 []
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:16[0m
+User: dev@example.com
+
+16:47:54.997 [debug] QUERY OK source="inventory_sheets" db=3.7ms queue=0.4ms idle=14.4ms
+SELECT i0."id", i0."name", i0."columns", i0."user_id", i0."household_id", i0."inserted_at", i0."updated_at" FROM "inventory_sheets" AS i0 WHERE ((i0."household_id" = $1) AND (i0."name" = $2)) ["e36532ba-4527-4eee-be1b-32eb6189c5c4", "Purchases"]
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:20[0m
+Found Sheets: Purchases (d6b2f495-69ee-4b3c-9179-b494daab95b0), Pantry (81b34822-c718-4041-9b04-6f3bd4cbedb4)
+
+16:47:54.998 [debug] QUERY OK source="inventory_sheets" db=1.4ms idle=18.6ms
+SELECT i0."id", i0."name", i0."columns", i0."user_id", i0."household_id", i0."inserted_at", i0."updated_at" FROM "inventory_sheets" AS i0 WHERE ((i0."household_id" = $1) AND (i0."name" = $2)) ["e36532ba-4527-4eee-be1b-32eb6189c5c4", "Pantry"]
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:21[0m
+
+16:47:55.016 [debug] QUERY OK source="inventory_items" db=4.3ms queue=0.7ms idle=30.7ms
+INSERT INTO "inventory_items" ("name","brand","quantity","sheet_id","taxable","min_quantity","custom_fields","is_necessity","inserted_at","updated_at","id") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ["TransferDebugItem_-576460752303418684", "Debug", 1, "d6b2f495-69ee-4b3c-9179-b494daab95b0", false, 0, %{}, false, ~U[2026-01-25 22:47:55Z], ~U[2026-01-25 22:47:55Z], "bfa254cc-edd7-4eec-86ff-fea48638c8af"]
+[90m↳ MegaPlanner.Inventory.create_item/1, at: lib/mega_planner/inventory.ex:132[0m
+
+16:47:55.017 [debug] QUERY OK source="tags" db=1.1ms queue=0.4ms idle=38.9ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at" FROM "tags" AS t0 WHERE (t0."id" = ANY($1)) [[]]
+[90m↳ MegaPlanner.Inventory.update_item_tags/2, at: lib/mega_planner/inventory.ex:164[0m
+
+16:47:55.021 [debug] QUERY OK source="tags" db=1.4ms queue=0.5ms idle=42.5ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at", i1."inventory_item_id"::uuid FROM "tags" AS t0 INNER JOIN "inventory_items_tags" AS i1 ON t0."id" = i1."tag_id" WHERE (i1."inventory_item_id" = ANY($1)) ORDER BY i1."inventory_item_id"::uuid [["bfa254cc-edd7-4eec-86ff-fea48638c8af"]]
+[90m↳ MegaPlanner.Inventory.update_item_tags/2, at: lib/mega_planner/inventory.ex:166[0m
+Created Source Item: ID=bfa254cc-edd7-4eec-86ff-fea48638c8af, Qty=1
+
+16:47:55.025 [debug] QUERY OK source="tags" db=2.2ms idle=44.6ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at", i1."inventory_item_id"::uuid FROM "tags" AS t0 INNER JOIN "inventory_items_tags" AS i1 ON t0."id" = i1."tag_id" WHERE (i1."inventory_item_id" = ANY($1)) ORDER BY i1."inventory_item_id"::uuid [["bfa254cc-edd7-4eec-86ff-fea48638c8af"]]
+[90m↳ MegaPlanner.Inventory.create_item/1, at: lib/mega_planner/inventory.ex:137[0m
+
+=== Transferring 1 to Pantry ===
+
+16:47:55.025 [debug] QUERY OK db=0.1ms idle=47.5ms
+begin []
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:45[0m
+
+16:47:55.025 [debug] QUERY OK source="inventory_items" db=1.1ms
+SELECT i0."id", i0."name", i0."quantity", i0."min_quantity", i0."is_necessity", i0."store", i0."unit_of_measure", i0."brand", i0."count", i0."price_per_count", i0."price_per_unit", i0."taxable", i0."total_price", i0."store_code", i0."item_name", i0."custom_fields", i0."purchase_date", i0."purchase_id", i0."trip_id", i0."stop_id", i0."sheet_id", i0."inserted_at", i0."updated_at" FROM "inventory_items" AS i0 WHERE (i0."id" = $1) ["bfa254cc-edd7-4eec-86ff-fea48638c8af"]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.025 [debug] QUERY OK source="tags" db=1.4ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at", i1."inventory_item_id"::uuid FROM "tags" AS t0 INNER JOIN "inventory_items_tags" AS i1 ON t0."id" = i1."tag_id" WHERE (i1."inventory_item_id" = ANY($1)) ORDER BY i1."inventory_item_id"::uuid [["bfa254cc-edd7-4eec-86ff-fea48638c8af"]]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.029 [debug] QUERY OK source="inventory_items" db=0.1ms
+SELECT i0."id", i0."name", i0."quantity", i0."min_quantity", i0."is_necessity", i0."store", i0."unit_of_measure", i0."brand", i0."count", i0."price_per_count", i0."price_per_unit", i0."taxable", i0."total_price", i0."store_code", i0."item_name", i0."custom_fields", i0."purchase_date", i0."purchase_id", i0."trip_id", i0."stop_id", i0."sheet_id", i0."inserted_at", i0."updated_at" FROM "inventory_items" AS i0 WHERE (((i0."sheet_id" = $1) AND (i0."name" = $2)) AND (coalesce(i0."brand", '') = $3)) LIMIT 1 ["81b34822-c718-4041-9b04-6f3bd4cbedb4", "TransferDebugItem_-576460752303418684", "Debug"]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.029 [debug] QUERY OK source="inventory_items" db=0.8ms
+INSERT INTO "inventory_items" ("name","brand","quantity","sheet_id","taxable","min_quantity","custom_fields","is_necessity","inserted_at","updated_at","id") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ["TransferDebugItem_-576460752303418684", "Debug", 1, "81b34822-c718-4041-9b04-6f3bd4cbedb4", false, 0, %{}, false, ~U[2026-01-25 22:47:55Z], ~U[2026-01-25 22:47:55Z], "96a05c47-6632-41e5-bf9b-de698e1b518f"]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.029 [debug] QUERY OK source="tags" db=0.2ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at" FROM "tags" AS t0 WHERE (t0."id" = ANY($1)) [[]]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.029 [debug] QUERY OK source="tags" db=0.2ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at", i1."inventory_item_id"::uuid FROM "tags" AS t0 INNER JOIN "inventory_items_tags" AS i1 ON t0."id" = i1."tag_id" WHERE (i1."inventory_item_id" = ANY($1)) ORDER BY i1."inventory_item_id"::uuid [["96a05c47-6632-41e5-bf9b-de698e1b518f"]]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.029 [debug] QUERY OK source="tags" db=0.2ms
+SELECT t0."id", t0."name", t0."color", t0."user_id", t0."household_id", t0."inserted_at", t0."updated_at", i1."inventory_item_id"::uuid FROM "tags" AS t0 INNER JOIN "inventory_items_tags" AS i1 ON t0."id" = i1."tag_id" WHERE (i1."inventory_item_id" = ANY($1)) ORDER BY i1."inventory_item_id"::uuid [["96a05c47-6632-41e5-bf9b-de698e1b518f"]]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.032 [debug] QUERY OK source="shopping_list_items" db=1.1ms
+SELECT s0."id" FROM "shopping_list_items" AS s0 WHERE (s0."inventory_item_id" = $1) ["bfa254cc-edd7-4eec-86ff-fea48638c8af"]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+
+16:47:55.033 [debug] QUERY OK source="inventory_items" db=0.3ms
+DELETE FROM "inventory_items" WHERE "id" = $1 ["bfa254cc-edd7-4eec-86ff-fea48638c8af"]
+[90m↳ anonymous fn/3 in Ecto.Adapters.SQL.checkout_or_transaction/4, at: lib/ecto/adapters/sql.ex:1473[0m
+Transfer returned {:ok, ...}
+
+16:47:55.033 [debug] QUERY OK db=0.4ms
+commit []
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:45[0m
+
+=== Verification ===
+PASS: Source item was DELETED
+
+16:47:55.035 [debug] QUERY OK source="inventory_items" db=1.2ms idle=55.3ms
+SELECT i0."id", i0."name", i0."quantity", i0."min_quantity", i0."is_necessity", i0."store", i0."unit_of_measure", i0."brand", i0."count", i0."price_per_count", i0."price_per_unit", i0."taxable", i0."total_price", i0."store_code", i0."item_name", i0."custom_fields", i0."purchase_date", i0."purchase_id", i0."trip_id", i0."stop_id", i0."sheet_id", i0."inserted_at", i0."updated_at" FROM "inventory_items" AS i0 WHERE (i0."id" = $1) ["bfa254cc-edd7-4eec-86ff-fea48638c8af"]
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:57[0m
+PASS: Target item created with Qty=1
+
+16:47:55.037 [debug] QUERY OK source="inventory_items" db=1.1ms queue=0.4ms idle=56.8ms
+SELECT i0."id", i0."name", i0."quantity", i0."min_quantity", i0."is_necessity", i0."store", i0."unit_of_measure", i0."brand", i0."count", i0."price_per_count", i0."price_per_unit", i0."taxable", i0."total_price", i0."store_code", i0."item_name", i0."custom_fields", i0."purchase_date", i0."purchase_id", i0."trip_id", i0."stop_id", i0."sheet_id", i0."inserted_at", i0."updated_at" FROM "inventory_items" AS i0 WHERE ((i0."sheet_id" = $1) AND (i0."name" = $2)) ["81b34822-c718-4041-9b04-6f3bd4cbedb4", "TransferDebugItem_-576460752303418684"]
+[90m↳ :elixir_compiler_1.__FILE__/1, at: debug_transfer.exs:65[0m

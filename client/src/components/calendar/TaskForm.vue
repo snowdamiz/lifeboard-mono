@@ -68,6 +68,7 @@ const tripDriverId = ref<string | null>(null)
 const tripId = ref<string | null>(null)
 const isAddingDriver = ref(false)
 const newDriverName = ref('')
+const driverSearchText = ref('')
 
 const isEditing = computed(() => !!props.task)
 
@@ -99,7 +100,11 @@ const initForm = () => {
          // For now let's assume if it's a trip task, we want to try to load the trip context
          if (props.task.trip_id) {
              receiptsStore.fetchTrip(props.task.trip_id).then(trip => {
-                 if (trip) tripDriverId.value = trip.driver_id
+                 if (trip) {
+                     tripDriverId.value = trip.driver_id
+                     const d = drivers.value.find(d => d.id === trip.driver_id)
+                     driverSearchText.value = d ? d.name : ''
+                 }
              })
          }
     }
@@ -118,6 +123,7 @@ const initForm = () => {
     selectedTags.value = new Set()
     tripId.value = null
     tripDriverId.value = null
+    driverSearchText.value = ''
   }
   newStepContent.value = ''
 }
@@ -143,9 +149,17 @@ watch(() => props.task, () => {
 const createDriver = async (name: string) => {
     if (!name.trim()) return
     
+    const existing = drivers.value.find(d => d.name.toLowerCase() === name.trim().toLowerCase())
+    if (existing) {
+        tripDriverId.value = existing.id
+        driverSearchText.value = existing.name
+        return
+    }
+
     try {
         const driver = await receiptsStore.createDriver(name)
         tripDriverId.value = driver.id
+        driverSearchText.value = driver.name
     } catch (e) {
         console.error('Failed to create driver', e)
     }
@@ -204,6 +218,22 @@ const save = async () => {
     let savedTask: Task
     let createdTripId: string | null = null
     
+    // Ensure driver is resolved from text if not selected
+    if (form.value.task_type === 'trip' && !tripDriverId.value && driverSearchText.value.trim()) {
+        const name = driverSearchText.value.trim()
+        const existing = drivers.value.find(d => d.name.toLowerCase() === name.toLowerCase())
+        if (existing) {
+             tripDriverId.value = existing.id
+        } else {
+             try {
+                 const d = await receiptsStore.createDriver(name)
+                 tripDriverId.value = d.id
+             } catch (e) {
+                 console.error("Failed to auto-create driver on save", e)
+             }
+        }
+    }
+
     // If task type is trip and we don't have a trip yet, create one
     if (form.value.task_type === 'trip' && !tripId.value) {
       // Always set trip_start to task's date (at midnight local if no time specified)
@@ -356,15 +386,14 @@ const save = async () => {
               <label class="text-sm font-medium">Driver</label>
               <div class="mt-1.5">
                   <SearchableInput 
-                      :model-value="(() => {
-                          const d = drivers.find(d => d.id === tripDriverId)
-                          return d ? d.name : ''
-                      })()"
+                      v-model="driverSearchText"
+                      @select="(driver) => { 
+                          tripDriverId = driver.id
+                          driverSearchText = driver.name 
+                      }"
                       @update:model-value="(val) => {
-                           // If cleared, set to null
                            if (!val) tripDriverId = null
                       }"
-                      @select="(driver) => tripDriverId = driver.id"
                       :search-function="searchDrivers"
                       :display-function="(d) => d.name"
                       :value-function="(d) => d.name"
@@ -372,6 +401,7 @@ const save = async () => {
                       :min-chars="0"
                       placeholder="Select or create driver"
                       @create="createDriver"
+                      @keydown.enter="save"
                   />
               </div>
             </div>

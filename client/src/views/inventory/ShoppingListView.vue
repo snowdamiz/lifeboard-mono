@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
+import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
 import ShoppingItemForm from '@/components/shopping/ShoppingItemForm.vue'
 import type { ShoppingList, ShoppingListItem, Tag } from '@/types'
 import { useTagsStore } from '@/stores/tags'
@@ -470,43 +471,57 @@ const totalUnpurchased = computed(() =>
               Add more items
             </button>
           </div>
-          <div v-else class="space-y-1">
-            <div
+          <div v-else class="space-y-1.5">
+            <BaseItemEntry
               v-for="item in list.items.filter(i => !i.purchased)"
               :key="item.id"
-              class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/70 transition-colors group"
+              :name="getItemName(item)"
             >
-              <button
-                class="h-5 w-5 rounded-md border border-border hover:border-primary hover:bg-primary/10 flex items-center justify-center transition-all"
-                @click="markPurchased(list.id, item.id)"
-                title="Mark as purchased"
-              >
-                <Check class="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ getItemName(item) }}</p>
-                <p v-if="item.inventory_item" class="text-xs text-muted-foreground">
+              <!-- Leading: Purchase checkbox -->
+              <template #leading>
+                <button
+                  class="h-6 w-6 rounded-md border border-border hover:border-primary hover:bg-primary/10 flex items-center justify-center transition-all flex-shrink-0"
+                  @click="markPurchased(list.id, item.id)"
+                  title="Mark as purchased"
+                >
+                  <Check class="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              </template>
+
+              <!-- Right value: Quantity needed -->
+              <template #right-value>
+                <span class="text-sm font-mono bg-secondary px-2 py-1 rounded-md whitespace-nowrap">
+                  ×{{ item.quantity_needed }}
+                </span>
+              </template>
+
+              <!-- Details: Store and sheet info -->
+              <template #details v-if="item.inventory_item">
+                <span class="text-xs text-muted-foreground">
                   {{ item.inventory_item.store || 'No store' }} • {{ item.inventory_item.sheet_name }}
-                </p>
-              </div>
-              <span class="text-sm font-mono bg-secondary px-2 py-1 rounded-md">
-                ×{{ item.quantity_needed }}
-              </span>
-              <button
-                class="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-primary sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                @click="openEditItemModal(list.id, item)"
-                title="Edit item"
-              >
-                <Edit2 class="h-3.5 w-3.5" />
-              </button>
-              <button
-                class="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                @click="deleteItem(list.id, item.id)"
-                title="Remove item"
-              >
-                <X class="h-3.5 w-3.5" />
-              </button>
-            </div>
+                </span>
+              </template>
+
+              <!-- Actions -->
+              <template #actions>
+                <div class="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    class="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-primary"
+                    @click="openEditItemModal(list.id, item)"
+                    title="Edit item"
+                  >
+                    <Edit2 class="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    class="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive"
+                    @click="deleteItem(list.id, item.id)"
+                    title="Remove item"
+                  >
+                    <X class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </template>
+            </BaseItemEntry>
           </div>
         </CardContent>
       </Card>

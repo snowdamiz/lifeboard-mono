@@ -43,13 +43,38 @@ const searchUnits = async (query: string) => {
 
 const handleUnitCreate = async (name: string) => {
   if (!name) return
-  await receiptsStore.createUnit(name)
-  // No need to select explicitly, v-model update from SearchableInput handles it if we wanted, 
-  // but SearchableInput 'create' event is just for action.
-  // Actually SearchableInput doesn't auto-select on create currently without help?
-  // Let's check SearchableInput logic. It emits 'create' and closes.
-  // We should manually set the form value.
-  form.value.unit_measurement = name
+  
+  // 1. Check local store first
+  let existing = receiptsStore.units.find(u => u.name.toLowerCase() === name.toLowerCase())
+  
+  // 2. If not found, refresh store to be sure
+  if (!existing) {
+    try {
+      await receiptsStore.fetchUnits()
+      existing = receiptsStore.units.find(u => u.name.toLowerCase() === name.toLowerCase())
+    } catch (e) {
+      console.error('Failed to refresh units:', e)
+    }
+  }
+  
+  // 3. If found now, just use it
+  if (existing) {
+    form.value.unit_measurement = existing.name
+    return
+  }
+
+  // 4. If still not found, try to create
+  try {
+    await receiptsStore.createUnit(name)
+    form.value.unit_measurement = name
+  } catch (error: any) {
+    // If we still hit a 422 (e.g. race condition), handled gracefully
+    if (error.response?.status === 422 || error.message?.includes('already exist')) {
+       form.value.unit_measurement = name
+    } else {
+       console.error('Failed to create unit:', error)
+    }
+  }
 }
 
 // Form data
@@ -391,11 +416,29 @@ const save = async () => {
     
     // Create unit if it doesn't exist and we have a value
     if (form.value.unit_measurement) {
-      const existingUnit = receiptsStore.units.find(
+      // Check local
+      let existingUnit = receiptsStore.units.find(
         u => u.name.toLowerCase() === form.value.unit_measurement.toLowerCase()
       )
+      
+      // If not local, refresh and check again
       if (!existingUnit) {
-        await receiptsStore.createUnit(form.value.unit_measurement)
+         await receiptsStore.fetchUnits()
+         existingUnit = receiptsStore.units.find(
+            u => u.name.toLowerCase() === form.value.unit_measurement.toLowerCase()
+         )
+      }
+
+      // Only create if really missing
+      if (!existingUnit) {
+        try {
+          await receiptsStore.createUnit(form.value.unit_measurement)
+        } catch (error: any) {
+          // Ignore if it's a duplicate error
+          if (error.response?.status !== 422) {
+             console.error('Unit creation failed', error)
+          }
+        }
       }
     }
 
@@ -414,7 +457,7 @@ const save = async () => {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 bg-background/80 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" style="z-index: 60;">
       <div class="w-full sm:max-w-2xl bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[90vh] sm:max-h-[85vh] flex flex-col">
         <div class="flex items-center justify-between p-4 border-b border-border shrink-0">
           <h2 class="text-lg font-semibold">{{ isEditing ? 'Edit Purchase' : 'Add Purchase' }}</h2>
@@ -562,7 +605,7 @@ const save = async () => {
           <!-- Store Code & Item Name -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Store Code</label>
+              <label class="text-sm font-medium text-muted-foreground">Store Item Code</label>
               <SearchableInput 
                 v-model="form.store_code" 
                 :search-function="receiptsStore.searchStoreCodes"
@@ -572,7 +615,7 @@ const save = async () => {
               />
             </div>
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Receipt Item Name</label>
+              <label class="text-sm font-medium text-muted-foreground">Store Item Name</label>
               <SearchableInput 
                 v-model="form.item_name" 
                 :search-function="receiptsStore.searchReceiptItemNames"

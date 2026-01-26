@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { format } from 'date-fns'
-import { X, Plus, TrendingUp, TrendingDown, Trash2, Edit2, ChevronDown, ChevronRight, Eye } from 'lucide-vue-next'
+import { X, Plus, TrendingUp, TrendingDown, Trash2, Edit2, ChevronDown, ChevronRight, Eye, Clock, MapPin, User } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
 import { useReceiptsStore } from '@/stores/receipts'
 import { formatCurrency } from '@/lib/utils'
-import type { BudgetEntry, Purchase } from '@/types'
+import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
+import type { BudgetEntry, Purchase, Stop } from '@/types'
 
 interface Props {
   date: Date
@@ -67,6 +68,41 @@ const isTripExpanded = (tripId: string) => {
 const getEntryPurchases = (entry: BudgetEntry): Purchase[] => {
   // The entry object from backend should have stop data
   return (entry as any).stop?.purchases || []
+}
+
+const getEntryStop = (entry: BudgetEntry): Stop | null => {
+  return (entry as any).stop || null
+}
+
+const getEntryTrip = (entry: BudgetEntry) => {
+  return (entry as any).stop?.trip || (entry as any).trip || null
+}
+
+const formatTime = (dateStr: string | null) => {
+  if (!dateStr) return null
+  try {
+    const date = new Date(dateStr)
+    return format(date, 'h:mm a')
+  } catch {
+    return null
+  }
+}
+
+const getQuantity = (p: Purchase) => {
+  if (p.count) return p.count
+  if (p.units) return p.units
+  return '1'
+}
+
+const getUnitLabel = (p: Purchase) => {
+  if (p.unit_measurement) return p.unit_measurement
+  return ''
+}
+
+const getUnitPrice = (p: Purchase) => {
+  if (p.count && p.price_per_count) return p.price_per_count
+  if (p.units && p.price_per_unit) return p.price_per_unit
+  return null
 }
 
 const deleteEntry = async (entry: BudgetEntry) => {
@@ -292,42 +328,87 @@ const deletePurchase = async (purchase: Purchase) => {
                     </div>
                   </div>
 
-                  <!-- Expanded Purchases List -->
+                  <!-- Expanded Trip Info & Purchases List -->
                   <div 
-                    v-if="entry.is_trip && isTripExpanded(entry.id) && getEntryPurchases(entry).length > 0"
-                    class="ml-8 mt-2 space-y-2"
+                    v-if="entry.is_trip && isTripExpanded(entry.id)"
+                    class="ml-2 mt-3 space-y-3"
                   >
-                    <div
-                      v-for="purchase in getEntryPurchases(entry)"
-                      :key="purchase.id"
-                      class="flex items-center justify-between p-2 rounded-md bg-card border border-border group/purchase"
-                    >
-                      <div class="flex-1 min-w-0">
-                        <p class="text-xs font-medium">
-                          {{ purchase.brand }} - {{ purchase.item }}
-                        </p>
-                        <p class="text-[10px] text-muted-foreground">
-                          <template v-if="purchase.count && purchase.price_per_count">
-                            {{ purchase.count }} @ {{ formatCurrency(purchase.price_per_count) }}
-                          </template>
-                          <template v-else-if="purchase.units && purchase.price_per_unit">
-                            {{ purchase.units }} {{ purchase.unit_measurement }} @ {{ formatCurrency(purchase.price_per_unit) }}
-                          </template>
-                        </p>
+                    <!-- Trip Details Header -->
+                    <div v-if="getEntryStop(entry) || getEntryTrip(entry)" class="bg-secondary/50 rounded-lg p-3 space-y-2">
+                      <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trip Details</h4>
+                      
+                      <!-- Store Info -->
+                      <div v-if="getEntryStop(entry)?.store_name" class="flex items-center gap-2 text-sm">
+                        <MapPin class="h-3.5 w-3.5 text-primary" />
+                        <span class="font-medium">Store:</span>
+                        <span>{{ getEntryStop(entry)?.store_name }}</span>
                       </div>
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs font-semibold text-red-500 tabular-nums">
-                          -{{ formatCurrency(purchase.total_price) }}
+                      
+                      <!-- Store Address -->
+                      <div v-if="getEntryStop(entry)?.store_address" class="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span class="ml-5">{{ getEntryStop(entry)?.store_address }}</span>
+                      </div>
+                      
+                      <!-- Trip Times -->
+                      <div v-if="getEntryTrip(entry)?.trip_start || getEntryTrip(entry)?.trip_end" class="flex items-center gap-2 text-sm">
+                        <Clock class="h-3.5 w-3.5 text-primary" />
+                        <span class="font-medium">Time:</span>
+                        <span v-if="formatTime(getEntryTrip(entry)?.trip_start)">
+                          {{ formatTime(getEntryTrip(entry)?.trip_start) }}
+                          <span v-if="formatTime(getEntryTrip(entry)?.trip_end)"> - {{ formatTime(getEntryTrip(entry)?.trip_end) }}</span>
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          class="h-6 w-6 opacity-0 group-hover/purchase:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
-                          @click="deletePurchase(purchase)"
-                        >
-                          <Trash2 class="h-3 w-3" />
-                        </Button>
                       </div>
+                      
+                      <!-- Driver -->
+                      <div v-if="getEntryTrip(entry)?.driver" class="flex items-center gap-2 text-sm">
+                        <User class="h-3.5 w-3.5 text-primary" />
+                        <span class="font-medium">Driver:</span>
+                        <span>{{ getEntryTrip(entry)?.driver }}</span>
+                      </div>
+                      
+                      <!-- Trip Notes -->
+                      <div v-if="getEntryTrip(entry)?.notes || getEntryStop(entry)?.notes" class="text-sm text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                        <span class="font-medium text-foreground">Notes:</span>
+                        {{ getEntryTrip(entry)?.notes || getEntryStop(entry)?.notes }}
+                      </div>
+                    </div>
+                    
+                    <!-- Purchases List using BaseItemEntry -->
+                    <div v-if="getEntryPurchases(entry).length > 0" class="space-y-1.5">
+                      <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Purchases ({{ getEntryPurchases(entry).length }})</h4>
+                      
+                      <BaseItemEntry
+                        v-for="purchase in getEntryPurchases(entry)"
+                        :key="purchase.id"
+                        :name="purchase.item"
+                        :brand="purchase.brand"
+                        :quantity="getQuantity(purchase)"
+                        :unit="getUnitLabel(purchase)"
+                        :price="getUnitPrice(purchase)"
+                        :total="purchase.total_price"
+                        :store-code="purchase.store_code"
+                        :taxable="purchase.taxable"
+                        :tags="purchase.tags"
+                      >
+                        <!-- Right value: Total price in red -->
+                        <template #right-value>
+                          <span class="text-sm font-semibold text-red-500 tabular-nums whitespace-nowrap">
+                            -{{ formatCurrency(purchase.total_price) }}
+                          </span>
+                        </template>
+                        
+                        <!-- Actions -->
+                        <template #actions>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
+                            @click="deletePurchase(purchase)"
+                          >
+                            <Trash2 class="h-3 w-3" />
+                          </Button>
+                        </template>
+                      </BaseItemEntry>
                     </div>
                   </div>
                 </div>

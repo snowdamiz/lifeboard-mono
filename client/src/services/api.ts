@@ -289,7 +289,7 @@ class ApiClient {
 
   // Trip Receipts (grouped inventory items from shopping trips)
   async listTripReceipts(): Promise<ApiResponse<TripReceipt[]>> {
-    return this.request('/inventory/trip-receipts')
+    return this.request(`/inventory/trip-receipts?t=${Date.now()}`)
   }
 
   async findMatchingItems(brand: string, name: string): Promise<ApiResponse<(InventoryItem & { sheet: { id: string; name: string } })[]>> {

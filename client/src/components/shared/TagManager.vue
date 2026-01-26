@@ -285,6 +285,7 @@ defineExpose({
             placeholder="Search tags..."
             class="flex-1"
             :class="compact ? 'h-8 text-sm' : ''"
+            @keydown.enter.prevent="handleSearchEnter"
           />
         </div>
         <div v-if="false" class="flex items-center justify-between px-1">

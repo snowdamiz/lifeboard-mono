@@ -1,0 +1,12 @@
+
+=== Starting Reproduction Script ===
+Found Household ID: e36532ba-4527-4eee-be1b-32eb6189c5c4 | User ID: 8ebf6722-5f52-454c-8379-48a1ca570e23
+Created Source Item: Debug Transfer Item 9 (ID: a111e745-5472-4522-9452-b7729aafb946) in 'Purchases'
+Target Sheet: 'Pantry' (ID: 81b34822-c718-4041-9b04-6f3bd4cbedb4)
+--- Attempting Transfer (Partial Quantity: 2) ---
+SUCCESS: Partial transfer completed.
+Source Item Quantity after Partial: 3 (Expected: 3)
+--- Attempting Transfer (Remaining Quantity: 3 - Should Delete Source) ---
+SUCCESS: Full transfer completed.
+SUCCESS: Source item correctly deleted from DB.
+=== Script Complete ===

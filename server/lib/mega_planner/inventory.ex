@@ -477,56 +477,34 @@ defmodule MegaPlanner.Inventory do
     store_name = if purchase.stop && purchase.stop.store, do: String.trim(purchase.stop.store.name), else: nil
 
 
-    # 0. Try to find an item by store_code (highest priority)
-    # This acts as our "Store-Brand Key"
-    store_code_match =
+    # 1. Identify/Create the staging sheet
+    user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
+    {:ok, purchases_sheet} = get_or_create_purchases_sheet(household_id, user_id)
+
+    # 2. Try to find matching item in Purchases sheet
+    # Priority: Store Code -> (Brand + Name)
+    existing_item = 
       if purchase.store_code do
-        # We also filter by household to ensure we don't cross boundaries
-        Repo.one(from i in Item,
-          join: s in assoc(i, :sheet),
-          where: s.household_id == ^household_id and i.store_code == ^purchase.store_code,
-          limit: 1
-        )
-      else
-        nil
+        Repo.one(from i in Item, where: i.sheet_id == ^purchases_sheet.id and i.store_code == ^purchase.store_code)
       end
 
-    if store_code_match do
-      # If we found a match by code, update it regardless of name mismatch
-      update_item(store_code_match, %{quantity: store_code_match.quantity + quantity_to_add})
+    # Fallback to Name + Brand if no store code match found (or no store code present)
+    existing_item = existing_item || Repo.one(
+      from i in Item,
+        where: i.sheet_id == ^purchases_sheet.id and 
+               ilike(i.brand, ^search_brand) and 
+               ilike(i.name, ^search_item),
+        limit: 1
+    )
 
-    else
-      # Fallback to existing logic: Name + Brand + Store Name
-
-      base_query = 
-        from(i in Item,
-          join: s in assoc(i, :sheet),
-          where: s.household_id == ^household_id and 
-                 ilike(i.brand, ^search_brand) and 
-                 ilike(i.name, ^search_item),
-          limit: 1
-        )
-
-      # 1. Try to find an item with the specific store (if purchase has a store)
-      specific_item = 
-        if store_name do
-          Repo.one(from i in base_query, where: ilike(i.store, ^store_name))
-        else
-          nil
-        end
-        
-      # 2. If not found, try to find a generic item (no store)
-      existing_item = specific_item || Repo.one(from i in base_query, where: is_nil(i.store))
+    case existing_item do
+      nil ->
+        # Create new item in Purchases sheet
+        create_new_inventory_item(purchase, quantity_to_add)
       
-      case existing_item do
-        nil ->
-          # Create new item
-          create_new_inventory_item(purchase, quantity_to_add)
-        
-        item ->
-          # Update existing item quantity
-          update_item(item, %{quantity: item.quantity + quantity_to_add})
-      end
+      item ->
+        # Update existing item quantity in Purchases sheet
+        update_item(item, %{quantity: item.quantity + quantity_to_add})
     end
 
 
@@ -676,9 +654,29 @@ defmodule MegaPlanner.Inventory do
       
       # Reduce source or delete if empty
       new_quantity = source.quantity - quantity
+      Logger.info("Transfer: Source ID #{source.id}, Qty #{source.quantity}, Transfer #{quantity}, New #{new_quantity}")
+
       if new_quantity <= 0 do
+        Logger.info("Transfer: Deleting source item #{source.id}")
+        
+        # Unlink from shopping lists before deletion to prevent FK violation
+        # Fetch IDs first to avoid macro complexity with name updates
+        shopping_item_ids = from(s in ShoppingListItem, 
+          where: s.inventory_item_id == ^source.id, 
+          select: s.id
+        ) |> Repo.all()
+
+        if length(shopping_item_ids) > 0 do
+          from(s in ShoppingListItem,
+            where: s.id in ^shopping_item_ids,
+            update: [set: [inventory_item_id: nil, name: ^source.name]] 
+          )
+          |> Repo.update_all([])
+        end
+
         delete_item(source)
       else
+        Logger.info("Transfer: Updating source item #{source.id} to qty #{new_quantity}")
         update_item(source, %{quantity: new_quantity})
       end
       
