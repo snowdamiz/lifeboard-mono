@@ -33,7 +33,16 @@ const showManageInventoriesModal = ref(false)
 const newInventoryName = ref('')
 const newInventoryColor = ref('#10b981')
 const editingInventoryColorId = ref<string | null>(null)
-const editingHabit = ref<HabitWithStatus & { tag_ids: Set<string> } | null>(null)
+
+type EditingHabit = Omit<HabitWithStatus, 'scheduled_time' | 'duration_minutes' | 'inventory_id' | 'days_of_week'> & {
+  scheduled_time: string | undefined
+  duration_minutes: number | undefined
+  inventory_id: string | undefined
+  days_of_week: number[] | null
+  tag_ids: Set<string>
+}
+
+const editingHabit = ref<EditingHabit | null>(null)
 const skippingHabit = ref<HabitWithStatus | null>(null)
 const skipReason = ref('')
 
@@ -47,10 +56,10 @@ const newHabit = ref({
   frequency: 'daily',
   color: '#10b981',
   days_of_week: [] as number[],
-  scheduled_time: null as string | null,
-  duration_minutes: null as number | null,
+  scheduled_time: undefined as string | undefined,
+  duration_minutes: undefined as number | undefined,
   is_start_of_day: false,
-  inventory_id: null as string | null,
+  inventory_id: undefined as string | undefined,
   tag_ids: new Set<string>()
 })
 
@@ -247,17 +256,17 @@ const handleCreateHabit = async () => {
   
   await habitsStore.createHabit(payload)
   
-  newHabit.value = { 
-    name: '', 
-    description: '', 
-    frequency: 'daily', 
-    color: '#10b981', 
-    days_of_week: [], 
-    scheduled_time: null, 
-    duration_minutes: null, 
+  newHabit.value = {
+    name: '',
+    description: '',
+    frequency: 'daily',
+    color: '#10b981',
+    days_of_week: [],
+    scheduled_time: undefined,
+    duration_minutes: undefined,
     is_start_of_day: false,
-    inventory_id: null,
-    tag_ids: new Set() 
+    inventory_id: undefined,
+    tag_ids: new Set()
   }
   tempSelectedTags.value = new Set()
   showCreateModal.value = false
@@ -327,22 +336,22 @@ const openEditModal = (habit: HabitWithStatus) => {
   const tagIds = new Set(habit.tags?.map(t => t.id) || [])
   
   // Explicitly copy all properties to ensure reactivity and proper value transfer
-  editingHabit.value = { 
+  editingHabit.value = {
     id: habit.id,
     name: habit.name,
     description: habit.description,
     frequency: habit.frequency,
     days_of_week: habit.days_of_week || [],
     reminder_time: habit.reminder_time,
-    scheduled_time: habit.scheduled_time,
-    duration_minutes: habit.duration_minutes,
+    scheduled_time: habit.scheduled_time ?? undefined,
+    duration_minutes: habit.duration_minutes ?? undefined,
     color: habit.color,
     streak_count: habit.streak_count,
     longest_streak: habit.longest_streak,
     tags: habit.tags,
     completed_today: habit.completed_today,
     is_start_of_day: habit.is_start_of_day,
-    inventory_id: habit.inventory_id,
+    inventory_id: habit.inventory_id ?? undefined,
     inserted_at: habit.inserted_at,
     updated_at: habit.updated_at,
     tag_ids: tagIds
@@ -351,7 +360,11 @@ const openEditModal = (habit: HabitWithStatus) => {
   showEditModal.value = true
 }
 
-const toggleDayOfWeek = (day: number, model: { days_of_week: number[] }) => {
+const toggleDayOfWeek = (day: number, model: { days_of_week: number[] | null }) => {
+  if (!model.days_of_week) {
+    model.days_of_week = [day]
+    return
+  }
   const index = model.days_of_week.indexOf(day)
   if (index === -1) {
     model.days_of_week.push(day)
@@ -989,7 +1002,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <Select
                   v-model="newHabit.inventory_id"
                   :options="[
-                    { value: null, label: 'No inventory (default)' },
+                    { value: undefined, label: 'No inventory (default)' },
                     ...habitsStore.habitInventories.map(inv => ({ value: inv.id, label: inv.name }))
                   ]"
                   placeholder="Select inventory"
@@ -1083,10 +1096,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <!-- Scheduled Time -->
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Scheduled Time (optional)</label>
-                <Input 
-                  type="time" 
+                <Input
+                  type="time"
                   :model-value="editingHabit.scheduled_time ?? ''"
-                  @update:model-value="editingHabit.scheduled_time = $event ||null"
+                  @update:model-value="editingHabit!.scheduled_time = $event || undefined"
                   placeholder="HH:MM"
                 />
               </div>
@@ -1094,10 +1107,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <!-- Duration -->
               <div>
                 <label class="text-sm font-medium mb-1.5 block">Duration (minutes)</label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   :model-value="editingHabit.duration_minutes ?? ''"
-                  @update:model-value="editingHabit.duration_minutes = $event ? Number($event) : null"
+                  @update:model-value="editingHabit!.duration_minutes = $event ? Number($event) : undefined"
                   placeholder="30"
                   min="1"
                 />
@@ -1134,9 +1147,9 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <div v-if="habitsStore.habitInventories.length > 0">
                 <label class="text-sm font-medium mb-1.5 block">Inventory</label>
                 <Select
-                  v-model="editingHabit.inventory_id"
+                  v-model="editingHabit!.inventory_id"
                   :options="[
-                    { value: null, label: 'No inventory (default)' },
+                    { value: undefined, label: 'No inventory (default)' },
                     ...habitsStore.habitInventories.map(inv => ({ value: inv.id, label: inv.name }))
                   ]"
                   placeholder="Select inventory"
@@ -1152,8 +1165,8 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                     :key="index"
                     type="button"
                     class="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    :class="editingHabit.days_of_week.includes(index) ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
-                    @click="toggleDayOfWeek(index, editingHabit)"
+                    :class="(editingHabit.days_of_week || []).includes(index) ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="toggleDayOfWeek(index, editingHabit!)"
                   >
                     {{ day }}
                   </button>
@@ -1162,11 +1175,11 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
               <!-- Tags -->
               <CollapsibleTagManager
-                :applied-tag-ids="editingHabit.tag_ids"
-                :tags="resolveTags(editingHabit.tag_ids)"
+                :applied-tag-ids="editingHabit!.tag_ids"
+                :tags="resolveTags(editingHabit!.tag_ids)"
                 :reset-trigger="!showEditModal"
-                @add-tags="(tags) => handleAddTags(editingHabit.tag_ids, tags)"
-                @remove-tag="(id) => handleRemoveTag(editingHabit.tag_ids, id)"
+                @add-tags="(tags) => handleAddTags(editingHabit!.tag_ids, tags)"
+                @remove-tag="(id) => handleRemoveTag(editingHabit!.tag_ids, id)"
               />
 
               <div>
@@ -1176,9 +1189,9 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                     v-for="color in colors"
                     :key="color"
                     class="w-8 h-8 rounded-lg transition-all"
-                    :class="editingHabit.color === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'"
+                    :class="editingHabit!.color === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'"
                     :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
-                    @click="editingHabit.color = color"
+                    @click="editingHabit!.color = color"
                   />
                 </div>
               </div>

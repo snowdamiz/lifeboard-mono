@@ -181,7 +181,6 @@ const toolbarActions = [
         <Button variant="ghost" size="icon" @click="router.push('/notes')">
           <ArrowLeft class="h-5 w-5" />
         </Button>
-        </Button>
         <div class="flex-1 w-full max-w-3xl">
           <SearchableInput
             v-model="title"

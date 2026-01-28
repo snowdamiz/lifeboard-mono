@@ -4,13 +4,13 @@ import { ChevronDown, Check } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
 export interface SelectOption {
-  value: string | number
+  value: string | number | undefined
   label: string
   disabled?: boolean
 }
 
 interface Props {
-  modelValue?: string | number
+  modelValue?: string | number | undefined
   options: SelectOption[]
   placeholder?: string
   disabled?: boolean
@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string | number]
+  'update:modelValue': [value: string | number | undefined]
 }>()
 
 const isOpen = ref(false)

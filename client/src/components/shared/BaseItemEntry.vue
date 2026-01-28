@@ -14,10 +14,10 @@ interface Props {
   // Core item info
   name: string
   brand?: string | null
-  
+
   // Quantity/measurement
   quantity?: string | number | null
-  unit?: string
+  unit?: string | null
   
   // Pricing
   price?: string | number | null

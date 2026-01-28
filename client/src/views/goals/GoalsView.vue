@@ -198,7 +198,6 @@ const handleCreateGoal = async () => {
   
   newGoal.value = { title: '', description: '', target_date: '', tag_ids: new Set() }
   newGoalMilestones.value = []
-  tempSelectedTags.value = new Set()
   newMilestoneInput.value = ''
   showCreateModal.value = false
 }
