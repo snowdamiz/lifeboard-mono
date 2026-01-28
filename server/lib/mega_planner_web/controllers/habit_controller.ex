@@ -36,10 +36,15 @@ defmodule MegaPlannerWeb.HabitController do
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
-    with {:ok, %Habit{} = habit} <- Goals.create_habit(habit_params) do
-      conn
-      |> put_status(:created)
-      |> json(%{data: habit_to_json(habit, false)})
+    case Goals.create_habit(habit_params) do
+      {:ok, %Habit{} = habit} ->
+        conn
+        |> put_status(:created)
+        |> json(%{data: habit_to_json(habit, false)})
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{errors: changeset.errors})
     end
   end
 
@@ -144,7 +149,85 @@ defmodule MegaPlannerWeb.HabitController do
     end
   end
 
+  def skip(conn, %{"habit_id" => habit_id, "reason" => reason}) do
+    user = Guardian.Plug.current_resource(conn)
+
+    with habit when not is_nil(habit) <- Goals.get_household_habit(user.household_id, habit_id),
+         {:ok, {completion, habit}} <- Goals.skip_habit(habit, reason) do
+      json(conn, %{
+        data: %{
+          completion: completion_to_json(completion),
+          habit: habit_to_json(habit, false)
+        }
+      })
+    else
+      nil -> {:error, :not_found}
+      {:error, :already_has_entry} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "Habit already has an entry for today"})
+      error -> error
+    end
+  end
+
+  def analytics(conn, params) do
+    user = Guardian.Plug.current_resource(conn)
+
+    # Parse date range with error handling
+    end_date = Date.utc_today()
+    
+    start_date = case params["start_date"] do
+      nil -> Date.add(end_date, -90)
+      "" -> Date.add(end_date, -90)
+      date_str ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> date
+          {:error, _} -> Date.add(end_date, -90)
+        end
+    end
+
+    end_date = case params["end_date"] do
+      nil -> end_date
+      "" -> end_date
+      date_str ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> date
+          {:error, _} -> end_date
+        end
+    end
+
+    habit_id = params["habit_id"]
+    inventory_id = case params["inventory_id"] do
+      "" -> nil
+      val -> val
+    end
+
+    # Parse tag_ids if provided
+    tag_ids = case params["tag_ids"] do
+      nil -> nil
+      "" -> nil
+      tag_ids when is_binary(tag_ids) -> String.split(tag_ids, ",")
+      tag_ids when is_list(tag_ids) -> tag_ids
+    end
+
+    # Parse status_filter if provided
+    status_filter = case params["status_filter"] do
+      nil -> nil
+      "" -> nil
+      val -> val
+    end
+
+    analytics = Goals.get_habit_analytics(user.household_id, start_date, end_date, habit_id, inventory_id, tag_ids, status_filter)
+    json(conn, %{data: analytics})
+  end
+
   defp habit_to_json(habit, completed_today) do
+    # Format time to HH:MM for HTML time inputs (remove seconds)
+    scheduled_time = case habit.scheduled_time do
+      nil -> nil
+      time -> Time.to_string(time) |> String.slice(0, 5)  # "14:30:00" -> "14:30"
+    end
+
     %{
       id: habit.id,
       name: habit.name,
@@ -152,7 +235,11 @@ defmodule MegaPlannerWeb.HabitController do
       frequency: habit.frequency,
       days_of_week: habit.days_of_week,
       reminder_time: habit.reminder_time,
+      scheduled_time: scheduled_time,
+      duration_minutes: habit.duration_minutes,
       color: habit.color,
+      is_start_of_day: habit.is_start_of_day,
+      inventory_id: habit.inventory_id,
       streak_count: habit.streak_count,
       longest_streak: habit.longest_streak,
       completed_today: completed_today,
@@ -175,7 +262,9 @@ defmodule MegaPlannerWeb.HabitController do
       id: completion.id,
       habit_id: completion.habit_id,
       date: completion.date,
-      completed_at: completion.completed_at
+      completed_at: completion.completed_at,
+      status: completion.status,
+      not_today_reason: completion.not_today_reason
     }
   end
 end

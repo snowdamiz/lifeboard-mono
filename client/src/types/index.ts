@@ -421,6 +421,15 @@ export interface GoalHistoryItem {
   title?: string
 }
 
+export interface HabitInventory {
+  id: string
+  name: string
+  color: string
+  position: number
+  inserted_at: string
+  updated_at: string
+}
+
 export interface Habit {
   id: string
   name: string
@@ -428,9 +437,13 @@ export interface Habit {
   frequency: 'daily' | 'weekly'
   days_of_week: number[] | null
   reminder_time: string | null
+  scheduled_time: string | null
+  duration_minutes: number | null
   streak_count: number
   longest_streak: number
   color: string
+  is_start_of_day: boolean
+  inventory_id: string | null
   tags: Tag[]
   inserted_at: string
   updated_at: string
@@ -439,7 +452,32 @@ export interface Habit {
 export interface HabitCompletion {
   id: string
   habit_id: string
+  date: string
   completed_at: string
+  status: 'completed' | 'skipped'
+  not_today_reason: string | null
+}
+
+export interface HabitAnalytics {
+  total_entries: number
+  completed_count: number
+  skipped_count: number
+  completion_rate: number
+  completions_by_day: {
+    date: string
+    completed: number
+    skipped: number
+    total: number
+    completion_rate: number
+  }[]
+  skip_reasons: {
+    reason: string
+    count: number
+  }[]
+  habits_per_day: {
+    date: string
+    count: number
+  }[]
 }
 
 // Task Templates

@@ -5,7 +5,7 @@ defmodule MegaPlanner.Goals do
 
   import Ecto.Query, warn: false
   alias MegaPlanner.Repo
-  alias MegaPlanner.Goals.{Goal, GoalCategory, GoalStatusChange, Milestone, Habit, HabitCompletion, MilestoneTemplate}
+  alias MegaPlanner.Goals.{Goal, GoalCategory, GoalStatusChange, Milestone, Habit, HabitCompletion, HabitInventory, MilestoneTemplate}
   alias MegaPlanner.Tags.Tag
 
   # ============================================================================
@@ -547,7 +547,8 @@ defmodule MegaPlanner.Goals do
           |> HabitCompletion.changeset(%{
             habit_id: habit.id,
             date: today,
-            completed_at: now
+            completed_at: now,
+            status: "completed"
           })
           |> Repo.insert()
 
@@ -574,6 +575,124 @@ defmodule MegaPlanner.Goals do
         habit = recalculate_habit_streak(habit)
         {:ok, habit}
     end
+  end
+
+  @doc """
+  Skips a habit for today with a reason.
+  """
+  def skip_habit(%Habit{} = habit, reason) when is_binary(reason) do
+    today = Date.utc_today()
+    now = DateTime.utc_now()
+
+    # Check if already has an entry for today
+    existing = Repo.get_by(HabitCompletion, habit_id: habit.id, date: today)
+
+    if existing do
+      {:error, :already_has_entry}
+    else
+      %HabitCompletion{}
+      |> HabitCompletion.changeset(%{
+        habit_id: habit.id,
+        date: today,
+        completed_at: now,
+        status: "skipped",
+        not_today_reason: reason
+      })
+      |> Repo.insert()
+      |> case do
+        {:ok, completion} -> {:ok, {completion, habit}}
+        error -> error
+      end
+    end
+  end
+
+  @doc """
+  Gets analytics data for habits in a date range.
+  Returns aggregated data for reporting.
+  """
+  def get_habit_analytics(household_id, start_date, end_date, habit_id \\ nil, inventory_id \\ nil, tag_ids \\ nil, status_filter \\ nil) do
+    # Base query for completions - using explicit bindings
+    base_query = from c in HabitCompletion,
+      join: h in Habit, on: c.habit_id == h.id,
+      where: h.household_id == ^household_id,
+      where: c.date >= ^start_date and c.date <= ^end_date,
+      preload: [habit: :tags]
+
+    # Filter by specific habit if provided
+    base_query = if habit_id do
+      from [c, h] in base_query, where: c.habit_id == ^habit_id
+    else
+      base_query
+    end
+
+    # Filter by inventory if provided
+    base_query = if inventory_id do
+      from [c, h] in base_query, where: h.inventory_id == ^inventory_id
+    else
+      base_query
+    end
+
+    # Filter by tags if provided
+    base_query = if tag_ids && length(tag_ids) > 0 do
+      from [c, h] in base_query,
+        join: t in assoc(h, :tags),
+        where: t.id in ^tag_ids,
+        distinct: true
+    else
+      base_query
+    end
+
+    # Get all completions
+    completions = Repo.all(base_query)
+
+    # Filter by status if provided
+    completions = case status_filter do
+      "completed" -> Enum.filter(completions, &(&1.status == "completed"))
+      "skipped" -> Enum.filter(completions, &(&1.status == "skipped"))
+      _ -> completions  # nil or "all" returns everything
+    end
+
+    # Calculate metrics
+    total_count = length(completions)
+    completed_count = Enum.count(completions, &(&1.status == "completed"))
+    skipped_count = Enum.count(completions, &(&1.status == "skipped"))
+
+    # Completion rate by day
+    completions_by_day = Enum.group_by(completions, &(&1.date))
+    |> Enum.map(fn {date, day_completions} ->
+      completed = Enum.count(day_completions, &(&1.status == "completed"))
+      total = length(day_completions)
+      %{
+        date: date,
+        completed: completed,
+        skipped: total - completed,
+        total: total,
+        completion_rate: if(total > 0, do: Float.round(completed / total * 100, 1), else: 0)
+      }
+    end)
+    |> Enum.sort_by(&(&1.date), Date)
+
+    # Skip reasons frequency
+    skip_reasons = completions
+    |> Enum.filter(&(&1.status == "skipped"))
+    |> Enum.map(&(&1.not_today_reason))
+    |> Enum.frequencies()
+    |> Enum.map(fn {reason, count} -> %{reason: reason, count: count} end)
+    |> Enum.sort_by(&(&1.count), :desc)
+
+    # Habits per day
+    habits_per_day = completions_by_day
+    |> Enum.map(fn day -> %{date: day.date, count: day.completed} end)
+
+    %{
+      total_entries: total_count,
+      completed_count: completed_count,
+      skipped_count: skipped_count,
+      completion_rate: if(total_count > 0, do: Float.round(completed_count / total_count * 100, 1), else: 0),
+      completions_by_day: completions_by_day,
+      skip_reasons: skip_reasons,
+      habits_per_day: habits_per_day
+    }
   end
 
   @doc """
@@ -607,7 +726,7 @@ defmodule MegaPlanner.Goals do
   """
   def habit_completed_on?(habit_id, date) do
     Repo.exists?(from c in HabitCompletion,
-      where: c.habit_id == ^habit_id and c.date == ^date
+      where: c.habit_id == ^habit_id and c.date == ^date and c.status == "completed"
     )
   end
 
@@ -734,5 +853,67 @@ defmodule MegaPlanner.Goals do
     %MilestoneTemplate{}
     |> MilestoneTemplate.changeset(attrs)
     |> Repo.insert(on_conflict: :nothing)
+  end
+
+  # ============================================================================
+  # Habit Inventories
+  # ============================================================================
+
+  @doc """
+  Returns the list of habit inventories for a household.
+  """
+  def list_habit_inventories(household_id) do
+    from(i in HabitInventory,
+      where: i.household_id == ^household_id,
+      order_by: [asc: i.position, asc: i.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a habit inventory belonging to a household.
+  """
+  def get_household_habit_inventory(household_id, inventory_id) do
+    Repo.get_by(HabitInventory, id: inventory_id, household_id: household_id)
+  end
+
+  @doc """
+  Creates a habit inventory.
+  """
+  def create_habit_inventory(attrs \\ %{}) do
+    # Get next position
+    position = case attrs["household_id"] do
+      nil -> 0
+      household_id ->
+        from(i in HabitInventory,
+          where: i.household_id == ^household_id,
+          select: max(i.position)
+        )
+        |> Repo.one()
+        |> Kernel.||(0)
+        |> Kernel.+(1)
+    end
+
+    attrs = Map.put(attrs, "position", position)
+
+    %HabitInventory{}
+    |> HabitInventory.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a habit inventory.
+  """
+  def update_habit_inventory(%HabitInventory{} = inventory, attrs) do
+    inventory
+    |> HabitInventory.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a habit inventory.
+  """
+  def delete_habit_inventory(%HabitInventory{} = inventory) do
+    Repo.delete(inventory)
   end
 end

@@ -37,3 +37,7 @@ This workflow guides an AI agent (or human) to get the application up and runnin
 6.  **Troubleshooting**
     *   If `mix setup` fails with database errors, ensure Docker is running and the port 5432 is free.
     *   If frontend fails to connect to backend, ensure backend is running on port 4000.
+    *   **IMPORTANT: Orphan Server Processes** - If API calls seem to be ignored or returning stale data, there may be multiple Elixir/Erlang processes running on port 4000. To fix:
+        1.  Check for multiple listeners: `netstat -ano | findstr ":4000"` (Windows) or `lsof -i :4000` (macOS/Linux)
+        2.  Kill all Erlang/Beam processes: `Get-Process -Name "beam.smp","erl" -ErrorAction SilentlyContinue | Stop-Process -Force` (Windows PowerShell) or `pkill -f beam.smp` (macOS/Linux)
+        3.  Restart the server: `cd server && mix phx.server`

@@ -5,8 +5,9 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { Line, Bar, Doughnut } from 'vue-chartjs'
 import { 
   BarChart3, TrendingUp, Calendar, DollarSign, Target, Flame, 
-  ChevronLeft, ChevronRight, Download
+  ChevronLeft, ChevronRight, Download, Plus
 } from 'lucide-vue-next'
+import HabitReportWidget from '@/components/reports/HabitReportWidget.vue'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -14,6 +15,7 @@ import { useCalendarStore } from '@/stores/calendar'
 import { useBudgetStore } from '@/stores/budget'
 import { useGoalsStore } from '@/stores/goals'
 import { useHabitsStore } from '@/stores/habits'
+import { useTagsStore } from '@/stores/tags'
 import { formatCurrency } from '@/lib/utils'
 
 // Register Chart.js components
@@ -26,9 +28,24 @@ const calendarStore = useCalendarStore()
 const budgetStore = useBudgetStore()
 const goalsStore = useGoalsStore()
 const habitsStore = useHabitsStore()
+const tagsStore = useTagsStore()
 
 const loading = ref(true)
 const selectedPeriod = ref(6) // months
+
+// Habit report widgets
+interface HabitReportWidgetConfig {
+  id: string
+}
+const habitReportWidgets = ref<HabitReportWidgetConfig[]>([{ id: crypto.randomUUID() }])
+
+function addHabitReportWidget() {
+  habitReportWidgets.value.push({ id: crypto.randomUUID() })
+}
+
+function removeHabitReportWidget(id: string) {
+  habitReportWidgets.value = habitReportWidgets.value.filter(w => w.id !== id)
+}
 
 // Get last N months
 const monthsRange = computed(() => {
@@ -113,7 +130,9 @@ async function fetchData() {
       budgetStore.fetchEntries(startDate, endDate),
       calendarStore.fetchTasks(startDate, endDate),
       goalsStore.fetchGoals(),
-      habitsStore.fetchHabits()
+      habitsStore.fetchHabits(),
+      habitsStore.fetchHabitInventories(),
+      tagsStore.fetchTags()
     ])
   } finally {
     loading.value = false
@@ -415,42 +434,34 @@ const avgCompletionRate = computed(() => {
         </Card>
       </div>
 
-      <!-- Habits Summary -->
-      <Card>
-        <CardHeader class="pb-2">
-          <CardTitle class="text-base flex items-center gap-2">
-            <Flame class="h-4 w-4 text-orange-500" />
-            Habits Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div v-if="habitsStore.habits.length === 0" class="text-center py-8 text-muted-foreground">
-            No habits created yet
+      <!-- Habit Reports Section -->
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Flame class="h-5 w-5 text-orange-500" />
+            <h2 class="text-lg font-semibold">Habit Reports</h2>
           </div>
-          <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div 
-              v-for="habit in habitsStore.habits.slice(0, 6)" 
-              :key="habit.id"
-              class="flex items-center gap-3 p-3 rounded-lg bg-secondary/30"
-            >
-              <div 
-                class="h-10 w-10 rounded-lg flex items-center justify-center"
-                :style="{ backgroundColor: habit.color + '20' }"
-              >
-                <Flame class="h-5 w-5" :style="{ color: habit.color }" />
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="font-medium text-sm truncate">{{ habit.name }}</p>
-                <div class="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{{ habit.streak_count }} day streak</span>
-                  <span>•</span>
-                  <span>Best: {{ habit.longest_streak }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Button variant="outline" size="sm" @click="addHabitReportWidget" class="gap-1">
+            <Plus class="h-4 w-4" />
+            Add Report
+          </Button>
+        </div>
+
+        <div v-if="habitsStore.habits.length === 0" class="text-center py-8 text-muted-foreground">
+          No habits created yet. Create habits to see analytics.
+        </div>
+
+        <div v-else class="grid gap-4 lg:grid-cols-2">
+          <HabitReportWidget
+            v-for="widget in habitReportWidgets"
+            :key="widget.id"
+            :id="widget.id"
+            :inventories="habitsStore.habitInventories"
+            :tags="tagsStore.tags"
+            @remove="removeHabitReportWidget"
+          />
+        </div>
+      </div>
     </template>
   </div>
 </template>

@@ -28,6 +28,7 @@ import type {
   Milestone,
   Habit,
   HabitCompletion,
+  HabitInventory,
   TaskTemplate,
   UserPreferences,
   ApiResponse,
@@ -1025,6 +1026,56 @@ class ApiClient {
 
     const query = searchParams.toString()
     return this.request(`/habits/${id}/completions${query ? `?${query}` : ''}`)
+  }
+
+  async skipHabit(habitId: string, reason: string): Promise<ApiResponse<{ completion: HabitCompletion; habit: Habit }>> {
+    return this.request(`/habits/${habitId}/skip`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    })
+  }
+
+  async getHabitAnalytics(params?: {
+    habit_id?: string
+    inventory_id?: string
+    start_date?: string
+    end_date?: string
+    tag_ids?: string[]
+    status_filter?: string
+  }): Promise<ApiResponse<import('@/types').HabitAnalytics>> {
+    const searchParams = new URLSearchParams()
+    if (params?.habit_id) searchParams.set('habit_id', params.habit_id)
+    if (params?.inventory_id) searchParams.set('inventory_id', params.inventory_id)
+    if (params?.start_date) searchParams.set('start_date', params.start_date)
+    if (params?.end_date) searchParams.set('end_date', params.end_date)
+    if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+    if (params?.status_filter) searchParams.set('status_filter', params.status_filter)
+
+    const query = searchParams.toString()
+    return this.request(`/habits/analytics${query ? `?${query}` : ''}`)
+  }
+
+  // Habit Inventories
+  async listHabitInventories(): Promise<ApiResponse<HabitInventory[]>> {
+    return this.request('/habit-inventories')
+  }
+
+  async createHabitInventory(inventory: Partial<HabitInventory>): Promise<ApiResponse<HabitInventory>> {
+    return this.request('/habit-inventories', {
+      method: 'POST',
+      body: JSON.stringify({ habit_inventory: inventory })
+    })
+  }
+
+  async updateHabitInventory(id: string, inventory: Partial<HabitInventory>): Promise<ApiResponse<HabitInventory>> {
+    return this.request(`/habit-inventories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ habit_inventory: inventory })
+    })
+  }
+
+  async deleteHabitInventory(id: string): Promise<void> {
+    return this.request(`/habit-inventories/${id}`, { method: 'DELETE' })
   }
 
   // Task Templates

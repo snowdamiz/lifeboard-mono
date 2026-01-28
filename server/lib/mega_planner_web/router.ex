@@ -163,12 +163,17 @@ defmodule MegaPlannerWeb.Router do
       get "/history", GoalController, :history
     end
 
-    # Habits
+    # Habits - analytics route must come BEFORE resources to avoid :id matching "analytics"
+    get "/habits/analytics", HabitController, :analytics
     resources "/habits", HabitController, except: [:new, :edit] do
       post "/complete", HabitController, :complete
       delete "/complete", HabitController, :uncomplete
+      post "/skip", HabitController, :skip
       get "/completions", HabitController, :completions
     end
+
+    # Habit Inventories
+    resources "/habit-inventories", HabitInventoryController, except: [:new, :edit]
 
     # iCal token generation
     post "/ical/token", IcalController, :generate_token
