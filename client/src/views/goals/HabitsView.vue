@@ -266,63 +266,37 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Calculate vertical position for a habit on the timeline
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: number): { top: number, heightPx: number } => {
-  if (!habit.scheduled_time) return { top: 0, heightPx: 45 }
+  if (!habit.scheduled_time) return { top: 0, heightPx: 24 }
   
   const habitStart = timeToMinutes(habit.scheduled_time)
   const duration = habit.duration_minutes || 30
   const range = endMins - startMins
   
   const top = ((habitStart - startMins) / range) * 100
-  // Height in pixels based ONLY on duration: 1.5px per minute (30 min = 45px, 15 min = 22px)
-  const heightPx = Math.max(duration * 1.5, 20)
+  // Height in pixels based ONLY on duration: 3px per minute (zoomed in timeline)
+  // 30 min = 90px, 15 min = 45px, 5 min = 15px (min 16px)
+  const heightPx = Math.max(duration * 3, 16)
   
   return { top, heightPx }
 }
 
-// Assign columns to habits to prevent overlap
+// Assign columns to habits - single column layout (no horizontal overlap)
 // Returns habits with column assignment and total column count
 type HabitWithColumn = HabitWithStatus & { column: number }
 const assignColumnsToHabits = (habits: HabitWithStatus[]): { habits: HabitWithColumn[], columnCount: number } => {
   if (habits.length === 0) return { habits: [], columnCount: 1 }
   
-  // Sort by start time, then by duration (longer first for better packing)
+  // Sort by start time
   const sorted = [...habits].sort((a, b) => {
     const aStart = a.scheduled_time ? timeToMinutes(a.scheduled_time) : 0
     const bStart = b.scheduled_time ? timeToMinutes(b.scheduled_time) : 0
-    if (aStart !== bStart) return aStart - bStart
-    return (b.duration_minutes || 30) - (a.duration_minutes || 30)
+    return aStart - bStart
   })
   
-  // Track end times for each column
-  const columnEnds: number[] = []
-  const result: HabitWithColumn[] = []
+  // All habits in single column - no horizontal splitting
+  const result: HabitWithColumn[] = sorted.map(habit => ({ ...habit, column: 0 }))
   
-  for (const habit of sorted) {
-    const habitStart = habit.scheduled_time ? timeToMinutes(habit.scheduled_time) : 0
-    const habitEnd = habitStart + (habit.duration_minutes || 30)
-    
-    // Find first column where this habit fits (no overlap)
-    let assignedColumn = -1
-    for (let col = 0; col < columnEnds.length; col++) {
-      if (columnEnds[col] <= habitStart) {
-        assignedColumn = col
-        break
-      }
-    }
-    
-    // If no existing column fits, create a new one
-    if (assignedColumn === -1) {
-      assignedColumn = columnEnds.length
-      columnEnds.push(0)
-    }
-    
-    // Update column end time
-    columnEnds[assignedColumn] = habitEnd
-    
-    result.push({ ...habit, column: assignedColumn })
-  }
-  
-  return { habits: result, columnCount: Math.max(columnEnds.length, 1) }
+  return { habits: result, columnCount: 1 }
 }
 
 // Group whole-day inventories with their linked partial-day sheets
@@ -994,7 +968,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             <!-- Whole Day Habits - Timeline with time markers and duration-based heights -->
             <div class="flex gap-2 overflow-hidden">
               <!-- Time markers column -->
-              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) / 2)}px` }">
+              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * 3)}px` }">
                 <div 
                   v-for="hour in group.timeRange.hourMarks" 
                   :key="hour"
@@ -1008,7 +982,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <!-- Habits container with absolute positioning -->
               <div 
                 class="flex-1 relative overflow-hidden"
-                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) / 2)}px` }"
+                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * 3)}px` }"
               >
                 <Card 
                   v-for="habit in group.wholeDay.columnHabits" 
@@ -1106,7 +1080,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
           <!-- Partial Habits - Aligned with whole day timeline (no separate time markers) -->
           <div class="relative" v-if="partial.columnHabits && partial.columnHabits.length > 0"
-            :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) / 2)}px` }"
+            :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * 3)}px` }"
           >
               <Card 
                 v-for="habit in partial.columnHabits" 
