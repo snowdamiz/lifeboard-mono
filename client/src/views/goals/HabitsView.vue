@@ -55,9 +55,9 @@ const newHabit = ref({
   description: '',
   frequency: 'daily',
   color: '#10b981',
-  days_of_week: [] as number[],
-  scheduled_time: undefined as string | undefined,
-  duration_minutes: undefined as number | undefined,
+  days_of_week: [0, 1, 2, 3, 4, 5, 6] as number[],
+  scheduled_time: null as string | null,
+  duration_minutes: null as number | null,
   is_start_of_day: false,
   inventory_id: undefined as string | undefined,
   tag_ids: new Set<string>()
@@ -113,6 +113,178 @@ const timeToMinutes = (timeStr: string | null): number => {
   const [hours, minutes] = timeStr.split(':').map(Number)
   return hours * 60 + minutes
 }
+
+// Format duration in minutes as "Xh Ym" when >= 60, or "Xm" when < 60
+const formatDuration = (minutes: number | null): string => {
+  if (!minutes || minutes <= 0) return ''
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (mins === 0) return `${hours}h`
+  return `${hours}h ${mins}m`
+}
+
+// Parse duration from HH:MM format to total minutes
+const parseDuration = (timeStr: string): number | null => {
+  if (!timeStr) return null
+  const parts = timeStr.split(':').map(Number)
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    return parts[0] * 60 + parts[1]
+  }
+  // If just a number, treat as minutes
+  const asNum = Number(timeStr)
+  if (!isNaN(asNum)) return asNum
+  return null
+}
+
+// Format minutes as HH:MM for input field
+const formatTimeForInput = (minutes: number | null): string => {
+  if (!minutes || minutes <= 0) return ''
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+}
+
+// Calculate total duration for a list of habits
+const calculateTotalDuration = (habits: HabitWithStatus[]): number => {
+  return habits.reduce((sum, h) => sum + (h.duration_minutes || 0), 0)
+}
+
+// Calculate time available for an inventory based on its habits
+const calculateTimeAvailable = (inv: { 
+  coverage_mode?: 'whole_day' | 'partial_day', 
+  day_start_time?: string | null, 
+  day_end_time?: string | null 
+}, habits: HabitWithStatus[]): number => {
+  if (inv.coverage_mode === 'whole_day') {
+    return 1440 // 24 hours
+  }
+  
+  // For partial day, calculate from habits or explicit start/end
+  if (inv.day_start_time && inv.day_end_time) {
+    const start = timeToMinutes(inv.day_start_time)
+    const end = timeToMinutes(inv.day_end_time)
+    return end > start ? end - start : (1440 - start + end)
+  }
+  
+  // Calculate from habits
+  if (habits.length === 0) return 0
+  
+  let startTime = 9999
+  let endTime = 0
+  
+  for (const habit of habits) {
+    if (!habit.scheduled_time) continue
+    const habitStart = timeToMinutes(habit.scheduled_time)
+    const habitEnd = habitStart + (habit.duration_minutes || 0)
+    
+    // Track earliest start
+    if (habitStart < startTime) startTime = habitStart
+    
+    // Track latest end (considering duration)
+    if (habitEnd > endTime) endTime = habitEnd
+  }
+  
+  // Handle unscheduled or invalid case
+  if (startTime === 9999) return 0
+  
+  return endTime - startTime
+}
+
+// Format time in HH:MM as readable (e.g., "9:00am")
+const formatTimeReadable = (timeStr: string | null): string => {
+  if (!timeStr) return ''
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  const period = hours >= 12 ? 'pm' : 'am'
+  const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+  return `${displayHour}:${minutes.toString().padStart(2, '0')}${period}`
+}
+
+// Convert minutes to time string HH:MM
+const minutesToTimeStr = (mins: number): string => {
+  const hours = Math.floor(mins / 60) % 24
+  const minutes = mins % 60
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+}
+
+// Calculate timeline range for a set of habits
+const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMins: number, hourMarks: number[] } => {
+  let startMins = 24 * 60 // Default to end of day
+  let endMins = 0
+
+  for (const habit of habits) {
+    if (!habit.scheduled_time) continue
+    const habitStart = timeToMinutes(habit.scheduled_time)
+    const habitEnd = habitStart + (habit.duration_minutes || 30)
+    
+    if (habitStart < startMins) startMins = habitStart
+    if (habitEnd > endMins) endMins = habitEnd
+  }
+
+  // Default to 6am-10pm if no habits
+  if (startMins >= endMins) {
+    startMins = 6 * 60  // 6am
+    endMins = 22 * 60   // 10pm
+  }
+
+  // Round to nearest hour for cleaner display
+  startMins = Math.floor(startMins / 60) * 60
+  endMins = Math.ceil(endMins / 60) * 60
+
+  // Generate hour marks for the timeline
+  const hourMarks: number[] = []
+  for (let m = startMins; m <= endMins; m += 60) {
+    hourMarks.push(m)
+  }
+
+  return { startMins, endMins, hourMarks }
+}
+
+// Calculate vertical position percentage for a habit on the timeline
+const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: number): { top: number, height: number } => {
+  if (!habit.scheduled_time) return { top: 0, height: 5 }
+  
+  const habitStart = timeToMinutes(habit.scheduled_time)
+  const duration = habit.duration_minutes || 30
+  const range = endMins - startMins
+  
+  const top = ((habitStart - startMins) / range) * 100
+  const height = Math.max((duration / range) * 100, 3) // Min 3% height for visibility
+  
+  return { top, height }
+}
+
+// Group whole-day inventories with their linked partial-day sheets
+const timelineInventoryGroups = computed(() => {
+  const allInvs = inventoriesWithHabits.value.inventories
+  const wholeDayInvs = allInvs.filter(inv => inv.coverage_mode === 'whole_day')
+  const usedPartialIds = new Set<string>()
+
+  const groups = wholeDayInvs.map(wholeDay => {
+    const linkedPartials = (wholeDay.linked_inventory_ids || [])
+      .map(id => allInvs.find(inv => inv.id === id))
+      .filter((p): p is NonNullable<typeof p> => p !== undefined)
+    
+    linkedPartials.forEach(p => usedPartialIds.add(p.id))
+
+    // Combine all habits for timeline range calculation
+    const allHabits = [...wholeDay.habits, ...linkedPartials.flatMap(p => p.habits)]
+    const timeRange = getTimelineRange(allHabits)
+
+    return {
+      wholeDay,
+      linkedPartials,
+      timeRange
+    }
+  })
+
+  // Standalone inventories (partial day without links, or not linked to any whole day)
+  const standaloneInvs = allInvs.filter(inv => 
+    inv.coverage_mode !== 'whole_day' && !usedPartialIds.has(inv.id)
+  )
+
+  return { groups, standaloneInvs }
+})
 
 const sortedHabits = computed(() => {
   const habitsList = [...habitsStore.habits]
@@ -195,7 +367,9 @@ const inventoriesWithHabits = computed(() => {
     const invHabits = habitsStore.habits.filter(h => h.inventory_id === inv.id)
     sortHabits(invHabits)
     const groupedHabits = groupByTimeSlot(invHabits)
-    return { ...inv, habits: invHabits, groupedHabits }
+    const totalPlanned = calculateTotalDuration(invHabits)
+    const timeAvailable = calculateTimeAvailable(inv, invHabits)
+    return { ...inv, habits: invHabits, groupedHabits, totalPlanned, timeAvailable }
   })
   
   // Also include unassigned habits
@@ -256,14 +430,14 @@ const handleCreateHabit = async () => {
   
   await habitsStore.createHabit(payload)
   
-  newHabit.value = {
-    name: '',
-    description: '',
-    frequency: 'daily',
-    color: '#10b981',
-    days_of_week: [],
-    scheduled_time: undefined,
-    duration_minutes: undefined,
+  newHabit.value = { 
+    name: '', 
+    description: '', 
+    frequency: 'daily', 
+    color: '#10b981', 
+    days_of_week: [0, 1, 2, 3, 4, 5, 6], 
+    scheduled_time: null, 
+    duration_minutes: null, 
     is_start_of_day: false,
     inventory_id: undefined,
     tag_ids: new Set()
@@ -323,6 +497,12 @@ const handleDeleteHabit = async (id: string) => {
   await habitsStore.deleteHabit(id)
 }
 
+const handleDeleteInventory = async (id: string) => {
+  if (confirm('Are you sure you want to delete this habit sheet and all its habits?')) {
+    await habitsStore.deleteHabitInventory(id)
+  }
+}
+
 const handleToggleComplete = async (habit: HabitWithStatus) => {
   if (habit.completed_today) {
     await habitsStore.uncompleteHabit(habit.id)
@@ -373,6 +553,44 @@ const toggleDayOfWeek = (day: number, model: { days_of_week: number[] | null }) 
   }
 }
 
+// Repetition presets for quick day selection
+type RepetitionMode = 'daily' | 'weekdays' | 'weekends' | 'custom'
+
+const getRepetitionMode = (days: number[]): RepetitionMode => {
+  const sorted = [...days].sort((a, b) => a - b)
+  if (sorted.length === 7 && sorted.every((d, i) => d === i)) return 'daily'
+  if (sorted.length === 5 && sorted.every((d, i) => d === i + 1)) return 'weekdays'
+  if (sorted.length === 2 && sorted[0] === 0 && sorted[1] === 6) return 'weekends'
+  return 'custom'
+}
+
+const setRepetitionMode = (
+  mode: RepetitionMode,
+  model: { frequency: string; days_of_week: number[] }
+) => {
+  switch (mode) {
+    case 'daily':
+      model.frequency = 'daily'
+      model.days_of_week = [0, 1, 2, 3, 4, 5, 6]
+      break
+    case 'weekdays':
+      model.frequency = 'weekly'
+      model.days_of_week = [1, 2, 3, 4, 5]
+      break
+    case 'weekends':
+      model.frequency = 'weekly'
+      model.days_of_week = [0, 6]
+      break
+    case 'custom':
+      model.frequency = 'weekly'
+      // Keep existing days if already custom, else clear
+      if (getRepetitionMode(model.days_of_week) !== 'custom') {
+        model.days_of_week = []
+      }
+      break
+  }
+}
+
 const openSkipModal = (habit: HabitWithStatus) => {
   skippingHabit.value = habit
   skipReason.value = ''
@@ -402,6 +620,16 @@ const handleCreateInventory = async () => {
 const handleUpdateInventoryColor = async (inventoryId: string, color: string) => {
   await habitsStore.updateHabitInventory(inventoryId, { color })
   editingInventoryColorId.value = null
+}
+
+const handleUpdateCoverageMode = async (inventoryId: string, mode: 'whole_day' | 'partial_day') => {
+  console.log('Updating coverage mode:', inventoryId, mode)
+  try {
+    await habitsStore.updateHabitInventory(inventoryId, { coverage_mode: mode })
+    console.log('Coverage mode updated successfully')
+  } catch (error) {
+    console.error('Failed to update coverage mode:', error)
+  }
 }
 
 const toggleInventoryColorPicker = (inventoryId: string) => {
@@ -633,18 +861,218 @@ const completeAllInInventory = async (inventoryId: string | null) => {
       </Button>
     </div>
 
-    <!-- Side-by-side Inventory Columns -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <!-- Timeline Groups (Whole-day with linked partials) -->
+    <div v-else>
+      <!-- Timeline Groups -->
+      <div 
+        v-for="(group, gIdx) in timelineInventoryGroups.groups" 
+        :key="'timeline-' + gIdx"
+        class="mb-8"
+      >
+        <div class="flex items-center gap-2 mb-3 group/header">
+          <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: group.wholeDay.color || '#10b981' }" />
+          <h3 class="font-semibold">{{ group.wholeDay.name }}</h3>
+          <Badge variant="secondary" class="text-xs">Whole Day</Badge>
+          <Badge v-if="group.linkedPartials.length > 0" variant="outline" class="text-xs">
+            + {{ group.linkedPartials.length }} linked
+          </Badge>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            class="h-6 w-6 opacity-0 group-hover/header:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+            @click.stop="handleDeleteInventory(group.wholeDay.id)"
+            title="Delete habit sheet"
+          >
+            <Trash2 class="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        <!-- Grid of Equal-Width Sheets -->
+        <div 
+          class="grid gap-4"
+          :style="{ gridTemplateColumns: `repeat(${1 + group.linkedPartials.length}, 1fr)` }"
+        >
+          <!-- Whole-Day Sheet Column -->
+          <div class="flex flex-col">
+            <!-- Metrics Header for Whole-Day Sheet -->
+            <div class="flex items-center gap-2 text-xs mb-2 pb-2 border-b border-border/40">
+              <span class="text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} planned</span>
+              <span class="text-muted-foreground">/</span>
+              <span class="text-muted-foreground">{{ formatDuration(group.wholeDay.timeAvailable) }} total</span>
+            </div>
+            <!-- Timeline with Hour Markers -->
+            <div class="flex gap-2 flex-1">
+              <div class="relative w-12 shrink-0">
+                <!-- Hour markers -->
+                <div 
+                  v-for="hourMins in group.timeRange.hourMarks" 
+                  :key="hourMins"
+                  class="absolute right-0 flex items-center"
+                  :style="{ top: `${((hourMins - group.timeRange.startMins) / (group.timeRange.endMins - group.timeRange.startMins)) * 100}%` }"
+                >
+                  <span class="text-[10px] text-muted-foreground pr-1">{{ minutesToTimeStr(hourMins).slice(0,5) }}</span>
+                  <div class="w-2 h-px bg-border" />
+                </div>
+                <!-- Vertical timeline line -->
+                <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 via-primary to-primary/50 rounded-full" />
+              </div>
+
+              <!-- Habits positioned on timeline -->
+              <div class="relative flex-1 min-h-[400px]" :style="{ minHeight: `${(group.timeRange.endMins - group.timeRange.startMins) / 2}px` }">
+                <Card 
+                  v-for="habit in group.wholeDay.habits" 
+                  :key="habit.id"
+                  class="absolute left-0 right-0 mx-1 group hover:shadow-md transition-all overflow-hidden cursor-pointer"
+                  :style="{
+                    top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
+                    height: `${Math.max(getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).height, 8)}%`,
+                    borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`
+                  }"
+                  @click="openEditModal(habit)"
+                >
+                  <CardContent class="p-2 h-full flex items-center gap-2">
+                    <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
+                      <div 
+                        v-if="habit.completed_today"
+                        class="h-6 w-6 rounded-lg flex items-center justify-center"
+                        :style="{ backgroundColor: habit.color + '20' }"
+                      >
+                        <CheckCircle2 class="h-3.5 w-3.5" :style="{ color: habit.color }" />
+                      </div>
+                      <div v-else class="h-6 w-6 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50">
+                        <Circle class="h-3.5 w-3.5 text-muted-foreground/30" />
+                      </div>
+                    </button>
+                    <div class="flex-1 min-w-0">
+                      <h4 :class="['text-sm font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']">{{ habit.name }}</h4>
+                      <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span v-if="habit.scheduled_time">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                        <span v-if="habit.duration_minutes">• {{ formatDuration(habit.duration_minutes) }}</span>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      class="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                      @click.stop="handleDeleteHabit(habit.id)"
+                      title="Delete habit"
+                    >
+                      <Trash2 class="h-3 w-3" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
+
+          <!-- Linked Partial-Day Sheet Columns (equal width) -->
+          <div 
+            v-for="partial in group.linkedPartials" 
+            :key="partial.id"
+            class="flex flex-col"
+          >
+            <!-- Metrics Header for This Partial Sheet -->
+            <div class="flex flex-col gap-1 mb-2 pb-2 border-b border-border/40">
+              <div class="flex items-center gap-2 group/partialheader">
+                <div class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
+                <span class="text-sm font-medium">{{ partial.name }}</span>
+                <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  class="h-5 w-5 opacity-0 group-hover/partialheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                  @click.stop="handleDeleteInventory(partial.id)"
+                  title="Delete habit sheet"
+                >
+                  <Trash2 class="h-2.5 w-2.5" />
+                </Button>
+              </div>
+              <div class="flex items-center gap-2 text-[10px]">
+                <span class="text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} planned</span>
+                <span class="text-muted-foreground">/</span>
+                <span class="text-muted-foreground">{{ formatDuration(partial.timeAvailable) }} total</span>
+              </div>
+            </div>
+            <!-- Habits positioned on timeline (same height as whole-day) -->
+            <div 
+              class="relative flex-1 border-l-2 border-dashed border-border/50 pl-2"
+              :style="{ minHeight: `${(group.timeRange.endMins - group.timeRange.startMins) / 2}px` }"
+            >
+              <Card 
+                v-for="habit in partial.habits" 
+                :key="habit.id"
+                class="absolute left-2 right-0 group hover:shadow-sm transition-all z-10 cursor-pointer"
+                :style="{
+                  top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
+                  height: `${Math.max(getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).height, 6)}%`,
+                  borderLeft: `3px solid ${habit.color || partial.color || '#10b981'}`
+                }"
+                @click="openEditModal(habit)"
+              >
+                <CardContent class="p-1.5 flex items-center gap-1.5">
+                  <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
+                    <div 
+                      v-if="habit.completed_today"
+                      class="h-4 w-4 rounded flex items-center justify-center"
+                      :style="{ backgroundColor: habit.color + '20' }"
+                    >
+                      <CheckCircle2 class="h-2.5 w-2.5" :style="{ color: habit.color }" />
+                    </div>
+                    <div v-else class="h-4 w-4 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                      <Circle class="h-2.5 w-2.5 text-muted-foreground/30" />
+                    </div>
+                  </button>
+                  <div class="flex-1 min-w-0">
+                    <h5 :class="['text-[10px] font-medium truncate leading-tight', habit.completed_today && 'line-through text-muted-foreground']">{{ habit.name }}</h5>
+                    <div class="flex items-center gap-1 text-[8px] text-muted-foreground">
+                      <span v-if="habit.scheduled_time">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    class="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    @click.stop="handleDeleteHabit(habit.id)"
+                    title="Delete habit"
+                  >
+                    <Trash2 class="h-2.5 w-2.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Standalone Inventories (grid layout like before) -->
+      <div v-if="timelineInventoryGroups.standaloneInvs.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
       <!-- Inventory Columns -->
       <div 
-        v-for="inv in inventoriesWithHabits.inventories" 
+        v-for="inv in timelineInventoryGroups.standaloneInvs" 
         :key="inv.id"
         class="flex flex-col"
       >
-        <div class="flex items-center gap-2 mb-3 px-1">
-          <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: inv.color || '#10b981' }" />
+        <div class="flex items-center gap-2 mb-3 px-1 flex-wrap group/standaloneheader">
+          <div class="w-3 h-3 rounded-full shrink-0" :style="{ backgroundColor: inv.color || '#10b981' }" />
           <h3 class="font-semibold text-sm">{{ inv.name }}</h3>
           <span class="text-xs text-muted-foreground">({{ inv.habits.length }})</span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            class="h-5 w-5 opacity-0 group-hover/standaloneheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+            @click.stop="handleDeleteInventory(inv.id)"
+            title="Delete habit sheet"
+          >
+            <Trash2 class="h-3 w-3" />
+          </Button>
+          <!-- Time metrics -->
+          <Badge v-if="inv.totalPlanned > 0" variant="secondary" class="text-[10px] h-4 px-1.5">
+            {{ formatDuration(inv.totalPlanned) }}
+            <template v-if="inv.timeAvailable > 0">
+              / {{ formatDuration(inv.timeAvailable) }}
+            </template>
+          </Badge>
           <Button 
             v-if="inv.habits.some((h: any) => !h.completed_today)"
             variant="ghost" 
@@ -670,12 +1098,14 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             <Card 
               v-for="habit in group.habits" 
               :key="habit.id" 
-              class="group hover:shadow-md transition-all">
+              class="group hover:shadow-md transition-all cursor-pointer"
+              @click="openEditModal(habit)"
+            >
         <CardContent class="p-2.5">
           <div class="flex items-start gap-2">
             <!-- Complete button -->
             <button 
-              @click="handleToggleComplete(habit)"
+              @click.stop="handleToggleComplete(habit)"
               class="shrink-0 focus:outline-none mt-0.5"
             >
               <div 
@@ -715,7 +1145,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   {{ habit.scheduled_time }}
                 </Badge>
                 <Badge v-if="habit.duration_minutes" variant="secondary" class="text-[10px] h-4 px-1">
-                  {{ habit.duration_minutes }}m
+                  {{ formatDuration(habit.duration_minutes) }}
                 </Badge>
                 <!-- Tags display inline -->
                 <div 
@@ -743,14 +1173,6 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
             <div class="flex flex-col items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <Button 
-                variant="ghost" 
-                size="icon" 
-                class="h-6 w-6 text-muted-foreground"
-                @click.stop="openEditModal(habit)"
-              >
-                <Edit2 class="h-3 w-3" />
-              </Button>
-              <Button 
                 v-if="!habit.completed_today"
                 variant="ghost" 
                 size="icon" 
@@ -774,6 +1196,9 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         </Card>
           </div>
         </div>
+      </div>
+
+      <!-- Close standalone inventories grid -->
       </div>
 
       <!-- Unassigned Habits Column (only if there are some) -->
@@ -838,7 +1263,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                       {{ habit.scheduled_time }}
                     </Badge>
                     <Badge v-if="habit.duration_minutes" variant="secondary" class="text-[10px] h-4 px-1">
-                      {{ habit.duration_minutes }}m
+                      {{ formatDuration(habit.duration_minutes) }}
                     </Badge>
                   </div>
                 </div>
@@ -945,40 +1370,88 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   />
                 </div>
                 <div>
-                  <label class="text-sm font-medium mb-1.5 block">Duration (minutes)</label>
+                  <label class="text-sm font-medium mb-1.5 block">Duration (HH:MM)</label>
                   <Input 
-                    v-model="newHabit.duration_minutes" 
-                    type="number"
-                    placeholder="30"
-                    min="1"
+                    :model-value="formatTimeForInput(newHabit.duration_minutes)" 
+                    @update:model-value="newHabit.duration_minutes = parseDuration($event)"
+                    type="text"
+                    placeholder="00:30"
                   />
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label class="text-sm font-medium mb-1.5 block">Frequency</label>
-                  <Select 
-                    v-model="newHabit.frequency"
-                    :options="[
-                      { value: 'daily', label: 'Daily' },
-                      { value: 'weekly', label: 'Weekly (specific days)' }
-                    ]"
-                    placeholder="Select frequency"
-                  />
+              <!-- Repetition Presets -->
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Repeats</label>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(newHabit.days_of_week) === 'daily' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('daily', newHabit)"
+                  >
+                    Daily
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(newHabit.days_of_week) === 'weekdays' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('weekdays', newHabit)"
+                  >
+                    Weekdays
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(newHabit.days_of_week) === 'weekends' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('weekends', newHabit)"
+                  >
+                    Weekends
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(newHabit.days_of_week) === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('custom', newHabit)"
+                  >
+                    Custom
+                  </button>
                 </div>
-                <div>
-                  <label class="text-sm font-medium mb-1.5 block">Color</label>
-                  <div class="flex gap-2">
-                    <button
-                      v-for="color in colors"
-                      :key="color"
-                      class="w-8 h-8 rounded-lg transition-all"
-                      :class="newHabit.color === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'"
-                      :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
-                      @click="newHabit.color = color"
-                    />
-                  </div>
+              </div>
+
+              <!-- Custom Days Selector (only when Custom is selected) -->
+              <div v-if="getRepetitionMode(newHabit.days_of_week) === 'custom'">
+                <label class="text-sm font-medium mb-1.5 block">Select Days</label>
+                <div class="flex gap-1">
+                  <button
+                    v-for="(day, index) in weekDays"
+                    :key="index"
+                    type="button"
+                    :class="[
+                      'flex-1 py-1.5 text-xs font-medium rounded transition-all',
+                      newHabit.days_of_week.includes(index)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                    ]"
+                    @click="toggleDayOfWeek(index, newHabit)"
+                  >
+                    {{ day }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Color -->
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Color</label>
+                <div class="flex gap-2">
+                  <button
+                    v-for="color in colors"
+                    :key="color"
+                    class="w-8 h-8 rounded-lg transition-all"
+                    :class="newHabit.color === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'"
+                    :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
+                    @click="newHabit.color = color"
+                  />
                 </div>
               </div>
 
@@ -1009,37 +1482,6 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 />
               </div>
 
-              <div v-if="newHabit.frequency === 'weekly'">
-                <label class="text-sm font-medium mb-1.5 block">Days of Week</label>
-                <div class="flex gap-1">
-                  <button
-                    v-for="(day, index) in weekDays"
-                    :key="index"
-                    :class="[
-                      'flex-1 py-1.5 text-xs font-medium rounded transition-all',
-                      newHabit.days_of_week.includes(index)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-                    ]"
-                    @click="toggleDayOfWeek(index, newHabit)"
-                  >
-                    {{ day }}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label class="text-sm font-medium mb-1.5 block">Color</label>
-                <div class="flex gap-2">
-                  <button
-                    v-for="color in colors"
-                    :key="color"
-                    class="w-8 h-8 rounded-lg transition-all"
-                    :class="newHabit.color === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'"
-                    :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
-                    @click="newHabit.color = color"
-                  />
-                </div>
-              </div>
             </div>
             <div class="px-5 py-4 border-t border-border/60 flex justify-between gap-2 shrink-0">
               <Button variant="ghost" @click="showCreateModal = false">Cancel</Button>
@@ -1106,27 +1548,73 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
               <!-- Duration -->
               <div>
-                <label class="text-sm font-medium mb-1.5 block">Duration (minutes)</label>
-                <Input
-                  type="number"
-                  :model-value="editingHabit.duration_minutes ?? ''"
-                  @update:model-value="editingHabit!.duration_minutes = $event ? Number($event) : undefined"
-                  placeholder="30"
-                  min="1"
+                <label class="text-sm font-medium mb-1.5 block">Duration (HH:MM)</label>
+                <Input 
+                  type="text" 
+                  :model-value="formatTimeForInput(editingHabit.duration_minutes)"
+                  @update:model-value="editingHabit.duration_minutes = parseDuration($event)"
+                  placeholder="00:30"
                 />
               </div>
 
-              <!-- Frequency -->
+              <!-- Repetition Presets -->
               <div>
-                <label class="text-sm font-medium mb-1.5 block">Frequency</label>
-                <Select 
-                  v-model="editingHabit.frequency"
-                  :options="[
-                    { value: 'daily', label: 'Daily' },
-                    { value: 'weekly', label: 'Weekly (specific days)' }
-                  ]"
-                  placeholder="Select frequency"
-                />
+                <label class="text-sm font-medium mb-1.5 block">Repeats</label>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(editingHabit.days_of_week || []) === 'daily' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('daily', editingHabit as any)"
+                  >
+                    Daily
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(editingHabit.days_of_week || []) === 'weekdays' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('weekdays', editingHabit as any)"
+                  >
+                    Weekdays
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(editingHabit.days_of_week || []) === 'weekends' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('weekends', editingHabit as any)"
+                  >
+                    Weekends
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all"
+                    :class="getRepetitionMode(editingHabit.days_of_week || []) === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
+                    @click="setRepetitionMode('custom', editingHabit as any)"
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+
+              <!-- Custom Days Selector (only when Custom is selected) -->
+              <div v-if="getRepetitionMode(editingHabit.days_of_week || []) === 'custom'">
+                <label class="text-sm font-medium mb-1.5 block">Select Days</label>
+                <div class="flex gap-1">
+                  <button
+                    v-for="(day, index) in weekDays"
+                    :key="index"
+                    type="button"
+                    :class="[
+                      'flex-1 py-1.5 text-xs font-medium rounded transition-all',
+                      (editingHabit.days_of_week || []).includes(index)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                    ]"
+                    @click="toggleDayOfWeek(index, editingHabit as any)"
+                  >
+                    {{ day }}
+                  </button>
+                </div>
               </div>
 
               <!-- Start of Day Toggle -->
@@ -1156,6 +1644,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 />
               </div>
 
+<<<<<<< HEAD
               <!-- Days of Week (only for weekly habits) -->
               <div v-if="editingHabit.frequency === 'weekly'">
                 <label class="text-sm font-medium mb-1.5 block">Days of Week</label>
@@ -1173,6 +1662,8 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 </div>
               </div>
 
+=======
+>>>>>>> 9a35680 (Add habit inventory customization: color picker, hours display, and repetition presets)
               <!-- Tags -->
               <CollapsibleTagManager
                 :applied-tag-ids="editingHabit!.tag_ids"
@@ -1198,7 +1689,16 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             </div>
             <div class="px-5 py-4 border-t border-border/60 flex justify-between gap-2 shrink-0">
               <Button variant="ghost" @click="showEditModal = false">Cancel</Button>
-              <Button @click="handleUpdateHabit">Save Changes</Button>
+              <div class="flex gap-2">
+                <Button 
+                  variant="destructive" 
+                  @click="handleDeleteHabit(editingHabit.id); showEditModal = false"
+                >
+                  <Trash2 class="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+                <Button @click="handleUpdateHabit">Save Changes</Button>
+              </div>
             </div>
           </div>
         </div>
@@ -1235,40 +1735,114 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <div 
                   v-for="inv in habitsStore.habitInventories" 
                   :key="inv.id"
-                  class="flex items-center justify-between p-3 bg-muted/30 rounded-lg gap-2"
+                  class="p-3 bg-muted/30 rounded-lg space-y-3"
                 >
-                  <div class="flex items-center gap-2 flex-1">
-                    <!-- Color picker dropdown -->
-                    <div class="relative">
-                      <button 
-                        @click="toggleInventoryColorPicker(inv.id)"
-                        class="w-5 h-5 rounded-full border-2 border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                        :style="{ backgroundColor: inv.color || '#10b981' }"
-                        title="Change color"
-                      />
-                      <!-- Color picker popup -->
-                      <div 
-                        v-if="editingInventoryColorId === inv.id"
-                        class="absolute left-0 top-full mt-1 p-2 bg-card border border-border rounded-lg shadow-xl z-10 flex gap-1"
-                      >
-                        <button
-                          v-for="color in colors"
-                          :key="color"
-                          class="w-6 h-6 rounded-full transition-all focus:outline-none"
-                          :class="inv.color === color ? 'ring-2 ring-offset-1 ring-offset-background' : 'hover:scale-110'"
-                          :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
-                          @click="handleUpdateInventoryColor(inv.id, color)"
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 flex-1">
+                      <!-- Color picker dropdown -->
+                      <div class="relative">
+                        <button 
+                          @click="toggleInventoryColorPicker(inv.id)"
+                          class="w-5 h-5 rounded-full border-2 border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                          :style="{ backgroundColor: inv.color || '#10b981' }"
+                          title="Change color"
                         />
+                        <!-- Color picker popup -->
+                        <div 
+                          v-if="editingInventoryColorId === inv.id"
+                          class="absolute left-0 top-full mt-1 p-2 bg-card border border-border rounded-lg shadow-xl z-10 flex gap-1"
+                        >
+                          <button
+                            v-for="color in colors"
+                            :key="color"
+                            class="w-6 h-6 rounded-full transition-all focus:outline-none"
+                            :class="inv.color === color ? 'ring-2 ring-offset-1 ring-offset-background' : 'hover:scale-110'"
+                            :style="{ backgroundColor: color, '--tw-ring-color': color } as any"
+                            @click="handleUpdateInventoryColor(inv.id, color)"
+                          />
+                        </div>
                       </div>
+                      <span class="font-medium">{{ inv.name }}</span>
+                      <Badge variant="secondary" class="text-[10px] h-4 px-1.5">
+                        {{ inv.coverage_mode === 'whole_day' ? 'Whole Day' : 'Partial Day' }}
+                      </Badge>
                     </div>
-                    <span class="font-medium">{{ inv.name }}</span>
+                    <button 
+                      @click="habitsStore.deleteHabitInventory(inv.id)"
+                      class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                    >
+                      <Trash2 class="h-4 w-4" />
+                    </button>
                   </div>
-                  <button 
-                    @click="habitsStore.deleteHabitInventory(inv.id)"
-                    class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
-                  >
-                    <Trash2 class="h-4 w-4" />
-                  </button>
+
+                  <!-- Coverage Mode Settings -->
+                  <div class="flex items-center gap-3 pl-7">
+                    <button
+                      type="button"
+                      class="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
+                      :class="inv.coverage_mode === 'partial_day' || !inv.coverage_mode ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                      @click="handleUpdateCoverageMode(inv.id, 'partial_day')"
+                    >
+                      Partial Day
+                    </button>
+                    <button
+                      type="button"
+                      class="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
+                      :class="inv.coverage_mode === 'whole_day' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                      @click="handleUpdateCoverageMode(inv.id, 'whole_day')"
+                    >
+                      Whole Day
+                    </button>
+                  </div>
+
+                  <!-- Day Start/End Time (for defining time range) -->
+                  <div class="grid grid-cols-2 gap-2 pl-7">
+                    <div>
+                      <label class="text-[10px] text-muted-foreground block mb-0.5">Start Time</label>
+                      <Input 
+                        type="time"
+                        :model-value="inv.day_start_time || ''"
+                        @update:model-value="habitsStore.updateHabitInventory(inv.id, { day_start_time: $event || null })"
+                        class="h-7 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label class="text-[10px] text-muted-foreground block mb-0.5">End Time</label>
+                      <Input 
+                        type="time"
+                        :model-value="inv.day_end_time || ''"
+                        @update:model-value="habitsStore.updateHabitInventory(inv.id, { day_end_time: $event || null })"
+                        class="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Linked Inventories (for whole_day mode) -->
+                  <div v-if="inv.coverage_mode === 'whole_day'" class="pl-7">
+                    <label class="text-[10px] text-muted-foreground block mb-1">Link Partial Day Sheets</label>
+                    <div class="flex flex-wrap gap-1">
+                      <button
+                        v-for="other in habitsStore.habitInventories.filter(o => o.id !== inv.id && o.coverage_mode !== 'whole_day')"
+                        :key="other.id"
+                        type="button"
+                        class="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors"
+                        :class="(inv.linked_inventory_ids || []).includes(other.id) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                        @click="() => {
+                          const current = inv.linked_inventory_ids || []
+                          const updated = current.includes(other.id) 
+                            ? current.filter(id => id !== other.id)
+                            : [...current, other.id]
+                          habitsStore.updateHabitInventory(inv.id, { linked_inventory_ids: updated })
+                        }"
+                      >
+                        <div class="w-2 h-2 rounded-full" :style="{ backgroundColor: other.color || '#10b981' }" />
+                        {{ other.name }}
+                      </button>
+                      <span v-if="habitsStore.habitInventories.filter(o => o.id !== inv.id && o.coverage_mode !== 'whole_day').length === 0" class="text-[10px] text-muted-foreground italic">
+                        No partial day sheets to link
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

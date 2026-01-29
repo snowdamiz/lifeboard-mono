@@ -9,9 +9,13 @@ defmodule MegaPlanner.Goals.HabitInventory do
     field :name, :string
     field :color, :string, default: "#10b981"
     field :position, :integer, default: 0
+    field :coverage_mode, :string, default: "partial_day"
+    field :linked_inventory_ids, {:array, :binary_id}, default: []
+    field :day_start_time, :time
+    field :day_end_time, :time
 
     belongs_to :household, MegaPlanner.Households.Household
-    has_many :habits, MegaPlanner.Goals.Habit
+    has_many :habits, MegaPlanner.Goals.Habit, foreign_key: :inventory_id
 
     timestamps(type: :utc_datetime)
   end
@@ -19,8 +23,10 @@ defmodule MegaPlanner.Goals.HabitInventory do
   @doc false
   def changeset(inventory, attrs) do
     inventory
-    |> cast(attrs, [:name, :color, :position, :household_id])
+    |> cast(attrs, [:name, :color, :position, :household_id, :coverage_mode, :linked_inventory_ids, :day_start_time, :day_end_time])
     |> validate_required([:name, :household_id])
+    |> validate_inclusion(:coverage_mode, ["whole_day", "partial_day"])
     |> foreign_key_constraint(:household_id)
   end
 end
+

@@ -426,6 +426,10 @@ export interface HabitInventory {
   name: string
   color: string
   position: number
+  coverage_mode: 'whole_day' | 'partial_day'
+  linked_inventory_ids: string[]
+  day_start_time: string | null
+  day_end_time: string | null
   inserted_at: string
   updated_at: string
 }

@@ -69,6 +69,10 @@ defmodule MegaPlannerWeb.HabitInventoryController do
       name: inventory.name,
       color: inventory.color,
       position: inventory.position,
+      coverage_mode: inventory.coverage_mode,
+      linked_inventory_ids: inventory.linked_inventory_ids || [],
+      day_start_time: inventory.day_start_time && Time.to_string(inventory.day_start_time),
+      day_end_time: inventory.day_end_time && Time.to_string(inventory.day_end_time),
       inserted_at: inventory.inserted_at,
       updated_at: inventory.updated_at
     }
