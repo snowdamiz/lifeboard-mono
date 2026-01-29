@@ -369,7 +369,9 @@ const inventoriesWithHabits = computed(() => {
     const groupedHabits = groupByTimeSlot(invHabits)
     const totalPlanned = calculateTotalDuration(invHabits)
     const timeAvailable = calculateTimeAvailable(inv, invHabits)
-    return { ...inv, habits: invHabits, groupedHabits, totalPlanned, timeAvailable }
+    // Calculate max overlap count (max habits sharing same time slot)
+    const maxOverlapCount = groupedHabits.reduce((max, g) => Math.max(max, g.habits.length), 1)
+    return { ...inv, habits: invHabits, groupedHabits, totalPlanned, timeAvailable, maxOverlapCount }
   })
   
   // Also include unassigned habits
@@ -861,21 +863,21 @@ const completeAllInInventory = async (inventoryId: string | null) => {
       </Button>
     </div>
 
-    <!-- Timeline Groups (Whole-day with linked partials) -->
-    <div v-else>
-      <!-- Timeline Groups -->
+    <!-- All Inventories - Flow-based multi-column layout (no overlap) -->
+    <div v-else class="flex flex-col gap-6">
+      <!-- Whole-Day Groups with Linked Inventories -->
       <div 
         v-for="(group, gIdx) in timelineInventoryGroups.groups" 
         :key="'timeline-' + gIdx"
-        class="mb-8"
+        class="flex flex-col gap-4"
       >
-        <div class="flex items-center gap-2 mb-3 group/header">
+        <!-- Whole Day Inventory Header -->
+        <div class="flex items-center gap-2 group/header">
           <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: group.wholeDay.color || '#10b981' }" />
           <h3 class="font-semibold">{{ group.wholeDay.name }}</h3>
           <Badge variant="secondary" class="text-xs">Whole Day</Badge>
-          <Badge v-if="group.linkedPartials.length > 0" variant="outline" class="text-xs">
-            + {{ group.linkedPartials.length }} linked
-          </Badge>
+          <span class="text-xs text-muted-foreground">({{ group.wholeDay.habits.length }})</span>
+          <span class="text-xs text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} / {{ formatDuration(group.wholeDay.timeAvailable) }}</span>
           <Button 
             variant="ghost" 
             size="icon" 
@@ -885,131 +887,132 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           >
             <Trash2 class="h-3.5 w-3.5" />
           </Button>
+          <Button 
+            v-if="group.wholeDay.habits.some((h: any) => !h.completed_today)"
+            variant="ghost" 
+            size="sm" 
+            class="ml-auto h-6 text-xs px-2"
+            @click="completeAllInInventory(group.wholeDay.id)"
+          >
+            <CheckCircle2 class="h-3 w-3 mr-1" />
+            Complete All
+          </Button>
         </div>
 
-        <!-- Grid of Equal-Width Sheets -->
+        <!-- Whole Day Habits - Flat grid flowing left to right -->
         <div 
-          class="grid gap-4"
-          :style="{ gridTemplateColumns: `repeat(${1 + group.linkedPartials.length}, 1fr)` }"
+          class="grid gap-1.5"
+          :style="{ gridTemplateColumns: `repeat(${Math.min(Math.max(group.wholeDay.habits.length, 2), 6)}, minmax(120px, 1fr))` }"
         >
-          <!-- Whole-Day Sheet Column -->
-          <div class="flex flex-col">
-            <!-- Metrics Header for Whole-Day Sheet -->
-            <div class="flex items-center gap-2 text-xs mb-2 pb-2 border-b border-border/40">
-              <span class="text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} planned</span>
-              <span class="text-muted-foreground">/</span>
-              <span class="text-muted-foreground">{{ formatDuration(group.wholeDay.timeAvailable) }} total</span>
-            </div>
-            <!-- Timeline with Hour Markers -->
-            <div class="flex gap-2 flex-1">
-              <div class="relative w-12 shrink-0">
-                <!-- Hour markers -->
-                <div 
-                  v-for="hourMins in group.timeRange.hourMarks" 
-                  :key="hourMins"
-                  class="absolute right-0 flex items-center"
-                  :style="{ top: `${((hourMins - group.timeRange.startMins) / (group.timeRange.endMins - group.timeRange.startMins)) * 100}%` }"
-                >
-                  <span class="text-[10px] text-muted-foreground pr-1">{{ minutesToTimeStr(hourMins).slice(0,5) }}</span>
-                  <div class="w-2 h-px bg-border" />
+          <Card 
+            v-for="habit in group.wholeDay.habits" 
+            :key="habit.id"
+            class="group hover:shadow-sm transition-all cursor-pointer"
+            :style="{ 
+              borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`,
+              minHeight: `${Math.max(40, (habit.duration_minutes || 30) * 1)}px`
+            }"
+            @click="openEditModal(habit)"
+          >
+            <CardContent class="p-1.5">
+              <div class="flex items-center gap-1.5">
+                <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
+                  <div 
+                    v-if="habit.completed_today"
+                    class="h-5 w-5 rounded flex items-center justify-center"
+                    :style="{ backgroundColor: habit.color + '20' }"
+                  >
+                    <CheckCircle2 class="h-3 w-3" :style="{ color: habit.color }" />
+                  </div>
+                  <div v-else class="h-5 w-5 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50">
+                    <Circle class="h-3 w-3 text-muted-foreground/30" />
+                  </div>
+                </button>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1">
+                    <h4 :class="['text-xs font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h4>
+                    <span v-if="habit.scheduled_time" class="text-[9px] text-muted-foreground shrink-0">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                  </div>
+                  <div class="flex items-center gap-1 mt-0.5">
+                    <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">{{ formatDuration(habit.duration_minutes) }}</span>
+                    <Flame v-if="habit.streak_count > 0" class="h-2.5 w-2.5" :style="{ color: habit.color }" :title="habit.streak_count + ' day streak'" />
+                  </div>
                 </div>
-                <!-- Vertical timeline line -->
-                <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 via-primary to-primary/50 rounded-full" />
+                <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button 
+                    v-if="!habit.completed_today"
+                    variant="ghost" 
+                    size="icon" 
+                    class="h-5 w-5 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                    @click.stop="openSkipModal(habit)"
+                    title="Skip with reason"
+                  >
+                    <Ban class="h-2.5 w-2.5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    class="h-5 w-5 text-destructive"
+                    @click.stop="handleDeleteHabit(habit.id)"
+                  >
+                    <Trash2 class="h-2.5 w-2.5" />
+                  </Button>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              <!-- Habits positioned on timeline -->
-              <div class="relative flex-1 min-h-[400px]" :style="{ minHeight: `${(group.timeRange.endMins - group.timeRange.startMins) / 2}px` }">
-                <Card 
-                  v-for="habit in group.wholeDay.habits" 
-                  :key="habit.id"
-                  class="absolute left-0 right-0 mx-1 group hover:shadow-md transition-all overflow-hidden cursor-pointer"
-                  :style="{
-                    top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
-                    height: `${Math.max(getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).height, 8)}%`,
-                    borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`
-                  }"
-                  @click="openEditModal(habit)"
-                >
-                  <CardContent class="p-2 h-full flex items-center gap-2">
-                    <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
-                      <div 
-                        v-if="habit.completed_today"
-                        class="h-6 w-6 rounded-lg flex items-center justify-center"
-                        :style="{ backgroundColor: habit.color + '20' }"
-                      >
-                        <CheckCircle2 class="h-3.5 w-3.5" :style="{ color: habit.color }" />
-                      </div>
-                      <div v-else class="h-6 w-6 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50">
-                        <Circle class="h-3.5 w-3.5 text-muted-foreground/30" />
-                      </div>
-                    </button>
-                    <div class="flex-1 min-w-0">
-                      <h4 :class="['text-sm font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']">{{ habit.name }}</h4>
-                      <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <span v-if="habit.scheduled_time">{{ formatTimeReadable(habit.scheduled_time) }}</span>
-                        <span v-if="habit.duration_minutes">• {{ formatDuration(habit.duration_minutes) }}</span>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      class="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                      @click.stop="handleDeleteHabit(habit.id)"
-                      title="Delete habit"
-                    >
-                      <Trash2 class="h-3 w-3" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+        <!-- Linked Partial-Day Inventories -->
+        <div 
+          v-for="partial in group.linkedPartials" 
+          :key="partial.id"
+          class="ml-4 pl-4 border-l-2 border-dashed border-border/50"
+        >
+          <!-- Partial Inventory Header -->
+          <div class="flex items-center gap-2 mb-2 group/partialheader">
+            <div class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
+            <span class="text-sm font-medium">{{ partial.name }}</span>
+            <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
+            <span class="text-xs text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} / {{ formatDuration(partial.timeAvailable) }}</span>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              class="h-5 w-5 opacity-0 group-hover/partialheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+              @click.stop="handleDeleteInventory(partial.id)"
+              title="Delete habit sheet"
+            >
+              <Trash2 class="h-2.5 w-2.5" />
+            </Button>
+            <Button 
+              v-if="partial.habits.some((h: any) => !h.completed_today)"
+              variant="ghost" 
+              size="sm" 
+              class="ml-auto h-5 text-[10px] px-1.5"
+              @click="completeAllInInventory(partial.id)"
+            >
+              <CheckCircle2 class="h-2.5 w-2.5 mr-0.5" />
+              All
+            </Button>
           </div>
 
-          <!-- Linked Partial-Day Sheet Columns (equal width) -->
+          <!-- Partial Habits - Flat grid flowing left to right -->
           <div 
-            v-for="partial in group.linkedPartials" 
-            :key="partial.id"
-            class="flex flex-col"
+            class="grid gap-1"
+            :style="{ gridTemplateColumns: `repeat(${Math.min(Math.max(partial.habits.length, 2), 5)}, minmax(100px, 1fr))` }"
           >
-            <!-- Metrics Header for This Partial Sheet -->
-            <div class="flex flex-col gap-1 mb-2 pb-2 border-b border-border/40">
-              <div class="flex items-center gap-2 group/partialheader">
-                <div class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
-                <span class="text-sm font-medium">{{ partial.name }}</span>
-                <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  class="h-5 w-5 opacity-0 group-hover/partialheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                  @click.stop="handleDeleteInventory(partial.id)"
-                  title="Delete habit sheet"
-                >
-                  <Trash2 class="h-2.5 w-2.5" />
-                </Button>
-              </div>
-              <div class="flex items-center gap-2 text-[10px]">
-                <span class="text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} planned</span>
-                <span class="text-muted-foreground">/</span>
-                <span class="text-muted-foreground">{{ formatDuration(partial.timeAvailable) }} total</span>
-              </div>
-            </div>
-            <!-- Habits positioned on timeline (same height as whole-day) -->
-            <div 
-              class="relative flex-1 border-l-2 border-dashed border-border/50 pl-2"
-              :style="{ minHeight: `${(group.timeRange.endMins - group.timeRange.startMins) / 2}px` }"
+            <Card 
+              v-for="habit in partial.habits" 
+              :key="habit.id"
+              class="group hover:shadow-sm transition-all cursor-pointer"
+              :style="{ 
+                borderLeft: `2px solid ${habit.color || partial.color || '#10b981'}`,
+                minHeight: `${Math.max(32, (habit.duration_minutes || 30) * 0.8)}px`
+              }"
+              @click="openEditModal(habit)"
             >
-              <Card 
-                v-for="habit in partial.habits" 
-                :key="habit.id"
-                class="absolute left-2 right-0 group hover:shadow-sm transition-all z-10 cursor-pointer"
-                :style="{
-                  top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
-                  height: `${Math.max(getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).height, 6)}%`,
-                  borderLeft: `3px solid ${habit.color || partial.color || '#10b981'}`
-                }"
-                @click="openEditModal(habit)"
-              >
-                <CardContent class="p-1.5 flex items-center gap-1.5">
+              <CardContent class="p-1">
+                <div class="flex items-center gap-1">
                   <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
                     <div 
                       v-if="habit.completed_today"
@@ -1023,31 +1026,28 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                     </div>
                   </button>
                   <div class="flex-1 min-w-0">
-                    <h5 :class="['text-[10px] font-medium truncate leading-tight', habit.completed_today && 'line-through text-muted-foreground']">{{ habit.name }}</h5>
-                    <div class="flex items-center gap-1 text-[8px] text-muted-foreground">
-                      <span v-if="habit.scheduled_time">{{ formatTimeReadable(habit.scheduled_time) }}</span>
-                    </div>
+                    <h5 :class="['text-[10px] font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h5>
+                    <span v-if="habit.scheduled_time" class="text-[8px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
                   </div>
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    class="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    class="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
                     @click.stop="handleDeleteHabit(habit.id)"
-                    title="Delete habit"
                   >
-                    <Trash2 class="h-2.5 w-2.5" />
+                    <Trash2 class="h-2 w-2" />
                   </Button>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
 
-      <!-- Standalone Inventories (grid layout like before) -->
-      <div v-if="timelineInventoryGroups.standaloneInvs.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Standalone Inventories (full width, habits flow in multiple columns) -->
+      <div v-if="timelineInventoryGroups.standaloneInvs.length > 0" class="flex flex-col gap-6">
 
-      <!-- Inventory Columns -->
+      <!-- Each Inventory as a Full-Width Section -->
       <div 
         v-for="inv in timelineInventoryGroups.standaloneInvs" 
         :key="inv.id"
@@ -1085,116 +1085,98 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           </Button>
         </div>
 
-        <div class="flex flex-col gap-2">
-          <!-- Group by time slot -->
-          <div 
-            v-for="(group, gIdx) in inv.groupedHabits" 
-            :key="gIdx"
-            :class="[
-              'gap-2',
-              group.habits.length > 1 ? 'grid grid-cols-2' : 'flex flex-col'
-            ]"
-          >
+        <!-- Multi-column grid based on habit count -->
+        <div 
+          class="grid gap-1.5" 
+          :style="{ 
+            gridTemplateColumns: `repeat(${Math.min(Math.max(inv.maxOverlapCount, 2), 6)}, minmax(120px, 1fr))` 
+          }"
+        >
+          <!-- Flat list of habits (no time slot grouping) -->
+          <template v-for="habit in inv.habits" :key="habit.id">
             <Card 
-              v-for="habit in group.habits" 
-              :key="habit.id" 
-              class="group hover:shadow-md transition-all cursor-pointer"
+              class="group hover:shadow-sm transition-all cursor-pointer"
+              :style="{ 
+                borderLeft: `3px solid ${habit.color || inv.color || '#10b981'}`,
+                minHeight: `${Math.max(40, (habit.duration_minutes || 30) * 1)}px`
+              }"
               @click="openEditModal(habit)"
             >
-        <CardContent class="p-2.5">
-          <div class="flex items-start gap-2">
-            <!-- Complete button -->
+        <CardContent class="p-1.5">
+          <div class="flex items-center gap-1.5">
+            <!-- Compact Complete button -->
             <button 
               @click.stop="handleToggleComplete(habit)"
-              class="shrink-0 focus:outline-none mt-0.5"
+              class="shrink-0 focus:outline-none"
             >
               <div 
                 v-if="habit.completed_today"
-                class="h-7 w-7 rounded-lg flex items-center justify-center transition-all"
+                class="h-5 w-5 rounded flex items-center justify-center transition-all"
                 :style="{ backgroundColor: habit.color + '20' }"
               >
-                <CheckCircle2 class="h-4 w-4" :style="{ color: habit.color }" />
+                <CheckCircle2 class="h-3 w-3" :style="{ color: habit.color }" />
               </div>
               <div 
                 v-else
-                class="h-7 w-7 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50 transition-all"
+                class="h-5 w-5 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50 transition-all"
               >
-                <Circle class="h-4 w-4 text-muted-foreground/30" />
+                <Circle class="h-3 w-3 text-muted-foreground/30" />
               </div>
             </button>
             
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-1.5 flex-wrap">
+              <!-- Compact habit name with time inline -->
+              <div class="flex items-center gap-1">
                 <h3 
                   :class="[
-                    'font-medium text-sm leading-tight',
+                    'font-medium text-xs leading-tight truncate',
                     habit.completed_today && 'line-through text-muted-foreground'
                   ]"
+                  :title="habit.name"
                 >
                   {{ habit.name }}
                 </h3>
-                <Badge v-if="habit.streak_count > 0" variant="secondary" class="text-[10px] h-4 px-1">
-                  <Flame class="h-2.5 w-2.5 mr-0.5" :style="{ color: habit.color }" />
-                  {{ habit.streak_count }}d
-                </Badge>
+                <span v-if="habit.scheduled_time" class="text-[9px] text-muted-foreground shrink-0">{{ formatTimeReadable(habit.scheduled_time) }}</span>
               </div>
-
-              <!-- Time/Duration/Tags in compact row -->
-              <div class="flex items-center gap-1 mt-1 flex-wrap">
-                <Badge v-if="habit.scheduled_time" variant="secondary" class="text-[10px] h-4 px-1">
-                  {{ habit.scheduled_time }}
-                </Badge>
-                <Badge v-if="habit.duration_minutes" variant="secondary" class="text-[10px] h-4 px-1">
-                  {{ formatDuration(habit.duration_minutes) }}
-                </Badge>
-                <!-- Tags display inline -->
+              <!-- Compact metadata row -->
+              <div class="flex items-center gap-1 mt-0.5">
+                <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">{{ formatDuration(habit.duration_minutes) }}</span>
                 <div 
                   v-for="tag in (habit.tags || []).slice(0, 2)" 
                   :key="tag.id"
-                  class="h-2 w-2 rounded-full"
+                  class="h-1.5 w-1.5 rounded-full"
                   :style="{ backgroundColor: tag.color }"
                   :title="tag.name"
                 />
-                <span v-if="(habit.tags || []).length > 2" class="text-[9px] text-muted-foreground">+{{ habit.tags.length - 2 }}</span>
-              </div>
-              
-              <!-- Mini heatmap for last 7 days -->
-              <div class="flex items-center gap-0.5 mt-1.5">
-                <div 
-                  v-for="day in last7Days" 
-                  :key="day.toISOString()"
-                  class="w-3 h-3 rounded-sm"
-                  :class="habit.completed_today && isSameDay(day, new Date()) ? '' : 'bg-secondary'"
-                  :style="habit.completed_today && isSameDay(day, new Date()) ? { backgroundColor: habit.color + '40' } : {}"
-                  :title="format(day, 'MMM d')"
-                />
+                <Flame v-if="habit.streak_count > 0" class="h-2.5 w-2.5" :style="{ color: habit.color }" :title="habit.streak_count + ' day streak'" />
               </div>
             </div>
 
-            <div class="flex flex-col items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            <!-- Hover actions - more compact -->
+            <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button 
                 v-if="!habit.completed_today"
                 variant="ghost" 
                 size="icon" 
-                class="h-6 w-6 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                class="h-5 w-5 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
                 @click.stop="openSkipModal(habit)"
                 title="Skip with reason"
               >
-                <Ban class="h-3 w-3" />
+                <Ban class="h-2.5 w-2.5" />
               </Button>
               <Button 
                 variant="ghost" 
                 size="icon" 
-                class="h-6 w-6 text-destructive"
+                class="h-5 w-5 text-destructive"
                 @click.stop="handleDeleteHabit(habit.id)"
               >
-                <Trash2 class="h-3 w-3" />
+                <Trash2 class="h-2.5 w-2.5" />
               </Button>
             </div>
           </div>
         </CardContent>
         </Card>
-          </div>
+          </template>
         </div>
       </div>
 
@@ -1645,26 +1627,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 />
               </div>
 
-<<<<<<< HEAD
-              <!-- Days of Week (only for weekly habits) -->
-              <div v-if="editingHabit.frequency === 'weekly'">
-                <label class="text-sm font-medium mb-1.5 block">Days of Week</label>
-                <div class="flex gap-2">
-                  <button
-                    v-for="(day, index) in weekDays"
-                    :key="index"
-                    type="button"
-                    class="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    :class="(editingHabit.days_of_week || []).includes(index) ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'"
-                    @click="toggleDayOfWeek(index, editingHabit!)"
-                  >
-                    {{ day }}
-                  </button>
-                </div>
-              </div>
 
-=======
->>>>>>> 9a35680 (Add habit inventory customization: color picker, hours display, and repetition presets)
               <!-- Tags -->
               <CollapsibleTagManager
                 :applied-tag-ids="editingHabit!.tag_ids"
