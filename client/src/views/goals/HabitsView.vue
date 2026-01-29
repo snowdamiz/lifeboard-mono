@@ -107,6 +107,69 @@ const filterAppliedTagIds = computed(() => new Set<string>())
 // Sorting by tag
 const sortByTag = ref(false)
 
+// Timeline zoom scale (pixels per minute) - user adjustable
+const timelineScale = ref(3)
+const MIN_SCALE = 1
+const MAX_SCALE = 10
+const MIN_CARD_HEIGHT = 16
+
+// Calculate auto-scale to prevent overlaps for a set of habits
+const calculateAutoScale = (habits: HabitWithStatus[]): number => {
+  if (habits.length === 0) return 3
+  
+  // Filter habits with scheduled times
+  const scheduledHabits = habits.filter(h => h.scheduled_time)
+  if (scheduledHabits.length === 0) return 3
+  
+  // Find maximum overlap at any point in time
+  // For each habit, find how many other habits overlap with it
+  let maxOverlapDuration = 0
+  let maxOverlapCount = 1
+  
+  for (let i = 0; i < scheduledHabits.length; i++) {
+    const habit = scheduledHabits[i]
+    const start = timeToMinutes(habit.scheduled_time)
+    const end = start + (habit.duration_minutes || 30)
+    
+    // Find all habits that overlap with this one
+    let overlapCount = 1
+    for (let j = 0; j < scheduledHabits.length; j++) {
+      if (i === j) continue
+      const otherStart = timeToMinutes(scheduledHabits[j].scheduled_time)
+      const otherEnd = otherStart + (scheduledHabits[j].duration_minutes || 30)
+      
+      // Check if they overlap
+      if (otherStart < end && otherEnd > start) {
+        overlapCount++
+      }
+    }
+    
+    if (overlapCount > maxOverlapCount) {
+      maxOverlapCount = overlapCount
+      // Find the minimum overlap duration (where they all overlap)
+      const overlappers = [habit, ...scheduledHabits.filter((h, idx) => {
+        if (idx === i) return false
+        const os = timeToMinutes(h.scheduled_time)
+        const oe = os + (h.duration_minutes || 30)
+        return os < end && oe > start
+      })]
+      
+      // Calculate the shared overlap window
+      const overlapStart = Math.max(...overlappers.map(h => timeToMinutes(h.scheduled_time)))
+      const overlapEnd = Math.min(...overlappers.map(h => timeToMinutes(h.scheduled_time) + (h.duration_minutes || 30)))
+      maxOverlapDuration = Math.max(maxOverlapDuration, overlapEnd - overlapStart)
+    }
+  }
+  
+  if (maxOverlapCount <= 1 || maxOverlapDuration <= 0) return 3
+  
+  // Calculate minimum scale: need (overlapCount * minCardHeight) pixels for overlapDuration minutes
+  const requiredScale = (maxOverlapCount * MIN_CARD_HEIGHT) / maxOverlapDuration
+  
+  // Clamp to reasonable range
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.ceil(requiredScale)))
+}
+
 // Helper to parse time string (HH:MM) to minutes since midnight
 const timeToMinutes = (timeStr: string | null): number => {
   if (!timeStr) return 9999 // Put unscheduled habits at the end
@@ -266,16 +329,15 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Calculate vertical position for a habit on the timeline
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: number): { top: number, heightPx: number } => {
-  if (!habit.scheduled_time) return { top: 0, heightPx: 24 }
+  if (!habit.scheduled_time) return { top: 0, heightPx: MIN_CARD_HEIGHT }
   
   const habitStart = timeToMinutes(habit.scheduled_time)
   const duration = habit.duration_minutes || 30
   const range = endMins - startMins
   
   const top = ((habitStart - startMins) / range) * 100
-  // Height in pixels based ONLY on duration: 3px per minute (zoomed in timeline)
-  // 30 min = 90px, 15 min = 45px, 5 min = 15px (min 16px)
-  const heightPx = Math.max(duration * 3, 16)
+  // Height in pixels based on duration and current timeline scale
+  const heightPx = Math.max(duration * timelineScale.value, MIN_CARD_HEIGHT)
   
   return { top, heightPx }
 }
@@ -925,7 +987,40 @@ const completeAllInInventory = async (inventoryId: string | null) => {
       </Button>
     </div>
 
-    <!-- All Inventories - Flow-based multi-column layout (no overlap) -->
+    <!-- Timeline Zoom Controls -->
+    <div v-if="activeTab === 'inventory' && habitsStore.habits.length > 0" class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50">
+      <span class="text-xs text-muted-foreground">Zoom:</span>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        class="h-6 w-6"
+        :disabled="timelineScale <= MIN_SCALE"
+        @click="timelineScale = Math.max(MIN_SCALE, timelineScale - 1)"
+      >
+        <MinusCircle class="h-4 w-4" />
+      </Button>
+      <span class="text-sm font-medium w-8 text-center">{{ timelineScale }}x</span>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        class="h-6 w-6"
+        :disabled="timelineScale >= MAX_SCALE"
+        @click="timelineScale = Math.min(MAX_SCALE, timelineScale + 1)"
+      >
+        <PlusCircle class="h-4 w-4" />
+      </Button>
+      <div class="w-px h-4 bg-border mx-1" />
+      <Button 
+        variant="outline" 
+        size="sm" 
+        class="h-6 text-xs"
+        @click="timelineScale = calculateAutoScale(habitsStore.habits)"
+      >
+        Auto-Size
+      </Button>
+    </div>
+
+    <!-- All Inventories - Flow-based single-column layout -->
     <div v-else class="flex flex-col gap-6">
       <!-- Whole-Day Groups with Linked Inventories (Side-by-Side Layout) -->
       <div 
@@ -968,7 +1063,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             <!-- Whole Day Habits - Timeline with time markers and duration-based heights -->
             <div class="flex gap-2 overflow-hidden">
               <!-- Time markers column -->
-              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * 3)}px` }">
+              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }">
                 <div 
                   v-for="hour in group.timeRange.hourMarks" 
                   :key="hour"
@@ -982,7 +1077,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <!-- Habits container with absolute positioning -->
               <div 
                 class="flex-1 relative overflow-hidden"
-                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * 3)}px` }"
+                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }"
               >
                 <Card 
                   v-for="habit in group.wholeDay.columnHabits" 
@@ -1080,7 +1175,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
           <!-- Partial Habits - Aligned with whole day timeline (no separate time markers) -->
           <div class="relative" v-if="partial.columnHabits && partial.columnHabits.length > 0"
-            :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * 3)}px` }"
+            :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }"
           >
               <Card 
                 v-for="habit in partial.columnHabits" 
