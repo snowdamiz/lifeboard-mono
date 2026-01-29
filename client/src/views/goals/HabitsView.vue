@@ -35,8 +35,8 @@ const newInventoryColor = ref('#10b981')
 const editingInventoryColorId = ref<string | null>(null)
 
 type EditingHabit = Omit<HabitWithStatus, 'scheduled_time' | 'duration_minutes' | 'inventory_id' | 'days_of_week'> & {
-  scheduled_time: string | undefined
-  duration_minutes: number | undefined
+  scheduled_time: string | null
+  duration_minutes: number | null
   inventory_id: string | undefined
   days_of_week: number[] | null
   tag_ids: Set<string>
@@ -138,7 +138,7 @@ const parseDuration = (timeStr: string): number | null => {
 }
 
 // Format minutes as HH:MM for input field
-const formatTimeForInput = (minutes: number | null): string => {
+const formatTimeForInput = (minutes: number | null | undefined): string => {
   if (!minutes || minutes <= 0) return ''
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
@@ -523,8 +523,8 @@ const openEditModal = (habit: HabitWithStatus) => {
     frequency: habit.frequency,
     days_of_week: habit.days_of_week || [],
     reminder_time: habit.reminder_time,
-    scheduled_time: habit.scheduled_time ?? undefined,
-    duration_minutes: habit.duration_minutes ?? undefined,
+    scheduled_time: habit.scheduled_time ?? null,
+    duration_minutes: habit.duration_minutes ?? null,
     color: habit.color,
     streak_count: habit.streak_count,
     longest_streak: habit.longest_streak,
@@ -1364,7 +1364,8 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <div>
                   <label class="text-sm font-medium mb-1.5 block">Scheduled Time (optional)</label>
                   <Input 
-                    v-model="newHabit.scheduled_time" 
+                    :model-value="newHabit.scheduled_time ?? ''" 
+                    @update:model-value="newHabit.scheduled_time = $event || null"
                     type="time"
                     placeholder="09:00"
                   />
@@ -1541,7 +1542,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <Input
                   type="time"
                   :model-value="editingHabit.scheduled_time ?? ''"
-                  @update:model-value="editingHabit!.scheduled_time = $event || undefined"
+                  @update:model-value="editingHabit!.scheduled_time = $event || null"
                   placeholder="HH:MM"
                 />
               </div>
