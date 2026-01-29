@@ -348,8 +348,15 @@ const timelineInventoryGroups = computed(() => {
     const allHabits = [...wholeDay.habits, ...linkedPartials.flatMap(p => p.habits)]
     const timeRange = getTimelineRange(allHabits)
 
+    // Re-compute column assignments for whole-day inventory
+    const { habits: wholeDayColumnHabits, columnCount: wholeDayColumnCount } = assignColumnsToHabits(wholeDay.habits)
+
     return {
-      wholeDay,
+      wholeDay: {
+        ...wholeDay,
+        columnHabits: wholeDayColumnHabits,
+        columnCount: wholeDayColumnCount
+      },
       linkedPartials,
       timeRange
     }
@@ -987,12 +994,12 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             <!-- Whole Day Habits - Timeline with time markers and duration-based heights -->
             <div class="flex gap-2 overflow-hidden">
               <!-- Time markers column -->
-              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.wholeDay.timeRange.endMins - group.wholeDay.timeRange.startMins) / 2)}px` }">
+              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) / 2)}px` }">
                 <div 
-                  v-for="hour in group.wholeDay.timeRange.hourMarks" 
+                  v-for="hour in group.timeRange.hourMarks" 
                   :key="hour"
                   class="absolute left-0 right-0 text-[10px] text-muted-foreground border-t border-border/30"
-                  :style="{ top: `${((hour - group.wholeDay.timeRange.startMins) / (group.wholeDay.timeRange.endMins - group.wholeDay.timeRange.startMins)) * 100}%` }"
+                  :style="{ top: `${((hour - group.timeRange.startMins) / (group.timeRange.endMins - group.timeRange.startMins)) * 100}%` }"
                 >
                   {{ minutesToTimeStr(hour).slice(0, 5) }}
                 </div>
@@ -1001,15 +1008,15 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <!-- Habits container with absolute positioning -->
               <div 
                 class="flex-1 relative overflow-hidden"
-                :style="{ minHeight: `${Math.max(200, (group.wholeDay.timeRange.endMins - group.wholeDay.timeRange.startMins) / 2)}px` }"
+                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) / 2)}px` }"
               >
                 <Card 
                   v-for="habit in group.wholeDay.columnHabits" 
                   :key="habit.id"
                   class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                   :style="{ 
-                    top: `${getHabitPosition(habit, group.wholeDay.timeRange.startMins, group.wholeDay.timeRange.endMins).top}%`,
-                    height: `${getHabitPosition(habit, group.wholeDay.timeRange.startMins, group.wholeDay.timeRange.endMins).heightPx}px`,
+                    top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
+                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).heightPx}px`,
                     left: `${(habit.column / group.wholeDay.columnCount) * 100}%`,
                     width: `${(1 / group.wholeDay.columnCount) * 100 - 1}%`,
                     borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`
@@ -1099,15 +1106,15 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
           <!-- Partial Habits - Aligned with whole day timeline (no separate time markers) -->
           <div class="relative" v-if="partial.columnHabits && partial.columnHabits.length > 0"
-            :style="{ minHeight: `${Math.max(200, (group.wholeDay.timeRange.endMins - group.wholeDay.timeRange.startMins) / 2)}px` }"
+            :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) / 2)}px` }"
           >
               <Card 
                 v-for="habit in partial.columnHabits" 
                 :key="habit.id"
                 class="absolute group hover:shadow-sm transition-all cursor-pointer overflow-hidden"
                 :style="{ 
-                  top: `${getHabitPosition(habit, group.wholeDay.timeRange.startMins, group.wholeDay.timeRange.endMins).top}%`,
-                  height: `${getHabitPosition(habit, group.wholeDay.timeRange.startMins, group.wholeDay.timeRange.endMins).heightPx}px`,
+                  top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
+                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).heightPx}px`,
                   left: `${(habit.column / partial.columnCount) * 100}%`,
                   width: `${(1 / partial.columnCount) * 100 - 1}%`,
                   borderLeft: `2px solid ${habit.color || partial.color || '#10b981'}`
