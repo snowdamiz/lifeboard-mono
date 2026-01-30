@@ -1215,7 +1215,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               
               <!-- Habits container with absolute positioning -->
               <div 
-                class="flex-1 relative overflow-hidden"
+                class="flex-1 relative overflow-hidden transition-[min-height] duration-200"
                 :style="{ minHeight: collapsedMode 
                   ? `${getCollapsedContainerHeight(group.totalHabits)}px`
                   : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
@@ -1223,8 +1223,8 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               >
                 <Card 
                   v-for="habit in group.wholeDay.columnHabits" 
-                  :key="`${habit.id}-${collapsedMode}`"
-                  class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
+                  :key="habit.id"
+                  class="absolute group hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
                   :style="{ 
                     top: collapsedMode 
                       ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, group.habitGlobalIndex.get(habit.id) ?? 0).topPx}px`
@@ -1353,7 +1353,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
                 <!-- Habits container -->
                 <div 
-                  class="flex-1 relative overflow-hidden"
+                  class="flex-1 relative overflow-hidden transition-[min-height] duration-200"
                   :style="{ minHeight: collapsedMode 
                     ? `${getCollapsedContainerHeight(group.totalHabits)}px`
                     : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
@@ -1361,8 +1361,8 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 >
               <Card 
                 v-for="habit in partial.columnHabits" 
-                :key="`${habit.id}-${collapsedMode}`"
-                class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
+                :key="habit.id"
+                class="absolute group hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
                 :style="{ 
                   top: collapsedMode 
                     ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, group.habitGlobalIndex.get(habit.id) ?? 0).topPx}px`
