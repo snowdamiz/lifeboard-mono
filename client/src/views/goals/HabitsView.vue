@@ -1176,14 +1176,28 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
                 }"
               >
-                <div 
-                  v-for="hour in group.timeRange.hourMarks" 
-                  :key="hour"
-                  class="absolute left-0 right-0 text-[10px] text-muted-foreground border-t border-border/30"
-                  :style="{ top: `${((hour - group.timeRange.startMins) / (group.timeRange.endMins - group.timeRange.startMins)) * 100}%` }"
-                >
-                  {{ minutesToTimeStr(hour).slice(0, 5) }}
-                </div>
+                <!-- Expanded mode: show continuous hour marks -->
+                <template v-if="!collapsedMode">
+                  <div 
+                    v-for="hour in group.timeRange.hourMarks" 
+                    :key="hour"
+                    class="absolute left-0 right-0 text-[10px] text-muted-foreground border-t border-border/30"
+                    :style="{ top: `${((hour - group.timeRange.startMins) / (group.timeRange.endMins - group.timeRange.startMins)) * 100}%` }"
+                  >
+                    {{ minutesToTimeStr(hour).slice(0, 5) }}
+                  </div>
+                </template>
+                <!-- Collapsed mode: show habit times at their positions -->
+                <template v-else>
+                  <div 
+                    v-for="(habit, hIdx) in group.wholeDay.columnHabits" 
+                    :key="habit.id"
+                    class="absolute left-0 right-0 text-[10px] text-muted-foreground"
+                    :style="{ top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`, height: `${COLLAPSED_ROW_HEIGHT}px`, display: 'flex', alignItems: 'center' }"
+                  >
+                    {{ habit.scheduled_time ? habit.scheduled_time.slice(0, 5) : '' }}
+                  </div>
+                </template>
               </div>
               
               <!-- Habits container with absolute positioning -->
