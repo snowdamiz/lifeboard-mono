@@ -370,25 +370,24 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 // MIN_VISUAL_DURATION ensures short habits have readable cards and proper overlap detection
 const MIN_VISUAL_DURATION = 30 // minutes - short habits are treated as if they were this long
-const COLLAPSED_CARD_HEIGHT = 36 // Fixed height for each card in collapsed mode
+const COLLAPSED_CARD_HEIGHT = 40 // Fixed height for each card in collapsed mode
 
 // In collapsed mode, habits are stacked sequentially (no gaps)
-// We need the habit's index in the sorted list to calculate position
+// Returns topPx for collapsed mode (pixel positioning) or top for expanded mode (percentage)
 const getHabitPosition = (
   habit: HabitWithStatus, 
   startMins: number, 
   endMins: number,
-  sortedIndex?: number,
-  totalHabits?: number
-): { top: number, heightPx: number } => {
-  // Collapsed mode: stack habits sequentially
-  if (collapsedMode.value && sortedIndex !== undefined && totalHabits !== undefined) {
-    const top = (sortedIndex / totalHabits) * 100
-    return { top, heightPx: COLLAPSED_CARD_HEIGHT }
+  sortedIndex?: number
+): { top: number, topPx: number, heightPx: number } => {
+  // Collapsed mode: stack habits sequentially using pixel positioning
+  if (collapsedMode.value && sortedIndex !== undefined) {
+    const topPx = sortedIndex * COLLAPSED_CARD_HEIGHT
+    return { top: 0, topPx, heightPx: COLLAPSED_CARD_HEIGHT }
   }
   
-  // Normal mode: position by time
-  if (!habit.scheduled_time) return { top: 0, heightPx: MIN_CARD_HEIGHT }
+  // Normal mode: position by time (percentage-based)
+  if (!habit.scheduled_time) return { top: 0, topPx: 0, heightPx: MIN_CARD_HEIGHT }
   
   const habitStart = timeToMinutes(habit.scheduled_time)
   const visualDuration = Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
@@ -397,7 +396,7 @@ const getHabitPosition = (
   const top = ((habitStart - startMins) / range) * 100
   const heightPx = Math.max(visualDuration * timelineScale.value, MIN_CARD_HEIGHT)
   
-  return { top, heightPx }
+  return { top, topPx: 0, heightPx }
 }
 
 // Calculate container height for collapsed mode
@@ -1196,8 +1195,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   :key="`${habit.id}-${collapsedMode}`"
                   class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                   :style="{ 
-                    top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, group.wholeDay.columnHabits.length).top}%`,
-                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, group.wholeDay.columnHabits.length).heightPx}px`,
+                    top: collapsedMode 
+                      ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`
+                      : `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).top}%`,
+                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).heightPx}px`,
                     left: collapsedMode ? '0' : `${(habit.column / group.wholeDay.columnCount) * 100}%`,
                     width: collapsedMode ? '100%' : `${(1 / group.wholeDay.columnCount) * 100 - 1}%`,
                     borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`
@@ -1297,8 +1298,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 :key="`${habit.id}-${collapsedMode}`"
                 class="absolute group hover:shadow-sm transition-all cursor-pointer overflow-hidden"
                 :style="{ 
-                  top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, partial.columnHabits.length).top}%`,
-                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, partial.columnHabits.length).heightPx}px`,
+                  top: collapsedMode 
+                    ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`
+                    : `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).top}%`,
+                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).heightPx}px`,
                   left: collapsedMode ? '0' : `${(habit.column / partial.columnCount) * 100}%`,
                   width: collapsedMode ? '100%' : `${(1 / partial.columnCount) * 100 - 1}%`,
                   borderLeft: `2px solid ${habit.color || partial.color || '#10b981'}`
