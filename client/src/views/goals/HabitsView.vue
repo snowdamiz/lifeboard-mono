@@ -1139,7 +1139,6 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         variant="ghost" 
         size="icon" 
         class="h-7 w-7"
-        :disabled="isFutureDate"
         @click="habitsStore.goToNextDay(); habitsStore.fetchHabits()"
       >
         <ChevronRight class="h-4 w-4" />
