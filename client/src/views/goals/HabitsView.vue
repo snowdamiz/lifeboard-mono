@@ -427,6 +427,7 @@ const assignColumnsToHabits = (habits: HabitWithStatus[]): { habits: HabitWithCo
   // Track visual end times for each column (using MIN_VISUAL_DURATION)
   const columnEnds: number[] = []
   const result: HabitWithColumn[] = []
+  const GAP_BUFFER = 5 // minutes - gap required between habits to share a column
   
   for (const habit of sorted) {
     const habitStart = habit.scheduled_time ? timeToMinutes(habit.scheduled_time) : 0
@@ -434,10 +435,11 @@ const assignColumnsToHabits = (habits: HabitWithStatus[]): { habits: HabitWithCo
     const visualDuration = Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
     const habitVisualEnd = habitStart + visualDuration
     
-    // Find first column where this habit's visual bounds fit (no overlap)
+    // Find first column where this habit's visual bounds fit (no overlap, with gap)
     let assignedColumn = -1
     for (let col = 0; col < columnEnds.length; col++) {
-      if (columnEnds[col] <= habitStart) {
+      // Require GAP_BUFFER minutes gap between habits to share a column
+      if (columnEnds[col] + GAP_BUFFER <= habitStart) {
         assignedColumn = col
         break
       }
