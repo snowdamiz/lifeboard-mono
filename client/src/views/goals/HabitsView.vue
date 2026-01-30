@@ -1173,7 +1173,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               >
                 <Card 
                   v-for="habit in group.wholeDay.columnHabits" 
-                  :key="habit.id"
+                  :key="`${habit.id}-${collapsedMode}`"
                   class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                   :style="{ 
                     top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
@@ -1271,7 +1271,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           >
               <Card 
                 v-for="habit in partial.columnHabits" 
-                :key="habit.id"
+                :key="`${habit.id}-${collapsedMode}`"
                 class="absolute group hover:shadow-sm transition-all cursor-pointer overflow-hidden"
                 :style="{ 
                   top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
