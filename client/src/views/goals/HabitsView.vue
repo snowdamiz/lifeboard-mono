@@ -1144,10 +1144,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         <ChevronRight class="h-4 w-4" />
       </Button>
       <Button 
-        v-if="!habitsStore.isToday"
         variant="outline" 
         size="sm" 
         class="h-7 text-xs ml-2"
+        :class="habitsStore.isToday ? 'opacity-0 pointer-events-none' : ''"
         @click="habitsStore.goToToday(); habitsStore.fetchHabits(true)"
       >
         Today
