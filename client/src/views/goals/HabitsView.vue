@@ -1021,7 +1021,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
     </div>
 
     <!-- All Inventories - Flow-based single-column layout -->
-    <div v-else class="flex flex-col gap-6">
+    <div v-if="habitsStore.habits.length > 0" class="flex flex-col gap-6">
       <!-- Whole-Day Groups with Linked Inventories (Side-by-Side Layout) -->
       <div 
         v-for="(group, gIdx) in timelineInventoryGroups.groups" 
