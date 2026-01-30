@@ -328,43 +328,53 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 
 // Calculate vertical position for a habit on the timeline
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
+// MIN_VISUAL_DURATION ensures short habits have readable cards and proper overlap detection
+const MIN_VISUAL_DURATION = 30 // minutes - short habits are treated as if they were this long
+
 const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: number): { top: number, heightPx: number } => {
-  if (!habit.scheduled_time) return { top: 0, heightPx: MIN_CARD_HEIGHT }
+  if (!habit.scheduled_time) return { top: 0, heightPx: MIN_VISUAL_DURATION * timelineScale.value }
   
   const habitStart = timeToMinutes(habit.scheduled_time)
-  const duration = habit.duration_minutes || 30
+  // Use visual duration (minimum 30 min) for card height
+  const visualDuration = Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
   const range = endMins - startMins
   
   const top = ((habitStart - startMins) / range) * 100
-  // Height in pixels based on duration and current timeline scale
-  const heightPx = Math.max(duration * timelineScale.value, MIN_CARD_HEIGHT)
+  // Height in pixels based on visual duration and current timeline scale
+  const heightPx = Math.max(visualDuration * timelineScale.value, MIN_CARD_HEIGHT)
   
   return { top, heightPx }
 }
 
 // Assign columns to habits to prevent overlap within a sheet
 // Uses greedy algorithm: assigns each habit to the first available column
+// Uses visual duration (minimum 30 min) for overlap detection
 type HabitWithColumn = HabitWithStatus & { column: number }
 const assignColumnsToHabits = (habits: HabitWithStatus[]): { habits: HabitWithColumn[], columnCount: number } => {
   if (habits.length === 0) return { habits: [], columnCount: 1 }
   
-  // Sort by start time, then by duration (longer first for better packing)
+  // Sort by start time, then by visual duration (longer first for better packing)
   const sorted = [...habits].sort((a, b) => {
     const aStart = a.scheduled_time ? timeToMinutes(a.scheduled_time) : 0
     const bStart = b.scheduled_time ? timeToMinutes(b.scheduled_time) : 0
     if (aStart !== bStart) return aStart - bStart
-    return (b.duration_minutes || 30) - (a.duration_minutes || 30)
+    // Use visual duration for sorting
+    const aVisualDuration = Math.max(a.duration_minutes || 30, MIN_VISUAL_DURATION)
+    const bVisualDuration = Math.max(b.duration_minutes || 30, MIN_VISUAL_DURATION)
+    return bVisualDuration - aVisualDuration
   })
   
-  // Track end times for each column
+  // Track visual end times for each column (using MIN_VISUAL_DURATION)
   const columnEnds: number[] = []
   const result: HabitWithColumn[] = []
   
   for (const habit of sorted) {
     const habitStart = habit.scheduled_time ? timeToMinutes(habit.scheduled_time) : 0
-    const habitEnd = habitStart + (habit.duration_minutes || 30)
+    // Use visual duration for overlap detection
+    const visualDuration = Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
+    const habitVisualEnd = habitStart + visualDuration
     
-    // Find first column where this habit fits (no overlap)
+    // Find first column where this habit's visual bounds fit (no overlap)
     let assignedColumn = -1
     for (let col = 0; col < columnEnds.length; col++) {
       if (columnEnds[col] <= habitStart) {
@@ -379,8 +389,8 @@ const assignColumnsToHabits = (habits: HabitWithStatus[]): { habits: HabitWithCo
       columnEnds.push(0)
     }
     
-    // Update column end time
-    columnEnds[assignedColumn] = habitEnd
+    // Update column end time with visual end
+    columnEnds[assignedColumn] = habitVisualEnd
     
     result.push({ ...habit, column: assignedColumn })
   }
