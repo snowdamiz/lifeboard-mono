@@ -1166,11 +1166,13 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           <div :class="group.linkedPartials.length > 0 ? 'w-1/2' : 'w-full'">
             <!-- Whole Day Habits - Timeline with time markers and duration-based heights -->
             <div class="flex gap-2 overflow-hidden">
-              <!-- Time markers column (hidden in collapsed mode) -->
+              <!-- Time markers column -->
               <div 
-                v-if="!collapsedMode"
                 class="w-12 shrink-0 relative overflow-hidden" 
-                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }"
+                :style="{ minHeight: collapsedMode 
+                  ? `${getCollapsedContainerHeight(group.wholeDay.columnHabits.length)}px`
+                  : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
+                }"
               >
                 <div 
                   v-for="hour in group.timeRange.hourMarks" 
@@ -1261,28 +1263,28 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             >
           <!-- Partial Inventory Header -->
           <div class="flex items-center gap-2 mb-2 group/partialheader">
-            <div class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
-            <span class="text-sm font-medium">{{ partial.name }}</span>
+            <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
+            <h3 class="font-semibold">{{ partial.name }}</h3>
             <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
             <span class="text-xs text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} / {{ formatDuration(partial.timeAvailable) }}</span>
             <Button 
               variant="ghost" 
               size="icon" 
-              class="h-5 w-5 opacity-0 group-hover/partialheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+              class="h-6 w-6 opacity-0 group-hover/partialheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
               @click.stop="handleDeleteInventory(partial.id)"
               title="Delete habit sheet"
             >
-              <Trash2 class="h-2.5 w-2.5" />
+              <Trash2 class="h-3.5 w-3.5" />
             </Button>
             <Button 
               v-if="partial.habits.some((h: any) => !h.completed_today)"
               variant="ghost" 
               size="sm" 
-              class="ml-auto h-5 text-[10px] px-1.5"
+              class="ml-auto h-6 text-xs px-2"
               @click="completeAllInInventory(partial.id)"
             >
-              <CheckCircle2 class="h-2.5 w-2.5 mr-0.5" />
-              All
+              <CheckCircle2 class="h-3 w-3 mr-1" />
+              Complete All
             </Button>
           </div>
 
