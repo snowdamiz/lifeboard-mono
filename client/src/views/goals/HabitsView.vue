@@ -481,6 +481,15 @@ const timelineInventoryGroups = computed(() => {
     const allHabits = [...wholeDay.habits, ...linkedPartials.flatMap(p => p.habits)]
     const timeRange = getTimelineRange(allHabits)
 
+    // Create sorted list of ALL habits by time for chronological collapsed view
+    const allHabitsSorted = [...allHabits].sort((a, b) => {
+      const aTime = timeToMinutes(a.scheduled_time)
+      const bTime = timeToMinutes(b.scheduled_time)
+      return aTime - bTime
+    })
+    // Create a map of habit id to its global chronological index
+    const habitGlobalIndex = new Map(allHabitsSorted.map((h, idx) => [h.id, idx]))
+
     // Re-compute column assignments for whole-day inventory
     const { habits: wholeDayColumnHabits, columnCount: wholeDayColumnCount } = assignColumnsToHabits(wholeDay.habits)
 
@@ -491,7 +500,9 @@ const timelineInventoryGroups = computed(() => {
         columnCount: wholeDayColumnCount
       },
       linkedPartials,
-      timeRange
+      timeRange,
+      habitGlobalIndex,  // Map for chronological positioning in collapsed mode
+      totalHabits: allHabits.length
     }
   })
 
@@ -1172,7 +1183,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <div 
                 class="w-12 shrink-0 relative overflow-hidden" 
                 :style="{ minHeight: collapsedMode 
-                  ? `${getCollapsedContainerHeight(group.wholeDay.columnHabits.length)}px`
+                  ? `${getCollapsedContainerHeight(group.totalHabits)}px`
                   : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
                 }"
               >
@@ -1187,13 +1198,13 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                     {{ minutesToTimeStr(hour).slice(0, 5) }}
                   </div>
                 </template>
-                <!-- Collapsed mode: show habit times at their positions -->
+                <!-- Collapsed mode: show habit times at their chronological positions -->
                 <template v-else>
                   <div 
-                    v-for="(habit, hIdx) in group.wholeDay.columnHabits" 
+                    v-for="habit in group.wholeDay.columnHabits" 
                     :key="habit.id"
                     class="absolute left-0 right-0 text-[10px] text-muted-foreground"
-                    :style="{ top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`, height: `${COLLAPSED_ROW_HEIGHT}px`, display: 'flex', alignItems: 'center' }"
+                    :style="{ top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, group.habitGlobalIndex.get(habit.id) ?? 0).topPx}px`, height: `${COLLAPSED_ROW_HEIGHT}px`, display: 'flex', alignItems: 'center' }"
                   >
                     {{ habit.scheduled_time ? habit.scheduled_time.slice(0, 5) : '' }}
                   </div>
@@ -1204,19 +1215,19 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <div 
                 class="flex-1 relative overflow-hidden"
                 :style="{ minHeight: collapsedMode 
-                  ? `${getCollapsedContainerHeight(group.wholeDay.columnHabits.length)}px`
+                  ? `${getCollapsedContainerHeight(group.totalHabits)}px`
                   : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
                 }"
               >
                 <Card 
-                  v-for="(habit, hIdx) in group.wholeDay.columnHabits" 
+                  v-for="habit in group.wholeDay.columnHabits" 
                   :key="`${habit.id}-${collapsedMode}`"
                   class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                   :style="{ 
                     top: collapsedMode 
-                      ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`
-                      : `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).top}%`,
-                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).heightPx}px`,
+                      ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, group.habitGlobalIndex.get(habit.id) ?? 0).topPx}px`
+                      : `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
+                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).heightPx}px`,
                     left: collapsedMode ? '0' : `${(habit.column / group.wholeDay.columnCount) * 100}%`,
                     width: collapsedMode ? '100%' : `${(1 / group.wholeDay.columnCount) * 100 - 1}%`,
                     borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`
@@ -1310,7 +1321,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <div 
                   class="w-12 shrink-0 relative overflow-hidden" 
                   :style="{ minHeight: collapsedMode 
-                    ? `${getCollapsedContainerHeight(partial.columnHabits.length)}px`
+                    ? `${getCollapsedContainerHeight(group.totalHabits)}px`
                     : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
                   }"
                 >
@@ -1325,13 +1336,13 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                       {{ minutesToTimeStr(hour).slice(0, 5) }}
                     </div>
                   </template>
-                  <!-- Collapsed mode: show habit times at their positions -->
+                  <!-- Collapsed mode: show habit times at their chronological positions -->
                   <template v-else>
                     <div 
-                      v-for="(habit, hIdx) in partial.columnHabits" 
+                      v-for="habit in partial.columnHabits" 
                       :key="habit.id"
                       class="absolute left-0 right-0 text-[10px] text-muted-foreground"
-                      :style="{ top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`, height: `${COLLAPSED_ROW_HEIGHT}px`, display: 'flex', alignItems: 'center' }"
+                      :style="{ top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, group.habitGlobalIndex.get(habit.id) ?? 0).topPx}px`, height: `${COLLAPSED_ROW_HEIGHT}px`, display: 'flex', alignItems: 'center' }"
                     >
                       {{ habit.scheduled_time ? habit.scheduled_time.slice(0, 5) : '' }}
                     </div>
@@ -1342,19 +1353,19 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <div 
                   class="flex-1 relative overflow-hidden"
                   :style="{ minHeight: collapsedMode 
-                    ? `${getCollapsedContainerHeight(partial.columnHabits.length)}px`
+                    ? `${getCollapsedContainerHeight(group.totalHabits)}px`
                     : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
                   }"
                 >
               <Card 
-                v-for="(habit, hIdx) in partial.columnHabits" 
+                v-for="habit in partial.columnHabits" 
                 :key="`${habit.id}-${collapsedMode}`"
                 class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                 :style="{ 
                   top: collapsedMode 
-                    ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`
-                    : `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).top}%`,
-                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).heightPx}px`,
+                    ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, group.habitGlobalIndex.get(habit.id) ?? 0).topPx}px`
+                    : `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
+                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).heightPx}px`,
                   left: collapsedMode ? '0' : `${(habit.column / partial.columnCount) * 100}%`,
                   width: collapsedMode ? '100%' : `${(1 / partial.columnCount) * 100 - 1}%`,
                   borderLeft: `3px solid ${habit.color || partial.color || '#10b981'}`
