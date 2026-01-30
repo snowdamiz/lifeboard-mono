@@ -107,11 +107,51 @@ const filterAppliedTagIds = computed(() => new Set<string>())
 // Sorting by tag
 const sortByTag = ref(false)
 
+// Timeline settings with localStorage persistence
+const STORAGE_KEY = 'lifeboard_habits_timeline_settings'
+
+// Load saved settings from localStorage
+const loadTimelineSettings = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const settings = JSON.parse(saved)
+      return {
+        scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, settings.scale ?? 3)),
+        collapsed: Boolean(settings.collapsed)
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load timeline settings:', e)
+  }
+  return { scale: 3, collapsed: false }
+}
+
+// Save settings to localStorage
+const saveTimelineSettings = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      scale: timelineScale.value,
+      collapsed: collapsedMode.value
+    }))
+  } catch (e) {
+    console.warn('Failed to save timeline settings:', e)
+  }
+}
+
 // Timeline zoom scale (pixels per minute) - user adjustable
-const timelineScale = ref(3)
 const MIN_SCALE = 1
 const MAX_SCALE = 10
-const MIN_CARD_HEIGHT = 16
+const MIN_CARD_HEIGHT = 40 // Minimum height to fit text and borders
+
+const savedSettings = loadTimelineSettings()
+const timelineScale = ref(savedSettings.scale)
+const collapsedMode = ref(savedSettings.collapsed)
+
+// Watch for setting changes and persist
+watch([timelineScale, collapsedMode], () => {
+  saveTimelineSettings()
+})
 
 // Calculate auto-scale to prevent overlaps for a set of habits
 const calculateAutoScale = (habits: HabitWithStatus[]): number => {
@@ -330,18 +370,24 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 // MIN_VISUAL_DURATION ensures short habits have readable cards and proper overlap detection
 const MIN_VISUAL_DURATION = 30 // minutes - short habits are treated as if they were this long
+const MIN_COLLAPSED_HEIGHT = 24 // Collapsed mode - just enough for habit name
 
 const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: number): { top: number, heightPx: number } => {
-  if (!habit.scheduled_time) return { top: 0, heightPx: MIN_VISUAL_DURATION * timelineScale.value }
+  const minHeight = collapsedMode.value ? MIN_COLLAPSED_HEIGHT : MIN_CARD_HEIGHT
+  
+  if (!habit.scheduled_time) return { top: 0, heightPx: minHeight }
   
   const habitStart = timeToMinutes(habit.scheduled_time)
-  // Use visual duration (minimum 30 min) for card height
-  const visualDuration = Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
+  // Use visual duration (minimum 30 min) for card height in normal mode
+  // In collapsed mode, use smaller cards but still enforce minimum
+  const visualDuration = collapsedMode.value 
+    ? (habit.duration_minutes || 30)
+    : Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
   const range = endMins - startMins
   
   const top = ((habitStart - startMins) / range) * 100
-  // Height in pixels based on visual duration and current timeline scale
-  const heightPx = Math.max(visualDuration * timelineScale.value, MIN_CARD_HEIGHT)
+  // Height in pixels - always ensure minimum readable height
+  const heightPx = Math.max(visualDuration * timelineScale.value, minHeight)
   
   return { top, heightPx }
 }
@@ -1054,6 +1100,15 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         @click="timelineScale = calculateAutoScale(habitsStore.habits)"
       >
         Auto-Size
+      </Button>
+      <div class="w-px h-4 bg-border mx-1" />
+      <Button 
+        :variant="collapsedMode ? 'default' : 'outline'" 
+        size="sm" 
+        class="h-6 text-xs"
+        @click="collapsedMode = !collapsedMode"
+      >
+        {{ collapsedMode ? 'Expanded' : 'Collapsed' }}
       </Button>
     </div>
 
