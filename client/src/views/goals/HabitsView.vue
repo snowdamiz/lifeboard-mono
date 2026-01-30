@@ -1349,7 +1349,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <Card 
                 v-for="(habit, hIdx) in partial.columnHabits" 
                 :key="`${habit.id}-${collapsedMode}`"
-                class="absolute group hover:shadow-sm transition-all cursor-pointer overflow-hidden"
+                class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                 :style="{ 
                   top: collapsedMode 
                     ? `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`
@@ -1357,27 +1357,50 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).heightPx}px`,
                   left: collapsedMode ? '0' : `${(habit.column / partial.columnCount) * 100}%`,
                   width: collapsedMode ? '100%' : `${(1 / partial.columnCount) * 100 - 1}%`,
-                  borderLeft: `2px solid ${habit.color || partial.color || '#10b981'}`
+                  borderLeft: `3px solid ${habit.color || partial.color || '#10b981'}`
                 }"
                 @click="openEditModal(habit)"
               >
                 <CardContent class="p-2 h-full">
-                  <div class="flex items-start gap-1 h-full">
-                    <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
+                  <div class="flex items-start gap-1.5 h-full">
+                    <button @click.stop="handleToggleComplete(habit)" class="shrink-0 mt-0.5">
                       <div 
                         v-if="habit.completed_today"
-                        class="h-3.5 w-3.5 rounded flex items-center justify-center"
+                        class="h-4 w-4 rounded flex items-center justify-center"
                         :style="{ backgroundColor: habit.color + '20' }"
                       >
-                        <CheckCircle2 class="h-2 w-2" :style="{ color: habit.color }" />
+                        <CheckCircle2 class="h-2.5 w-2.5" :style="{ color: habit.color }" />
                       </div>
-                      <div v-else class="h-3.5 w-3.5 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                        <Circle class="h-2 w-2 text-muted-foreground/30" />
+                      <div v-else class="h-4 w-4 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50">
+                        <Circle class="h-2.5 w-2.5 text-muted-foreground/30" />
                       </div>
                     </button>
                     <div class="flex-1 min-w-0 overflow-hidden">
-                      <h5 :class="['text-[10px] font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h5>
-                      <span class="text-[8px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                      <h4 :class="['text-xs font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h4>
+                      <div class="flex items-center gap-1">
+                        <span class="text-[9px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                        <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">· {{ formatDuration(habit.duration_minutes) }}</span>
+                      </div>
+                    </div>
+                    <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <Button 
+                        v-if="!habit.completed_today"
+                        variant="ghost" 
+                        size="icon" 
+                        class="h-4 w-4 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                        @click.stop="openSkipModal(habit)"
+                        title="Skip with reason"
+                      >
+                        <Ban class="h-2 w-2" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        class="h-4 w-4 text-destructive"
+                        @click.stop="handleDeleteHabit(habit.id)"
+                      >
+                        <Trash2 class="h-2 w-2" />
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
