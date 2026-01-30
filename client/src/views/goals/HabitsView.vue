@@ -370,8 +370,8 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 // MIN_VISUAL_DURATION ensures short habits have readable cards and proper overlap detection
 const MIN_VISUAL_DURATION = 30 // minutes - short habits are treated as if they were this long
-const COLLAPSED_CARD_HEIGHT = 34 // Height of each card in collapsed mode
-const COLLAPSED_CARD_GAP = 4 // Gap between cards in collapsed mode
+const COLLAPSED_CARD_HEIGHT = 44 // Height of each card in collapsed mode
+const COLLAPSED_CARD_GAP = 6 // Gap between cards in collapsed mode
 const COLLAPSED_ROW_HEIGHT = COLLAPSED_CARD_HEIGHT + COLLAPSED_CARD_GAP // Total row height
 
 // In collapsed mode, habits are stacked sequentially with gaps
