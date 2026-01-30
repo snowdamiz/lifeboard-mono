@@ -74,8 +74,7 @@ export const useHabitsStore = defineStore('habits', () => {
 
     try {
       await api.completeHabit(id)
-      // Refresh habits to get updated streak data
-      await fetchHabits()
+      // Optimistic update is sufficient - no refetch needed
     } catch (error) {
       // Revert on error
       if (habit) {
@@ -92,12 +91,12 @@ export const useHabitsStore = defineStore('habits', () => {
     const oldStreak = habit?.streak_count || 0
     if (habit) {
       habit.completed_today = false
+      habit.streak_count = Math.max(0, habit.streak_count - 1)
     }
 
     try {
       await api.uncompleteHabit(id)
-      // Re-fetch to get correct streak
-      await fetchHabits()
+      // Optimistic update is sufficient - no refetch needed
     } catch (error) {
       // Revert on error
       if (habit) {
@@ -117,8 +116,7 @@ export const useHabitsStore = defineStore('habits', () => {
 
     try {
       const response = await api.skipHabit(id, reason)
-      // Refresh habits to get updated data
-      await fetchHabits()
+      // Optimistic update is sufficient - no refetch needed
       return response.data
     } catch (error) {
       // Revert on error
