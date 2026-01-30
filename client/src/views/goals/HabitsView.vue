@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { format, subDays, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from 'date-fns'
 import { 
   Flame, Plus, CheckCircle2, Circle, Trash2, Edit2, Trophy, Zap, Calendar, Filter,
-  PlusCircle, MinusCircle, X, Ban
+  PlusCircle, MinusCircle, X, Ban, ChevronLeft, ChevronRight
 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -97,6 +97,30 @@ const last7Days = computed(() => {
     start: subDays(today, 6),
     end: today
   })
+})
+
+// Day Navigation computed properties
+const formatSelectedDate = computed(() => {
+  const date = new Date(habitsStore.selectedDate + 'T00:00:00')
+  return format(date, 'EEE, MMM d')
+})
+
+const daysAgoText = computed(() => {
+  const selected = new Date(habitsStore.selectedDate + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((today.getTime() - selected.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays > 1) return `${diffDays} days ago`
+  if (diffDays === -1) return 'Tomorrow'
+  return ''
+})
+
+const isFutureDate = computed(() => {
+  const selected = new Date(habitsStore.selectedDate + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return selected >= today
 })
 
 // Filtering Logic
@@ -1094,6 +1118,40 @@ const completeAllInInventory = async (inventoryId: string | null) => {
       <Button variant="outline" class="mt-4" @click="activeFilterCount > 0 ? clearFilters() : (showCreateModal = true)">
         <component :is="activeFilterCount > 0 ? 'X' : Plus" class="h-4 w-4 mr-1.5" />
         {{ activeFilterCount > 0 ? 'Clear Filters' : 'Create your first habit' }}
+      </Button>
+    </div>
+
+    <!-- Day Navigation Controls -->
+    <div v-if="activeTab === 'inventory'" class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50">
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        class="h-7 w-7"
+        @click="habitsStore.goToPreviousDay(); habitsStore.fetchHabits()"
+      >
+        <ChevronLeft class="h-4 w-4" />
+      </Button>
+      <div class="flex flex-col items-center min-w-[100px]">
+        <span class="text-sm font-medium">{{ formatSelectedDate }}</span>
+        <span v-if="!habitsStore.isToday" class="text-xs text-muted-foreground">{{ daysAgoText }}</span>
+      </div>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        class="h-7 w-7"
+        :disabled="isFutureDate"
+        @click="habitsStore.goToNextDay(); habitsStore.fetchHabits()"
+      >
+        <ChevronRight class="h-4 w-4" />
+      </Button>
+      <Button 
+        v-if="!habitsStore.isToday"
+        variant="outline" 
+        size="sm" 
+        class="h-7 text-xs ml-2"
+        @click="habitsStore.goToToday(); habitsStore.fetchHabits()"
+      >
+        Today
       </Button>
     </div>
 

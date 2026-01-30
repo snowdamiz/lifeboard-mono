@@ -528,14 +528,14 @@ defmodule MegaPlanner.Goals do
   end
 
   @doc """
-  Completes a habit for today. Returns error if already completed today.
+  Completes a habit for a specific date (defaults to today). Returns error if already completed.
   """
-  def complete_habit(%Habit{} = habit) do
-    today = Date.utc_today()
+  def complete_habit(%Habit{} = habit, date \\ nil) do
+    date = date || Date.utc_today()
     now = DateTime.utc_now()
 
-    # Check if already completed today
-    existing = Repo.get_by(HabitCompletion, habit_id: habit.id, date: today)
+    # Check if already completed on this date
+    existing = Repo.get_by(HabitCompletion, habit_id: habit.id, date: date)
 
     if existing do
       {:error, :already_completed}
@@ -546,14 +546,18 @@ defmodule MegaPlanner.Goals do
           %HabitCompletion{}
           |> HabitCompletion.changeset(%{
             habit_id: habit.id,
-            date: today,
+            date: date,
             completed_at: now,
             status: "completed"
           })
           |> Repo.insert()
 
-        # Update streak
-        habit = update_habit_streak(habit)
+        # Only update streak if completing for today
+        habit = if date == Date.utc_today() do
+          update_habit_streak(habit)
+        else
+          habit
+        end
 
         {completion, habit}
       end)
@@ -561,31 +565,35 @@ defmodule MegaPlanner.Goals do
   end
 
   @doc """
-  Uncompletes a habit for today.
+  Uncompletes a habit for a specific date (defaults to today).
   """
-  def uncomplete_habit(%Habit{} = habit) do
-    today = Date.utc_today()
+  def uncomplete_habit(%Habit{} = habit, date \\ nil) do
+    date = date || Date.utc_today()
 
-    case Repo.get_by(HabitCompletion, habit_id: habit.id, date: today) do
+    case Repo.get_by(HabitCompletion, habit_id: habit.id, date: date) do
       nil ->
         {:error, :not_completed}
       completion ->
         Repo.delete(completion)
-        # Recalculate streak
-        habit = recalculate_habit_streak(habit)
+        # Recalculate streak only if uncompleting today
+        habit = if date == Date.utc_today() do
+          recalculate_habit_streak(habit)
+        else
+          habit
+        end
         {:ok, habit}
     end
   end
 
   @doc """
-  Skips a habit for today with a reason.
+  Skips a habit for a specific date (defaults to today) with a reason.
   """
-  def skip_habit(%Habit{} = habit, reason) when is_binary(reason) do
-    today = Date.utc_today()
+  def skip_habit(%Habit{} = habit, reason, date \\ nil) when is_binary(reason) do
+    date = date || Date.utc_today()
     now = DateTime.utc_now()
 
-    # Check if already has an entry for today
-    existing = Repo.get_by(HabitCompletion, habit_id: habit.id, date: today)
+    # Check if already has an entry for this date
+    existing = Repo.get_by(HabitCompletion, habit_id: habit.id, date: date)
 
     if existing do
       {:error, :already_has_entry}
@@ -593,7 +601,7 @@ defmodule MegaPlanner.Goals do
       %HabitCompletion{}
       |> HabitCompletion.changeset(%{
         habit_id: habit.id,
-        date: today,
+        date: date,
         completed_at: now,
         status: "skipped",
         not_today_reason: reason

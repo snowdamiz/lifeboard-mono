@@ -978,9 +978,10 @@ class ApiClient {
   }
 
   // Habits
-  async listHabits(params?: { tag_ids?: string[] }): Promise<ApiResponse<Habit[]>> {
+  async listHabits(params?: { tag_ids?: string[]; date?: string }): Promise<ApiResponse<Habit[]>> {
     const searchParams = new URLSearchParams()
     if (params?.tag_ids && params.tag_ids.length > 0) searchParams.set('tag_ids', params.tag_ids.join(','))
+    if (params?.date) searchParams.set('date', params.date)
 
     const query = searchParams.toString()
     return this.request(`/habits${query ? `?${query}` : ''}`)
@@ -1008,12 +1009,18 @@ class ApiClient {
     return this.request(`/habits/${id}`, { method: 'DELETE' })
   }
 
-  async completeHabit(id: string): Promise<ApiResponse<HabitCompletion>> {
-    return this.request(`/habits/${id}/complete`, { method: 'POST' })
+  async completeHabit(id: string, date?: string): Promise<ApiResponse<HabitCompletion>> {
+    return this.request(`/habits/${id}/complete`, {
+      method: 'POST',
+      body: date ? JSON.stringify({ date }) : undefined
+    })
   }
 
-  async uncompleteHabit(id: string): Promise<ApiResponse<Habit>> {
-    return this.request(`/habits/${id}/complete`, { method: 'DELETE' })
+  async uncompleteHabit(id: string, date?: string): Promise<ApiResponse<Habit>> {
+    return this.request(`/habits/${id}/complete`, {
+      method: 'DELETE',
+      body: date ? JSON.stringify({ date }) : undefined
+    })
   }
 
   async getHabitCompletions(id: string, params?: {
@@ -1028,10 +1035,10 @@ class ApiClient {
     return this.request(`/habits/${id}/completions${query ? `?${query}` : ''}`)
   }
 
-  async skipHabit(habitId: string, reason: string): Promise<ApiResponse<{ completion: HabitCompletion; habit: Habit }>> {
+  async skipHabit(habitId: string, reason: string, date?: string): Promise<ApiResponse<{ completion: HabitCompletion; habit: Habit }>> {
     return this.request(`/habits/${habitId}/skip`, {
       method: 'POST',
-      body: JSON.stringify({ reason })
+      body: JSON.stringify({ reason, date })
     })
   }
 

@@ -15,6 +15,15 @@ export const useHabitsStore = defineStore('habits', () => {
   const analyticsLoading = ref(false)
   const habitInventories = ref<HabitInventory[]>([])
 
+  // Selected date for viewing habits (defaults to today)
+  const selectedDate = ref<string>(new Date().toISOString().split('T')[0])
+
+  // Check if selected date is today
+  const isToday = computed(() => {
+    const today = new Date().toISOString().split('T')[0]
+    return selectedDate.value === today
+  })
+
   const dailyHabits = computed(() =>
     habits.value.filter(h => h.frequency === 'daily')
   )
@@ -40,11 +49,34 @@ export const useHabitsStore = defineStore('habits', () => {
   async function fetchHabits() {
     loading.value = true
     try {
-      const response = await api.listHabits({ tag_ids: filterTags.value.length > 0 ? filterTags.value : undefined })
+      const response = await api.listHabits({
+        tag_ids: filterTags.value.length > 0 ? filterTags.value : undefined,
+        date: selectedDate.value
+      })
       habits.value = response.data as HabitWithStatus[]
     } finally {
       loading.value = false
     }
+  }
+
+  function setSelectedDate(date: string) {
+    selectedDate.value = date
+  }
+
+  function goToPreviousDay() {
+    const current = new Date(selectedDate.value)
+    current.setDate(current.getDate() - 1)
+    selectedDate.value = current.toISOString().split('T')[0]
+  }
+
+  function goToNextDay() {
+    const current = new Date(selectedDate.value)
+    current.setDate(current.getDate() + 1)
+    selectedDate.value = current.toISOString().split('T')[0]
+  }
+
+  function goToToday() {
+    selectedDate.value = new Date().toISOString().split('T')[0]
   }
 
   async function createHabit(habit: Partial<Habit> & { tag_ids?: string[] }) {
@@ -69,17 +101,22 @@ export const useHabitsStore = defineStore('habits', () => {
     const habit = habits.value.find(h => h.id === id)
     if (habit) {
       habit.completed_today = true
-      habit.streak_count++
+      // Only increment streak if completing for today
+      if (isToday.value) {
+        habit.streak_count++
+      }
     }
 
     try {
-      await api.completeHabit(id)
+      await api.completeHabit(id, selectedDate.value)
       // Optimistic update is sufficient - no refetch needed
     } catch (error) {
       // Revert on error
       if (habit) {
         habit.completed_today = false
-        habit.streak_count--
+        if (isToday.value) {
+          habit.streak_count--
+        }
       }
       throw error
     }
@@ -91,11 +128,14 @@ export const useHabitsStore = defineStore('habits', () => {
     const oldStreak = habit?.streak_count || 0
     if (habit) {
       habit.completed_today = false
-      habit.streak_count = Math.max(0, habit.streak_count - 1)
+      // Only decrement streak if uncompleting today
+      if (isToday.value) {
+        habit.streak_count = Math.max(0, habit.streak_count - 1)
+      }
     }
 
     try {
-      await api.uncompleteHabit(id)
+      await api.uncompleteHabit(id, selectedDate.value)
       // Optimistic update is sufficient - no refetch needed
     } catch (error) {
       // Revert on error
@@ -115,7 +155,7 @@ export const useHabitsStore = defineStore('habits', () => {
     }
 
     try {
-      const response = await api.skipHabit(id, reason)
+      const response = await api.skipHabit(id, reason, selectedDate.value)
       // Optimistic update is sufficient - no refetch needed
       return response.data
     } catch (error) {
@@ -208,6 +248,8 @@ export const useHabitsStore = defineStore('habits', () => {
     pendingToday,
     totalStreak,
     habitsByInventory,
+    selectedDate,
+    isToday,
     fetchHabits,
     createHabit,
     updateHabit,
@@ -215,6 +257,10 @@ export const useHabitsStore = defineStore('habits', () => {
     completeHabit,
     uncompleteHabit,
     skipHabit,
+    setSelectedDate,
+    goToPreviousDay,
+    goToNextDay,
+    goToToday,
     fetchHabitAnalytics,
     fetchCompletions,
     getCompletions,

@@ -19,11 +19,19 @@ defmodule MegaPlannerWeb.HabitController do
 
     habits = Goals.list_habits(user.household_id, opts)
 
-    # Get today's completions
-    today = Date.utc_today()
+    # Get viewing date (defaults to today)
+    viewing_date = case params["date"] do
+      nil -> Date.utc_today()
+      "" -> Date.utc_today()
+      date_str ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> date
+          {:error, _} -> Date.utc_today()
+        end
+    end
 
     habits_with_status = Enum.map(habits, fn habit ->
-      completed_today = Goals.habit_completed_on?(habit.id, today)
+      completed_today = Goals.habit_completed_on?(habit.id, viewing_date)
       habit_to_json(habit, completed_today)
     end)
 
@@ -87,11 +95,22 @@ defmodule MegaPlannerWeb.HabitController do
     end
   end
 
-  def complete(conn, %{"habit_id" => habit_id}) do
+  def complete(conn, %{"habit_id" => habit_id} = params) do
     user = Guardian.Plug.current_resource(conn)
 
+    # Parse optional date parameter
+    date = case params["date"] do
+      nil -> nil
+      "" -> nil
+      date_str ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> date
+          {:error, _} -> nil
+        end
+    end
+
     with habit when not is_nil(habit) <- Goals.get_household_habit(user.household_id, habit_id),
-         {:ok, {completion, updated_habit}} <- Goals.complete_habit(habit) do
+         {:ok, {completion, updated_habit}} <- Goals.complete_habit(habit, date) do
       json(conn, %{
         data: %{
           completion: completion_to_json(completion),
@@ -103,23 +122,34 @@ defmodule MegaPlannerWeb.HabitController do
       {:error, :already_completed} ->
         conn
         |> put_status(:conflict)
-        |> json(%{error: "Habit already completed today"})
+        |> json(%{error: "Habit already completed for this date"})
       error -> error
     end
   end
 
-  def uncomplete(conn, %{"habit_id" => habit_id}) do
+  def uncomplete(conn, %{"habit_id" => habit_id} = params) do
     user = Guardian.Plug.current_resource(conn)
 
+    # Parse optional date parameter
+    date = case params["date"] do
+      nil -> nil
+      "" -> nil
+      date_str ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> date
+          {:error, _} -> nil
+        end
+    end
+
     with habit when not is_nil(habit) <- Goals.get_household_habit(user.household_id, habit_id),
-         {:ok, updated_habit} <- Goals.uncomplete_habit(habit) do
+         {:ok, updated_habit} <- Goals.uncomplete_habit(habit, date) do
       json(conn, %{data: habit_to_json(updated_habit, false)})
     else
       nil -> {:error, :not_found}
       {:error, :not_completed} ->
         conn
         |> put_status(:conflict)
-        |> json(%{error: "Habit not completed today"})
+        |> json(%{error: "Habit not completed for this date"})
       error -> error
     end
   end
@@ -149,11 +179,22 @@ defmodule MegaPlannerWeb.HabitController do
     end
   end
 
-  def skip(conn, %{"habit_id" => habit_id, "reason" => reason}) do
+  def skip(conn, %{"habit_id" => habit_id, "reason" => reason} = params) do
     user = Guardian.Plug.current_resource(conn)
 
+    # Parse optional date parameter
+    date = case params["date"] do
+      nil -> nil
+      "" -> nil
+      date_str ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> date
+          {:error, _} -> nil
+        end
+    end
+
     with habit when not is_nil(habit) <- Goals.get_household_habit(user.household_id, habit_id),
-         {:ok, {completion, habit}} <- Goals.skip_habit(habit, reason) do
+         {:ok, {completion, habit}} <- Goals.skip_habit(habit, reason, date) do
       json(conn, %{
         data: %{
           completion: completion_to_json(completion),
@@ -165,7 +206,7 @@ defmodule MegaPlannerWeb.HabitController do
       {:error, :already_has_entry} ->
         conn
         |> put_status(:conflict)
-        |> json(%{error: "Habit already has an entry for today"})
+        |> json(%{error: "Habit already has an entry for this date"})
       error -> error
     end
   end
