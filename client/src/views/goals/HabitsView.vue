@@ -370,26 +370,39 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 // MIN_VISUAL_DURATION ensures short habits have readable cards and proper overlap detection
 const MIN_VISUAL_DURATION = 30 // minutes - short habits are treated as if they were this long
-const MIN_COLLAPSED_HEIGHT = 24 // Collapsed mode - just enough for habit name
+const COLLAPSED_CARD_HEIGHT = 36 // Fixed height for each card in collapsed mode
 
-const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: number): { top: number, heightPx: number } => {
-  const minHeight = collapsedMode.value ? MIN_COLLAPSED_HEIGHT : MIN_CARD_HEIGHT
+// In collapsed mode, habits are stacked sequentially (no gaps)
+// We need the habit's index in the sorted list to calculate position
+const getHabitPosition = (
+  habit: HabitWithStatus, 
+  startMins: number, 
+  endMins: number,
+  sortedIndex?: number,
+  totalHabits?: number
+): { top: number, heightPx: number } => {
+  // Collapsed mode: stack habits sequentially
+  if (collapsedMode.value && sortedIndex !== undefined && totalHabits !== undefined) {
+    const top = (sortedIndex / totalHabits) * 100
+    return { top, heightPx: COLLAPSED_CARD_HEIGHT }
+  }
   
-  if (!habit.scheduled_time) return { top: 0, heightPx: minHeight }
+  // Normal mode: position by time
+  if (!habit.scheduled_time) return { top: 0, heightPx: MIN_CARD_HEIGHT }
   
   const habitStart = timeToMinutes(habit.scheduled_time)
-  // Use visual duration (minimum 30 min) for card height in normal mode
-  // In collapsed mode, use smaller cards but still enforce minimum
-  const visualDuration = collapsedMode.value 
-    ? (habit.duration_minutes || 30)
-    : Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
+  const visualDuration = Math.max(habit.duration_minutes || 30, MIN_VISUAL_DURATION)
   const range = endMins - startMins
   
   const top = ((habitStart - startMins) / range) * 100
-  // Height in pixels - always ensure minimum readable height
-  const heightPx = Math.max(visualDuration * timelineScale.value, minHeight)
+  const heightPx = Math.max(visualDuration * timelineScale.value, MIN_CARD_HEIGHT)
   
   return { top, heightPx }
+}
+
+// Calculate container height for collapsed mode
+const getCollapsedContainerHeight = (habitCount: number): number => {
+  return Math.max(100, habitCount * COLLAPSED_CARD_HEIGHT)
 }
 
 // Assign columns to habits to prevent overlap within a sheet
@@ -1154,8 +1167,12 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           <div :class="group.linkedPartials.length > 0 ? 'w-1/2' : 'w-full'">
             <!-- Whole Day Habits - Timeline with time markers and duration-based heights -->
             <div class="flex gap-2 overflow-hidden">
-              <!-- Time markers column -->
-              <div class="w-12 shrink-0 relative overflow-hidden" :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }">
+              <!-- Time markers column (hidden in collapsed mode) -->
+              <div 
+                v-if="!collapsedMode"
+                class="w-12 shrink-0 relative overflow-hidden" 
+                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }"
+              >
                 <div 
                   v-for="hour in group.timeRange.hourMarks" 
                   :key="hour"
@@ -1169,17 +1186,20 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <!-- Habits container with absolute positioning -->
               <div 
                 class="flex-1 relative overflow-hidden"
-                :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }"
+                :style="{ minHeight: collapsedMode 
+                  ? `${getCollapsedContainerHeight(group.wholeDay.columnHabits.length)}px`
+                  : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
+                }"
               >
                 <Card 
-                  v-for="habit in group.wholeDay.columnHabits" 
+                  v-for="(habit, hIdx) in group.wholeDay.columnHabits" 
                   :key="`${habit.id}-${collapsedMode}`"
                   class="absolute group hover:shadow-md transition-all cursor-pointer overflow-hidden"
                   :style="{ 
-                    top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
-                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).heightPx}px`,
-                    left: `${(habit.column / group.wholeDay.columnCount) * 100}%`,
-                    width: `${(1 / group.wholeDay.columnCount) * 100 - 1}%`,
+                    top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, group.wholeDay.columnHabits.length).top}%`,
+                    height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, group.wholeDay.columnHabits.length).heightPx}px`,
+                    left: collapsedMode ? '0' : `${(habit.column / group.wholeDay.columnCount) * 100}%`,
+                    width: collapsedMode ? '100%' : `${(1 / group.wholeDay.columnCount) * 100 - 1}%`,
                     borderLeft: `3px solid ${habit.color || group.wholeDay.color || '#10b981'}`
                   }"
                   @click="openEditModal(habit)"
@@ -1267,17 +1287,20 @@ const completeAllInInventory = async (inventoryId: string | null) => {
 
           <!-- Partial Habits - Aligned with whole day timeline (no separate time markers) -->
           <div class="relative" v-if="partial.columnHabits && partial.columnHabits.length > 0"
-            :style="{ minHeight: `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` }"
+            :style="{ minHeight: collapsedMode 
+              ? `${getCollapsedContainerHeight(partial.columnHabits.length)}px`
+              : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
+            }"
           >
               <Card 
-                v-for="habit in partial.columnHabits" 
+                v-for="(habit, hIdx) in partial.columnHabits" 
                 :key="`${habit.id}-${collapsedMode}`"
                 class="absolute group hover:shadow-sm transition-all cursor-pointer overflow-hidden"
                 :style="{ 
-                  top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).top}%`,
-                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins).heightPx}px`,
-                  left: `${(habit.column / partial.columnCount) * 100}%`,
-                  width: `${(1 / partial.columnCount) * 100 - 1}%`,
+                  top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, partial.columnHabits.length).top}%`,
+                  height: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx, partial.columnHabits.length).heightPx}px`,
+                  left: collapsedMode ? '0' : `${(habit.column / partial.columnCount) * 100}%`,
+                  width: collapsedMode ? '100%' : `${(1 / partial.columnCount) * 100 - 1}%`,
                   borderLeft: `2px solid ${habit.color || partial.color || '#10b981'}`
                 }"
                 @click="openEditModal(habit)"
