@@ -370,9 +370,11 @@ const getTimelineRange = (habits: HabitWithStatus[]): { startMins: number, endMi
 // Top is percentage-based for positioning, height is pixel-based for consistent sizing
 // MIN_VISUAL_DURATION ensures short habits have readable cards and proper overlap detection
 const MIN_VISUAL_DURATION = 30 // minutes - short habits are treated as if they were this long
-const COLLAPSED_CARD_HEIGHT = 40 // Fixed height for each card in collapsed mode
+const COLLAPSED_CARD_HEIGHT = 34 // Height of each card in collapsed mode
+const COLLAPSED_CARD_GAP = 4 // Gap between cards in collapsed mode
+const COLLAPSED_ROW_HEIGHT = COLLAPSED_CARD_HEIGHT + COLLAPSED_CARD_GAP // Total row height
 
-// In collapsed mode, habits are stacked sequentially (no gaps)
+// In collapsed mode, habits are stacked sequentially with gaps
 // Returns topPx for collapsed mode (pixel positioning) or top for expanded mode (percentage)
 const getHabitPosition = (
   habit: HabitWithStatus, 
@@ -382,7 +384,7 @@ const getHabitPosition = (
 ): { top: number, topPx: number, heightPx: number } => {
   // Collapsed mode: stack habits sequentially using pixel positioning
   if (collapsedMode.value && sortedIndex !== undefined) {
-    const topPx = sortedIndex * COLLAPSED_CARD_HEIGHT
+    const topPx = sortedIndex * COLLAPSED_ROW_HEIGHT
     return { top: 0, topPx, heightPx: COLLAPSED_CARD_HEIGHT }
   }
   
@@ -401,7 +403,7 @@ const getHabitPosition = (
 
 // Calculate container height for collapsed mode
 const getCollapsedContainerHeight = (habitCount: number): number => {
-  return Math.max(100, habitCount * COLLAPSED_CARD_HEIGHT)
+  return Math.max(100, habitCount * COLLAPSED_ROW_HEIGHT)
 }
 
 // Assign columns to habits to prevent overlap within a sheet
@@ -1132,38 +1134,38 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         :key="'timeline-' + gIdx"
         class="flex flex-col gap-2"
       >
-        <!-- Full-width header for the whole group -->
-        <div class="flex items-center gap-2 group/header">
-          <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: group.wholeDay.color || '#10b981' }" />
-          <h3 class="font-semibold">{{ group.wholeDay.name }}</h3>
-          <Badge variant="secondary" class="text-xs">Whole Day</Badge>
-          <span class="text-xs text-muted-foreground">({{ group.wholeDay.habits.length }})</span>
-          <span class="text-xs text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} / {{ formatDuration(group.wholeDay.timeAvailable) }}</span>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            class="h-6 w-6 opacity-0 group-hover/header:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-            @click.stop="handleDeleteInventory(group.wholeDay.id)"
-            title="Delete habit sheet"
-          >
-            <Trash2 class="h-3.5 w-3.5" />
-          </Button>
-          <Button 
-            v-if="group.wholeDay.habits.some((h: any) => !h.completed_today)"
-            variant="ghost" 
-            size="sm" 
-            class="ml-auto h-6 text-xs px-2"
-            @click="completeAllInInventory(group.wholeDay.id)"
-          >
-            <CheckCircle2 class="h-3 w-3 mr-1" />
-            Complete All
-          </Button>
-        </div>
-
-        <!-- Side-by-Side Container: Whole Day (left) + Partial Days (right) -->
+        <!-- Side-by-Side Container: Headers + Timelines -->
         <div class="flex gap-4">
           <!-- Left: Whole Day Sheet (50% width, or full width if no linked partials) -->
           <div :class="group.linkedPartials.length > 0 ? 'w-1/2' : 'w-full'">
+            <!-- Whole Day Header -->
+            <div class="flex items-center gap-2 mb-2 group/header">
+              <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: group.wholeDay.color || '#10b981' }" />
+              <h3 class="font-semibold">{{ group.wholeDay.name }}</h3>
+              <Badge variant="secondary" class="text-xs">Whole Day</Badge>
+              <span class="text-xs text-muted-foreground">({{ group.wholeDay.habits.length }})</span>
+              <span class="text-xs text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} / {{ formatDuration(group.wholeDay.timeAvailable) }}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                class="h-6 w-6 opacity-0 group-hover/header:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                @click.stop="handleDeleteInventory(group.wholeDay.id)"
+                title="Delete habit sheet"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </Button>
+              <Button 
+                v-if="group.wholeDay.habits.some((h: any) => !h.completed_today)"
+                variant="ghost" 
+                size="sm" 
+                class="ml-auto h-6 text-xs px-2"
+                @click="completeAllInInventory(group.wholeDay.id)"
+              >
+                <CheckCircle2 class="h-3 w-3 mr-1" />
+                Complete All
+              </Button>
+            </div>
+            
             <!-- Whole Day Habits - Timeline with time markers and duration-based heights -->
             <div class="flex gap-2 overflow-hidden">
               <!-- Time markers column -->
@@ -1207,7 +1209,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   }"
                   @click="openEditModal(habit)"
                 >
-                  <CardContent class="p-1.5 h-full">
+                  <CardContent class="p-2 h-full">
                     <div class="flex items-start gap-1.5 h-full">
                       <button @click.stop="handleToggleComplete(habit)" class="shrink-0 mt-0.5">
                         <div 
@@ -1256,17 +1258,17 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           </div>
 
           <!-- Right: Linked Partial-Day Inventories (50% width, stacked vertically) -->
-          <div v-if="group.linkedPartials.length > 0" class="w-1/2 flex flex-col gap-3 pl-3 border-l-2 border-dashed border-border/50">
+          <div v-if="group.linkedPartials.length > 0" class="w-1/2 flex flex-col gap-3">
             <div 
               v-for="partial in group.linkedPartials" 
               :key="partial.id"
             >
-          <!-- Partial Inventory Header -->
-          <div class="flex items-center gap-2 mb-2 group/partialheader">
-            <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
-            <h3 class="font-semibold">{{ partial.name }}</h3>
-            <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
-            <span class="text-xs text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} / {{ formatDuration(partial.timeAvailable) }}</span>
+              <!-- Partial Inventory Header (same style as Whole Day) -->
+              <div class="flex items-center gap-2 mb-2 group/partialheader">
+                <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: partial.color || '#10b981' }" />
+                <h3 class="font-semibold">{{ partial.name }}</h3>
+                <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
+                <span class="text-xs text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} / {{ formatDuration(partial.timeAvailable) }}</span>
             <Button 
               variant="ghost" 
               size="icon" 
@@ -1310,7 +1312,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 }"
                 @click="openEditModal(habit)"
               >
-                <CardContent class="p-1 h-full">
+                <CardContent class="p-2 h-full">
                   <div class="flex items-start gap-1 h-full">
                     <button @click.stop="handleToggleComplete(habit)" class="shrink-0">
                       <div 
