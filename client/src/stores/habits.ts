@@ -46,8 +46,8 @@ export const useHabitsStore = defineStore('habits', () => {
 
   const filterTags = ref<string[]>([])
 
-  async function fetchHabits() {
-    loading.value = true
+  async function fetchHabits(silent = false) {
+    if (!silent) loading.value = true
     try {
       const response = await api.listHabits({
         tag_ids: filterTags.value.length > 0 ? filterTags.value : undefined,
@@ -55,7 +55,7 @@ export const useHabitsStore = defineStore('habits', () => {
       })
       habits.value = response.data as HabitWithStatus[]
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 

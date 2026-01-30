@@ -1127,7 +1127,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         variant="ghost" 
         size="icon" 
         class="h-7 w-7"
-        @click="habitsStore.goToPreviousDay(); habitsStore.fetchHabits()"
+        @click="habitsStore.goToPreviousDay(); habitsStore.fetchHabits(true)"
       >
         <ChevronLeft class="h-4 w-4" />
       </Button>
@@ -1139,7 +1139,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         variant="ghost" 
         size="icon" 
         class="h-7 w-7"
-        @click="habitsStore.goToNextDay(); habitsStore.fetchHabits()"
+        @click="habitsStore.goToNextDay(); habitsStore.fetchHabits(true)"
       >
         <ChevronRight class="h-4 w-4" />
       </Button>
@@ -1148,7 +1148,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         variant="outline" 
         size="sm" 
         class="h-7 text-xs ml-2"
-        @click="habitsStore.goToToday(); habitsStore.fetchHabits()"
+        @click="habitsStore.goToToday(); habitsStore.fetchHabits(true)"
       >
         Today
       </Button>
