@@ -342,23 +342,50 @@ const getHabitPosition = (habit: HabitWithStatus, startMins: number, endMins: nu
   return { top, heightPx }
 }
 
-// Assign columns to habits - single column layout (no horizontal overlap)
-// Returns habits with column assignment and total column count
+// Assign columns to habits to prevent overlap within a sheet
+// Uses greedy algorithm: assigns each habit to the first available column
 type HabitWithColumn = HabitWithStatus & { column: number }
 const assignColumnsToHabits = (habits: HabitWithStatus[]): { habits: HabitWithColumn[], columnCount: number } => {
   if (habits.length === 0) return { habits: [], columnCount: 1 }
   
-  // Sort by start time
+  // Sort by start time, then by duration (longer first for better packing)
   const sorted = [...habits].sort((a, b) => {
     const aStart = a.scheduled_time ? timeToMinutes(a.scheduled_time) : 0
     const bStart = b.scheduled_time ? timeToMinutes(b.scheduled_time) : 0
-    return aStart - bStart
+    if (aStart !== bStart) return aStart - bStart
+    return (b.duration_minutes || 30) - (a.duration_minutes || 30)
   })
   
-  // All habits in single column - no horizontal splitting
-  const result: HabitWithColumn[] = sorted.map(habit => ({ ...habit, column: 0 }))
+  // Track end times for each column
+  const columnEnds: number[] = []
+  const result: HabitWithColumn[] = []
   
-  return { habits: result, columnCount: 1 }
+  for (const habit of sorted) {
+    const habitStart = habit.scheduled_time ? timeToMinutes(habit.scheduled_time) : 0
+    const habitEnd = habitStart + (habit.duration_minutes || 30)
+    
+    // Find first column where this habit fits (no overlap)
+    let assignedColumn = -1
+    for (let col = 0; col < columnEnds.length; col++) {
+      if (columnEnds[col] <= habitStart) {
+        assignedColumn = col
+        break
+      }
+    }
+    
+    // If no existing column fits, create a new one
+    if (assignedColumn === -1) {
+      assignedColumn = columnEnds.length
+      columnEnds.push(0)
+    }
+    
+    // Update column end time
+    columnEnds[assignedColumn] = habitEnd
+    
+    result.push({ ...habit, column: assignedColumn })
+  }
+  
+  return { habits: result, columnCount: Math.max(columnEnds.length, 1) }
 }
 
 // Group whole-day inventories with their linked partial-day sheets
