@@ -1304,13 +1304,48 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             </Button>
           </div>
 
-          <!-- Partial Habits - Aligned with whole day timeline (no separate time markers) -->
-          <div class="relative" v-if="partial.columnHabits && partial.columnHabits.length > 0"
-            :style="{ minHeight: collapsedMode 
-              ? `${getCollapsedContainerHeight(partial.columnHabits.length)}px`
-              : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
-            }"
-          >
+              <!-- Partial Habits - Timeline with time markers -->
+              <div class="flex gap-2 overflow-hidden" v-if="partial.columnHabits && partial.columnHabits.length > 0">
+                <!-- Time markers column for partial -->
+                <div 
+                  class="w-12 shrink-0 relative overflow-hidden" 
+                  :style="{ minHeight: collapsedMode 
+                    ? `${getCollapsedContainerHeight(partial.columnHabits.length)}px`
+                    : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
+                  }"
+                >
+                  <!-- Expanded mode: show continuous hour marks -->
+                  <template v-if="!collapsedMode">
+                    <div 
+                      v-for="hour in group.timeRange.hourMarks" 
+                      :key="hour"
+                      class="absolute left-0 right-0 text-[10px] text-muted-foreground border-t border-border/30"
+                      :style="{ top: `${((hour - group.timeRange.startMins) / (group.timeRange.endMins - group.timeRange.startMins)) * 100}%` }"
+                    >
+                      {{ minutesToTimeStr(hour).slice(0, 5) }}
+                    </div>
+                  </template>
+                  <!-- Collapsed mode: show habit times at their positions -->
+                  <template v-else>
+                    <div 
+                      v-for="(habit, hIdx) in partial.columnHabits" 
+                      :key="habit.id"
+                      class="absolute left-0 right-0 text-[10px] text-muted-foreground"
+                      :style="{ top: `${getHabitPosition(habit, group.timeRange.startMins, group.timeRange.endMins, hIdx).topPx}px`, height: `${COLLAPSED_ROW_HEIGHT}px`, display: 'flex', alignItems: 'center' }"
+                    >
+                      {{ habit.scheduled_time ? habit.scheduled_time.slice(0, 5) : '' }}
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Habits container -->
+                <div 
+                  class="flex-1 relative overflow-hidden"
+                  :style="{ minHeight: collapsedMode 
+                    ? `${getCollapsedContainerHeight(partial.columnHabits.length)}px`
+                    : `${Math.max(200, (group.timeRange.endMins - group.timeRange.startMins) * timelineScale)}px` 
+                  }"
+                >
               <Card 
                 v-for="(habit, hIdx) in partial.columnHabits" 
                 :key="`${habit.id}-${collapsedMode}`"
@@ -1347,8 +1382,9 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                   </div>
                 </CardContent>
               </Card>
-          </div>
-        </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
