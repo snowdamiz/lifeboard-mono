@@ -172,6 +172,9 @@ const savedSettings = loadTimelineSettings()
 const timelineScale = ref(savedSettings.scale)
 const collapsedMode = ref(savedSettings.collapsed)
 
+// Toggle for showing only habits scheduled for the selected day vs all habits
+const showScheduledOnly = ref(true)
+
 // Watch for setting changes and persist
 watch([timelineScale, collapsedMode], () => {
   saveTimelineSettings()
@@ -617,8 +620,25 @@ const inventoriesWithHabits = computed(() => {
     return groups
   }
 
+  // Get day of week from selected date (0 = Sunday, 6 = Saturday)
+  const selectedDayOfWeek = computed(() => {
+    const date = new Date(habitsStore.selectedDate + 'T00:00:00')
+    return date.getDay()
+  })
+
+  // Filter habits based on showScheduledOnly toggle
+  const filterHabitsByDay = (habits: typeof habitsStore.habits) => {
+    if (!showScheduledOnly.value) return habits
+    return habits.filter(h => {
+      // If habit has no days_of_week set, show it always
+      if (!h.days_of_week || h.days_of_week.length === 0) return true
+      // Otherwise check if the selected day is in the habit's scheduled days
+      return h.days_of_week.includes(selectedDayOfWeek.value)
+    })
+  }
+
   const inventories = habitsStore.habitInventories.map(inv => {
-    const invHabits = habitsStore.habits.filter(h => h.inventory_id === inv.id)
+    const invHabits = filterHabitsByDay(habitsStore.habits.filter(h => h.inventory_id === inv.id))
     sortHabits(invHabits)
     const groupedHabits = groupByTimeSlot(invHabits)
     const totalPlanned = calculateTotalDuration(invHabits)
@@ -633,7 +653,7 @@ const inventoriesWithHabits = computed(() => {
   })
   
   // Also include unassigned habits
-  const unassignedHabits = habitsStore.habits.filter(h => !h.inventory_id)
+  const unassignedHabits = filterHabitsByDay(habitsStore.habits.filter(h => !h.inventory_id))
   sortHabits(unassignedHabits)
   const unassignedGrouped = groupByTimeSlot(unassignedHabits)
   
@@ -1193,6 +1213,15 @@ const completeAllInInventory = async (inventoryId: string | null) => {
         @click="collapsedMode = !collapsedMode"
       >
         {{ collapsedMode ? 'Expanded' : 'Collapsed' }}
+      </Button>
+      <div class="w-px h-4 bg-border mx-1" />
+      <Button 
+        :variant="showScheduledOnly ? 'default' : 'outline'" 
+        size="sm" 
+        class="h-6 text-xs"
+        @click="showScheduledOnly = !showScheduledOnly"
+      >
+        {{ showScheduledOnly ? 'This Day' : 'All Days' }}
       </Button>
     </div>
 
