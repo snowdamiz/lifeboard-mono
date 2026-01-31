@@ -950,15 +950,25 @@ const toggleInventoryColorPicker = (inventoryId: string) => {
   editingInventoryColorId.value = editingInventoryColorId.value === inventoryId ? null : inventoryId
 }
 
-const completeAllInInventory = async (inventoryId: string | null) => {
-  const habitIds = habitsStore.habits
-    .filter(h => h.inventory_id === inventoryId && !h.completed_today)
-    .map(h => h.id)
+// Check if all habits in an inventory are completed
+const allInventoryHabitsCompleted = (inventoryId: string | null): boolean => {
+  const habits = habitsStore.habits.filter(h => h.inventory_id === inventoryId)
+  return habits.length > 0 && habits.every(h => h.completed_today)
+}
+
+const toggleAllInInventory = async (inventoryId: string | null) => {
+  const inventoryHabits = habitsStore.habits.filter(h => h.inventory_id === inventoryId)
   
-  if (habitIds.length > 0) {
-    // Complete each habit sequentially
-    for (const id of habitIds) {
-      await habitsStore.completeHabit(id)
+  if (allInventoryHabitsCompleted(inventoryId)) {
+    // Uncomplete all habits
+    for (const habit of inventoryHabits) {
+      await habitsStore.uncompleteHabit(habit.id)
+    }
+  } else {
+    // Complete all pending habits
+    const pending = inventoryHabits.filter(h => !h.completed_today)
+    for (const habit of pending) {
+      await habitsStore.completeHabit(habit.id)
     }
   }
 }
@@ -1288,14 +1298,14 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                 <Trash2 class="h-3.5 w-3.5" />
               </Button>
               <Button 
-                v-if="group.wholeDay.habits.some((h: any) => !h.completed_today)"
-                variant="ghost" 
+                v-if="group.wholeDay.habits.length > 0"
+                :variant="allInventoryHabitsCompleted(group.wholeDay.id) ? 'default' : 'outline'" 
                 size="sm" 
-                class="ml-auto h-6 text-xs px-2"
-                @click="completeAllInInventory(group.wholeDay.id)"
+                class="ml-auto gap-1 text-xs"
+                @click="toggleAllInInventory(group.wholeDay.id)"
               >
-                <CheckCircle2 class="h-3 w-3 mr-1" />
-                Complete All
+                <CheckCircle2 class="h-3 w-3" />
+                {{ allInventoryHabitsCompleted(group.wholeDay.id) ? 'Uncomplete All' : 'Complete All' }}
               </Button>
             </div>
             
@@ -1427,14 +1437,14 @@ const completeAllInInventory = async (inventoryId: string | null) => {
               <Trash2 class="h-3.5 w-3.5" />
             </Button>
             <Button 
-              v-if="partial.habits.some((h: any) => !h.completed_today)"
-              variant="ghost" 
+              v-if="partial.habits.length > 0"
+              :variant="allInventoryHabitsCompleted(partial.id) ? 'default' : 'outline'" 
               size="sm" 
-              class="ml-auto h-6 text-xs px-2"
-              @click="completeAllInInventory(partial.id)"
+              class="ml-auto gap-1 text-xs"
+              @click="toggleAllInInventory(partial.id)"
             >
-              <CheckCircle2 class="h-3 w-3 mr-1" />
-              Complete All
+              <CheckCircle2 class="h-3 w-3" />
+              {{ allInventoryHabitsCompleted(partial.id) ? 'Uncomplete All' : 'Complete All' }}
             </Button>
           </div>
 
@@ -1577,14 +1587,14 @@ const completeAllInInventory = async (inventoryId: string | null) => {
             </template>
           </Badge>
           <Button 
-            v-if="inv.habits.some((h: any) => !h.completed_today)"
-            variant="ghost" 
+            v-if="inv.habits.length > 0"
+            :variant="allInventoryHabitsCompleted(inv.id) ? 'default' : 'outline'" 
             size="sm" 
-            class="ml-auto h-6 text-xs px-2"
-            @click="completeAllInInventory(inv.id)"
+            class="ml-auto gap-1 text-xs"
+            @click="toggleAllInInventory(inv.id)"
           >
-            <CheckCircle2 class="h-3 w-3 mr-1" />
-            Complete All
+            <CheckCircle2 class="h-3 w-3" />
+            {{ allInventoryHabitsCompleted(inv.id) ? 'Uncomplete All' : 'Complete All' }}
           </Button>
         </div>
 
@@ -1681,14 +1691,14 @@ const completeAllInInventory = async (inventoryId: string | null) => {
           <h3 class="font-semibold text-sm text-muted-foreground">Unassigned</h3>
           <span class="text-xs text-muted-foreground">({{ inventoriesWithHabits.unassignedHabits.length }})</span>
           <Button 
-            v-if="inventoriesWithHabits.unassignedHabits.some(h => !h.completed_today)"
-            variant="ghost" 
+            v-if="inventoriesWithHabits.unassignedHabits.length > 0"
+            :variant="allInventoryHabitsCompleted(null) ? 'default' : 'outline'" 
             size="sm" 
-            class="ml-auto h-6 text-xs px-2"
-            @click="completeAllInInventory(null)"
+            class="ml-auto gap-1 text-xs"
+            @click="toggleAllInInventory(null)"
           >
-            <CheckCircle2 class="h-3 w-3 mr-1" />
-            Complete All
+            <CheckCircle2 class="h-3 w-3" />
+            {{ allInventoryHabitsCompleted(null) ? 'Uncomplete All' : 'Complete All' }}
           </Button>
         </div>
 
