@@ -770,7 +770,7 @@ const handleUpdateHabit = async () => {
     description: editingHabit.value.description,
     frequency: editingHabit.value.frequency,
     color: editingHabit.value.color,
-    days_of_week: editingHabit.value.frequency === 'weekly' ? editingHabit.value.days_of_week : null,
+    days_of_week: editingHabit.value.days_of_week || [],
     scheduled_time: editingHabit.value.scheduled_time || null,
     duration_minutes: editingHabit.value.duration_minutes || null,
     is_start_of_day: editingHabit.value.is_start_of_day,
