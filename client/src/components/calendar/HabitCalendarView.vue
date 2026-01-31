@@ -5,7 +5,7 @@ import {
   startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, 
   addWeeks, subWeeks, addDays, subDays, parseISO, startOfDay
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Ban, Calendar as CalendarIcon, Edit2, CheckSquare, Square } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Ban, Calendar as CalendarIcon, Edit2, CheckSquare, Square, Pin } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +23,9 @@ const currentDate = ref(new Date())
 // Selection mode state
 const selectionMode = ref(false)
 const selectedHabitIds = ref<Set<string>>(new Set())
+
+// Pin today to top state
+const pinTodayToTop = ref(false)
 
 // Toggle selection mode
 const toggleSelectionMode = () => {
@@ -92,6 +95,25 @@ const sortHabitsByTime = (habits: HabitWithStatus[]): HabitWithStatus[] => {
   })
 }
 
+// Format time as readable (e.g., "9:00am")
+const formatTimeReadable = (timeStr: string | null): string => {
+  if (!timeStr) return 'Anytime'
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  const period = hours >= 12 ? 'pm' : 'am'
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+  return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`
+}
+
+// Format duration in minutes as "Xh Ym" when >= 60, or "Xm" when < 60
+const formatDuration = (minutes: number | null): string => {
+  if (!minutes || minutes <= 0) return ''
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (mins === 0) return `${hours}h`
+  return `${hours}h ${mins}m`
+}
+
 // Calculate calendar ranges
 const monthStart = computed(() => startOfMonth(currentDate.value))
 const monthEnd = computed(() => endOfMonth(currentDate.value))
@@ -109,9 +131,23 @@ const calendarDays = computed(() => {
   }
 })
 
-const weekDays = computed(() => 
-  eachDayOfInterval({ start: weekStart.value, end: weekEnd.value })
-)
+const weekDays = computed(() => {
+  const days = eachDayOfInterval({ start: weekStart.value, end: weekEnd.value })
+  
+  // If pin today is enabled and today is in the current week, move it to the top
+  if (pinTodayToTop.value) {
+    const today = new Date()
+    const todayIndex = days.findIndex(d => isToday(d))
+    if (todayIndex > 0) {
+      // Move today to the front
+      const todayDay = days[todayIndex]
+      const reordered = [todayDay, ...days.slice(0, todayIndex), ...days.slice(todayIndex + 1)]
+      return reordered
+    }
+  }
+  
+  return days
+})
 
 // Navigation
 const goToPrevious = () => {
@@ -231,6 +267,18 @@ onMounted(() => {
         {{ selectionMode ? 'Exit Selection' : 'Select Mode' }}
       </Button>
       
+      <!-- Pin today toggle (only in week view) -->
+      <Button 
+        v-if="viewMode === 'week'"
+        :variant="pinTodayToTop ? 'default' : 'outline'" 
+        size="sm" 
+        @click="pinTodayToTop = !pinTodayToTop"
+        class="gap-1.5"
+      >
+        <Pin class="h-4 w-4" />
+        {{ pinTodayToTop ? 'Unpin Today' : 'Pin Today' }}
+      </Button>
+      
       <template v-if="selectionMode">
         <Button variant="outline" size="sm" @click="selectAllToday">
           Select All Pending
@@ -325,12 +373,12 @@ onMounted(() => {
           <Badge v-if="isToday(day)" variant="default">Today</Badge>
         </div>
 
-        <!-- Habits for this day -->
         <div class="space-y-2">
           <div
             v-for="habit in habitsForDay(day)"
             :key="habit.id"
-            class="flex items-center gap-3 p-3 rounded-lg bg-card border border-border/50 group hover:bg-accent/30 transition-colors"
+            class="flex items-center gap-2 p-2 rounded-lg bg-card border border-border/50 group hover:shadow-md transition-all cursor-pointer"
+            :style="{ borderLeft: `3px solid ${habit.color || '#10b981'}` }"
           >
             <!-- Selection checkbox (only for today) -->
             <button
@@ -339,10 +387,10 @@ onMounted(() => {
               class="flex-shrink-0 focus:outline-none"
             >
               <div 
-                class="h-6 w-6 rounded border-2 flex items-center justify-center transition-all"
-                :class="selectedHabitIds.has(habit.id) ? 'bg-primary border-primary' : 'border-muted-foreground/30 hover:border-muted-foreground/50'"
+                class="h-4 w-4 rounded flex items-center justify-center transition-all"
+                :class="selectedHabitIds.has(habit.id) ? 'bg-primary' : 'border-2 border-dashed border-muted-foreground/30'"
               >
-                <CheckCircle2 v-if="selectedHabitIds.has(habit.id)" class="h-4 w-4 text-primary-foreground" />
+                <CheckCircle2 v-if="selectedHabitIds.has(habit.id)" class="h-2.5 w-2.5 text-primary-foreground" />
               </div>
             </button>
 
@@ -353,39 +401,31 @@ onMounted(() => {
               class="flex-shrink-0 focus:outline-none"
             >
               <div 
-                class="h-8 w-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                v-if="habit.completed_today"
+                class="h-4 w-4 rounded flex items-center justify-center"
                 :style="{ backgroundColor: habit.color + '20' }"
               >
-                <CheckCircle2 
-                  v-if="habit.completed_today"
-                  class="h-4 w-4"
-                  :style="{ color: habit.color }"
-                />
-                <Circle 
-                  v-else
-                  class="h-4 w-4 text-muted-foreground hover:text-foreground"
-                />
+                <CheckCircle2 class="h-2.5 w-2.5" :style="{ color: habit.color }" />
+              </div>
+              <div v-else class="h-4 w-4 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50">
+                <Circle class="h-2.5 w-2.5 text-muted-foreground/30" />
               </div>
             </button>
 
             <!-- Static status icon (for non-today days) -->
             <div 
               v-if="!isToday(day)"
-              class="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
+              class="h-4 w-4 rounded flex items-center justify-center flex-shrink-0"
               :style="{ backgroundColor: habit.color + '20' }"
             >
-              <Circle class="h-4 w-4 text-muted-foreground" />
+              <Circle class="h-2.5 w-2.5 text-muted-foreground" />
             </div>
 
             <div class="flex-1 min-w-0">
-              <p class="font-medium text-sm" :class="habit.completed_today && isToday(day) && 'line-through text-muted-foreground'">{{ habit.name }}</p>
-              <div class="flex items-center gap-2 mt-0.5">
-                <Badge v-if="habit.scheduled_time" variant="secondary" class="text-xs">
-                  {{ habit.scheduled_time }}
-                </Badge>
-                <Badge v-if="habit.duration_minutes" variant="secondary" class="text-xs">
-                  {{ habit.duration_minutes }}min
-                </Badge>
+              <h4 :class="['text-xs font-medium truncate', habit.completed_today && isToday(day) && 'line-through text-muted-foreground']">{{ habit.name }}</h4>
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] text-foreground/80">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                <span v-if="habit.duration_minutes" class="text-[9px] text-foreground/80">· {{ formatDuration(habit.duration_minutes) }}</span>
               </div>
             </div>
 
@@ -394,26 +434,18 @@ onMounted(() => {
               v-if="isToday(day) && !selectionMode"
               variant="ghost" 
               size="icon" 
-              class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+              class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
               @click="emit('edit', habit)"
             >
-              <Edit2 class="h-3.5 w-3.5" />
+              <Edit2 class="h-3 w-3" />
             </Button>
-
-            <Badge 
-              v-if="isToday(day) && habit.completed_today && !selectionMode" 
-              variant="default"
-              class="text-xs"
-            >
-              Done
-            </Badge>
           </div>
 
           <div 
             v-if="habitsForDay(day).length === 0"
-            class="text-center py-8 text-muted-foreground text-sm"
+            class="text-center py-4 text-muted-foreground text-sm"
           >
-            No habits scheduled for this day
+            No habits scheduled
           </div>
         </div>
       </div>
