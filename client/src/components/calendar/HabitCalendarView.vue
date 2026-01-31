@@ -252,6 +252,22 @@ onMounted(() => {
           {{ viewMode === 'day' ? 'Week' : viewMode === 'week' ? 'Month' : 'Day' }}
         </Button>
       </div>
+      
+      <!-- Legend inline -->
+      <div class="flex items-center gap-3 text-xs border-l border-border pl-3 ml-2">
+        <div class="flex items-center gap-1">
+          <CheckCircle2 class="h-3 w-3 text-primary" />
+          <span class="text-muted-foreground">Completed</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <Circle class="h-3 w-3 text-muted-foreground" />
+          <span class="text-muted-foreground">Pending</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <Ban class="h-3 w-3 text-muted-foreground" />
+          <span class="text-muted-foreground">Skipped</span>
+        </div>
+      </div>
     </div>
 
     <!-- Selection Mode Toolbar -->
@@ -596,25 +612,6 @@ onMounted(() => {
       </Card>
     </div>
 
-    <!-- Legend -->
-    <Card>
-      <CardContent class="p-4">
-        <h3 class="font-medium text-sm mb-3">Legend</h3>
-        <div class="flex flex-wrap gap-4 text-sm">
-          <div class="flex items-center gap-2">
-            <CheckCircle2 class="h-4 w-4 text-primary" />
-            <span class="text-muted-foreground">Completed</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <Circle class="h-4 w-4 text-muted-foreground" />
-            <span class="text-muted-foreground">Pending</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <Ban class="h-4 w-4 text-muted-foreground" />
-            <span class="text-muted-foreground">Skipped</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+
   </div>
 </template>
