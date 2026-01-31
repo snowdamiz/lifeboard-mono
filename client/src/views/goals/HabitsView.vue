@@ -275,6 +275,22 @@ const formatTimeForInput = (minutes: number | null | undefined): string => {
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
 }
 
+// Format days of week as short abbreviations (e.g., "M,W,F" or "Weekdays")
+const formatDaysShort = (days: number[]): string => {
+  if (!days || days.length === 0) return ''
+  if (days.length === 7) return 'Daily'
+  
+  // Check for weekdays (Mon-Fri = 1,2,3,4,5)
+  const weekdays = [1, 2, 3, 4, 5]
+  const weekends = [0, 6]
+  if (days.length === 5 && weekdays.every(d => days.includes(d))) return 'Weekdays'
+  if (days.length === 2 && weekends.every(d => days.includes(d))) return 'Weekends'
+  
+  // Otherwise show abbreviated days
+  const dayAbbrevs = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa']
+  return days.sort((a, b) => a - b).map(d => dayAbbrevs[d]).join(',')
+}
+
 // Calculate total time span for a list of habits (earliest start to latest end)
 // This handles overlapping habits correctly by using the actual time span
 const calculateTotalDuration = (habits: HabitWithStatus[]): number => {
@@ -1338,9 +1354,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                       </button>
                       <div class="flex-1 min-w-0 overflow-hidden">
                         <h4 :class="['text-xs font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h4>
-                        <div class="flex items-center gap-1">
+                        <div class="flex items-center gap-1 flex-wrap">
                           <span class="text-[9px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
                           <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">· {{ formatDuration(habit.duration_minutes) }}</span>
+                          <span v-if="!showScheduledOnly && habit.days_of_week && habit.days_of_week.length > 0 && habit.days_of_week.length < 7" class="text-[9px] text-muted-foreground/70">· {{ formatDaysShort(habit.days_of_week) }}</span>
                         </div>
                       </div>
                       <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -1476,9 +1493,10 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                     </button>
                     <div class="flex-1 min-w-0 overflow-hidden">
                       <h4 :class="['text-xs font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h4>
-                      <div class="flex items-center gap-1">
+                      <div class="flex items-center gap-1 flex-wrap">
                         <span class="text-[9px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
                         <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">· {{ formatDuration(habit.duration_minutes) }}</span>
+                        <span v-if="!showScheduledOnly && habit.days_of_week && habit.days_of_week.length > 0 && habit.days_of_week.length < 7" class="text-[9px] text-muted-foreground/70">· {{ formatDaysShort(habit.days_of_week) }}</span>
                       </div>
                     </div>
                     <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
