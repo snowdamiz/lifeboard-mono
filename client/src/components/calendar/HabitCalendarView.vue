@@ -47,7 +47,7 @@ const saveCalendarSettings = () => {
 }
 
 const savedCalendarSettings = loadCalendarSettings()
-const viewMode = ref<'day' | 'week' | 'month'>(savedCalendarSettings.viewMode as 'day' | 'week' | 'month')
+const viewMode = ref<'week' | 'month'>(savedCalendarSettings.viewMode === 'day' ? 'week' : savedCalendarSettings.viewMode as 'week' | 'month')
 const currentDate = ref(new Date())
 
 // Selection mode state
@@ -233,20 +233,17 @@ const goToToday = () => {
   currentDate.value = new Date()
 }
 
-const toggleViewMode = () => {
-  const modes: ('day' | 'week' | 'month')[] = ['day', 'week', 'month']
-  const currentIndex = modes.indexOf(viewMode.value)
-  viewMode.value = modes[(currentIndex + 1) % modes.length]
+// setViewMode replaces toggleViewMode for direct mode selection
+const setViewMode = (mode: 'week' | 'month') => {
+  viewMode.value = mode
 }
 
 // Header text
 const headerText = computed(() => {
   if (viewMode.value === 'month') {
     return format(currentDate.value, 'MMMM yyyy')
-  } else if (viewMode.value === 'week') {
-    return `${format(weekStart.value, 'MMM d')} – ${format(weekEnd.value, 'MMM d, yyyy')}`
   } else {
-    return format(currentDate.value, 'EEEE, MMMM d, yyyy')
+    return `${format(weekStart.value, 'MMM d')} – ${format(weekEnd.value, 'MMM d, yyyy')}`
   }
 })
 
@@ -288,15 +285,17 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
-    <!-- Header with navigation -->
-    <div class="flex items-center justify-between">
+    <!-- Header with navigation - 3-column grid to keep nav centered regardless of date width -->
+    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+      <!-- Left: Date label -->
       <div class="flex items-center gap-3">
-        <div class="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+        <div class="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
           <CalendarIcon class="h-5 w-5 text-primary" />
         </div>
-        <h2 class="text-xl font-semibold">{{ headerText }}</h2>
+        <h2 class="text-xl font-semibold truncate">{{ headerText }}</h2>
       </div>
 
+      <!-- Center: Navigation controls (fixed position) -->
       <div class="flex items-center gap-2">
         <Button variant="outline" size="sm" @click="goToToday">
           Today
@@ -307,13 +306,27 @@ onMounted(() => {
         <Button variant="outline" size="icon" @click="goToNext">
           <ChevronRight class="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" @click="toggleViewMode">
-          {{ viewMode === 'day' ? 'Week' : viewMode === 'week' ? 'Month' : 'Day' }}
-        </Button>
+        <!-- Week/Month Segmented Toggle -->
+        <div class="flex rounded-lg border border-border overflow-hidden">
+          <button 
+            class="px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-accent'"
+            @click="setViewMode('week')"
+          >
+            Week
+          </button>
+          <button 
+            class="px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="viewMode === 'month' ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-accent'"
+            @click="setViewMode('month')"
+          >
+            Month
+          </button>
+        </div>
       </div>
       
-      <!-- Legend inline -->
-      <div class="flex items-center gap-3 text-xs border-l border-border pl-3 ml-2">
+      <!-- Right: Legend (aligned to end) -->
+      <div class="flex items-center gap-3 text-xs justify-end">
         <div class="flex items-center gap-1">
           <CheckCircle2 class="h-3 w-3 text-primary" />
           <span class="text-muted-foreground">Completed</span>
@@ -547,151 +560,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Day View - Detailed Timeline -->
-    <div v-if="viewMode === 'day'" class="space-y-3">
-      <Card>
-        <CardContent class="p-6">
-          <div class="mb-4">
-            <Badge v-if="isToday(currentDate)" variant="default" class="mb-2">Today</Badge>
-            <h3 class="font-semibold text-lg">{{ format(currentDate, 'EEEE, MMMM d, yyyy') }}</h3>
-            <p class="text-sm text-muted-foreground mt-1">
-              {{ habitsForDay(currentDate).length }} habit{{ habitsForDay(currentDate).length !== 1 ? 's' : '' }} scheduled
-            </p>
-          </div>
-
-          <!-- Timeline of habits sorted by time -->
-          <div class="space-y-2">
-            <div
-              v-for="habit in habitsForDay(currentDate)"
-              :key="habit.id"
-              class="flex items-start gap-4 p-4 rounded-lg border transition-colors hover:bg-accent group"
-              :class="isToday(currentDate) && habit.completed_today && 'bg-accent/50 border-primary/30'"
-            >
-              <!-- Time column -->
-              <div class="w-20 flex-shrink-0 text-right">
-                <div class="text-sm font-medium" :class="habit.scheduled_time ? 'text-foreground' : 'text-muted-foreground'">
-                  {{ habit.scheduled_time || 'Anytime' }}
-                </div>
-                <div v-if="habit.duration_minutes" class="text-xs text-muted-foreground mt-0.5">
-                  {{ habit.duration_minutes }}min
-                </div>
-              </div>
-
-              <!-- Selection checkbox (only for today in day view) -->
-              <button
-                v-if="selectionMode && isToday(currentDate)"
-                @click="toggleHabitSelection(habit.id)"
-                class="flex-shrink-0 pt-1 focus:outline-none"
-              >
-                <div 
-                  class="h-8 w-8 rounded border-2 flex items-center justify-center transition-all"
-                  :class="selectedHabitIds.has(habit.id) ? 'bg-primary border-primary' : 'border-muted-foreground/30 hover:border-muted-foreground/50'"
-                >
-                  <CheckCircle2 v-if="selectedHabitIds.has(habit.id)" class="h-5 w-5 text-primary-foreground" />
-                </div>
-              </button>
-
-              <!-- Clickable status indicator (only for today) -->
-              <button
-                v-if="isToday(currentDate) && !selectionMode"
-                @click="handleToggleComplete(habit)"
-                class="flex-shrink-0 pt-1 focus:outline-none"
-              >
-                <div 
-                  class="h-10 w-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                  :style="{ backgroundColor: habit.color + '20' }"
-                >
-                  <CheckCircle2 
-                    v-if="habit.completed_today"
-                    class="h-5 w-5"
-                    :style="{ color: habit.color }"
-                  />
-                  <Circle 
-                    v-else
-                    class="h-5 w-5 text-muted-foreground hover:text-foreground"
-                  />
-                </div>
-              </button>
-
-              <!-- Static status indicator (for non-today) -->
-              <div 
-                v-if="!isToday(currentDate)"
-                class="flex-shrink-0 pt-1"
-              >
-                <div 
-                  class="h-10 w-10 rounded-full flex items-center justify-center"
-                  :style="{ backgroundColor: habit.color + '20' }"
-                >
-                  <Circle class="h-5 w-5 text-muted-foreground" />
-                </div>
-              </div>
-
-              <!-- Habit info -->
-              <div class="flex-1 min-w-0 pt-1">
-                <h4 class="font-medium" :class="habit.completed_today && isToday(currentDate) && 'line-through text-muted-foreground'">
-                  {{ habit.name }}
-                </h4>
-                <p v-if="habit.description" class="text-sm text-muted-foreground mt-0.5">
-                  {{ habit.description }}
-                </p>
-                
-                <!-- Tags -->
-                <div v-if="habit.tags && habit.tags.length > 0" class="flex flex-wrap gap-1.5 mt-2">
-                  <Badge 
-                    v-for="tag in habit.tags.slice(0, 5)" 
-                    :key="tag.id"
-                    variant="secondary"
-                    class="text-xs"
-                  >
-                    <div 
-                      class="h-2 w-2 rounded-full mr-1.5" 
-                      :style="{ backgroundColor: tag.color }"
-                    />
-                    {{ tag.name }}
-                  </Badge>
-                </div>
-              </div>
-
-              <!-- Edit button (only for today, shows on hover) -->
-              <Button 
-                v-if="isToday(currentDate) && !selectionMode"
-                variant="ghost" 
-                size="icon" 
-                class="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                @click="emit('edit', habit)"
-              >
-                <Edit2 class="h-4 w-4" />
-              </Button>
-
-              <!-- Status badge -->
-              <div class="flex-shrink-0 pt-1" v-if="!selectionMode">
-                <Badge 
-                  v-if="isToday(currentDate) && habit.completed_today" 
-                  variant="default"
-                >
-                  Completed
-                </Badge>
-                <Badge 
-                  v-else-if="isToday(currentDate)" 
-                  variant="outline"
-                >
-                  Pending
-                </Badge>
-              </div>
-            </div>
-
-            <div 
-              v-if="habitsForDay(currentDate).length === 0"
-              class="text-center py-16 text-muted-foreground"
-            >
-              <Circle class="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p class="text-sm">No habits scheduled for this day</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
 
 

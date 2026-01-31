@@ -1166,27 +1166,8 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
 
     <!-- Inventory View (Current habits list) -->
     <div v-if="activeTab === 'inventory'">
-      <!-- Habits List -->
-    <div v-if="habitsStore.loading" class="flex items-center justify-center py-12">
-      <div class="h-6 w-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-    </div>
-
-    <div v-else-if="habitsStore.habits.length === 0" class="text-center py-16">
-      <div class="h-16 w-16 rounded-2xl bg-orange-500/5 mx-auto mb-4 flex items-center justify-center">
-        <Flame class="h-8 w-8 text-orange-500/60" />
-      </div>
-      <h3 class="font-semibold text-lg">No habits found</h3>
-      <p class="text-muted-foreground mt-1">
-        {{ activeFilterCount > 0 ? 'Try clearing your filters' : 'Start building better habits today' }}
-      </p>
-      <Button variant="outline" class="mt-4" @click="activeFilterCount > 0 ? clearFilters() : (showCreateModal = true)">
-        <component :is="activeFilterCount > 0 ? 'X' : Plus" class="h-4 w-4 mr-1.5" />
-        {{ activeFilterCount > 0 ? 'Clear Filters' : 'Create your first habit' }}
-      </Button>
-    </div>
-
-    <!-- Day Navigation Controls -->
-    <div v-if="activeTab === 'inventory'" class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50">
+    <!-- Day Navigation Controls - Always rendered first for consistent layout -->
+    <div class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50">
       <Button 
         variant="ghost" 
         size="icon" 
@@ -1218,8 +1199,8 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
       </Button>
     </div>
 
-    <!-- Timeline Zoom Controls -->
-    <div v-if="activeTab === 'inventory' && habitsStore.habits.length > 0" class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50">
+    <!-- Timeline Zoom Controls - Always rendered for consistent layout -->
+    <div class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50" :class="{ 'opacity-50 pointer-events-none': habitsStore.habits.length === 0 }">
       <span class="text-xs text-muted-foreground">Zoom:</span>
       <Button 
         variant="ghost" 
@@ -1269,8 +1250,28 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
       </Button>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="habitsStore.loading" class="flex items-center justify-center py-12">
+      <div class="h-6 w-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+
+    <!-- Empty State - centered in content area -->
+    <div v-else-if="habitsStore.habits.length === 0" class="text-center py-12">
+      <div class="h-16 w-16 rounded-2xl bg-orange-500/5 mx-auto mb-4 flex items-center justify-center">
+        <Flame class="h-8 w-8 text-orange-500/60" />
+      </div>
+      <h3 class="font-semibold text-lg">No habits found</h3>
+      <p class="text-muted-foreground mt-1">
+        {{ activeFilterCount > 0 ? 'Try clearing your filters' : 'Start building better habits today' }}
+      </p>
+      <Button variant="outline" class="mt-4" @click="activeFilterCount > 0 ? clearFilters() : (showCreateModal = true)">
+        <component :is="activeFilterCount > 0 ? X : Plus" class="h-4 w-4 mr-1.5" />
+        {{ activeFilterCount > 0 ? 'Clear Filters' : 'Create your first habit' }}
+      </Button>
+    </div>
+
     <!-- All Inventories - Flow-based single-column layout -->
-    <div v-if="habitsStore.habits.length > 0" class="flex flex-col gap-6">
+    <div v-else class="flex flex-col gap-6">
       <!-- Whole-Day Groups with Linked Inventories (Side-by-Side Layout) -->
       <div 
         v-for="(group, gIdx) in timelineInventoryGroups.groups" 
