@@ -1133,7 +1133,7 @@ const completeAllInInventory = async (inventoryId: string | null) => {
       </Button>
       <div class="flex flex-col items-center min-w-[100px]">
         <span class="text-sm font-medium">{{ formatSelectedDate }}</span>
-        <span v-if="!habitsStore.isToday" class="text-xs text-muted-foreground">{{ daysAgoText }}</span>
+        <span class="text-xs text-muted-foreground" :class="habitsStore.isToday ? 'invisible' : ''">{{ daysAgoText || 'Today' }}</span>
       </div>
       <Button 
         variant="ghost" 
