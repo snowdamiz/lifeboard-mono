@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { 
   format, isToday, isSameDay, isSameMonth, startOfMonth, endOfMonth, 
   startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, 
@@ -17,7 +17,37 @@ const emit = defineEmits<{
 }>()
 
 const habitsStore = useHabitsStore()
-const viewMode = ref<'day' | 'week' | 'month'>('week')
+
+// LocalStorage key for calendar settings persistence
+const CALENDAR_STORAGE_KEY = 'lifeboard_calendar_settings'
+
+// Load saved calendar settings
+const loadCalendarSettings = () => {
+  try {
+    const saved = localStorage.getItem(CALENDAR_STORAGE_KEY)
+    if (saved) {
+      const settings = JSON.parse(saved)
+      return {
+        viewMode: ['day', 'week', 'month'].includes(settings.viewMode) ? settings.viewMode : 'week',
+        pinTodayToTop: Boolean(settings.pinTodayToTop)
+      }
+    }
+  } catch { /* ignore */ }
+  return { viewMode: 'week' as const, pinTodayToTop: false }
+}
+
+// Save calendar settings
+const saveCalendarSettings = () => {
+  try {
+    localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify({
+      viewMode: viewMode.value,
+      pinTodayToTop: pinTodayToTop.value
+    }))
+  } catch { /* ignore */ }
+}
+
+const savedCalendarSettings = loadCalendarSettings()
+const viewMode = ref<'day' | 'week' | 'month'>(savedCalendarSettings.viewMode as 'day' | 'week' | 'month')
 const currentDate = ref(new Date())
 
 // Selection mode state
@@ -25,7 +55,12 @@ const selectionMode = ref(false)
 const selectedHabitIds = ref<Set<string>>(new Set())
 
 // Pin today to top state
-const pinTodayToTop = ref(false)
+const pinTodayToTop = ref(savedCalendarSettings.pinTodayToTop)
+
+// Watch for settings changes and persist
+watch([viewMode, pinTodayToTop], () => {
+  saveCalendarSettings()
+})
 
 // Toggle selection mode
 const toggleSelectionMode = () => {
@@ -79,13 +114,27 @@ const handleToggleComplete = async (habit: HabitWithStatus) => {
   }
 }
 
-// Complete all habits for a specific day
-const completeAllForDay = async (day: Date) => {
+// Check if all habits for a day are completed
+const allHabitsCompleted = (day: Date): boolean => {
   const habits = habitsForDay(day)
-  const pendingHabits = habits.filter(h => !h.completed_today)
+  return habits.length > 0 && habits.every(h => h.completed_today)
+}
+
+// Toggle all habits for a specific day (complete all or uncomplete all)
+const toggleAllForDay = async (day: Date) => {
+  const habits = habitsForDay(day)
   
-  for (const habit of pendingHabits) {
-    await habitsStore.completeHabit(habit.id)
+  if (allHabitsCompleted(day)) {
+    // Uncomplete all habits
+    for (const habit of habits) {
+      await habitsStore.uncompleteHabit(habit.id)
+    }
+  } else {
+    // Complete all pending habits
+    const pendingHabits = habits.filter(h => !h.completed_today)
+    for (const habit of pendingHabits) {
+      await habitsStore.completeHabit(habit.id)
+    }
   }
 }
 
@@ -355,12 +404,13 @@ onMounted(() => {
                 {{ format(day, 'd') }}
               </div>
               <button 
-                v-if="habitsForDay(day).some(h => !h.completed_today)"
-                @click="completeAllForDay(day)"
-                class="opacity-0 group-hover/day:opacity-100 h-4 w-4 rounded flex items-center justify-center bg-primary/20 hover:bg-primary/40 transition-all"
-                title="Complete All"
+                v-if="habitsForDay(day).length > 0"
+                @click="toggleAllForDay(day)"
+                class="opacity-0 group-hover/day:opacity-100 h-4 w-4 rounded flex items-center justify-center transition-all"
+                :class="allHabitsCompleted(day) ? 'bg-orange-500/20 hover:bg-orange-500/40' : 'bg-primary/20 hover:bg-primary/40'"
+                :title="allHabitsCompleted(day) ? 'Uncomplete All' : 'Complete All'"
               >
-                <CheckCircle2 class="h-2.5 w-2.5 text-primary" />
+                <CheckCircle2 class="h-2.5 w-2.5" :class="allHabitsCompleted(day) ? 'text-orange-500' : 'text-primary'" />
               </button>
             </div>
 
@@ -408,14 +458,14 @@ onMounted(() => {
           </div>
           <div class="flex items-center gap-2">
             <Button 
-              v-if="habitsForDay(day).some(h => !h.completed_today)"
-              variant="outline" 
+              v-if="habitsForDay(day).length > 0"
+              :variant="allHabitsCompleted(day) ? 'default' : 'outline'" 
               size="sm"
               class="gap-1 text-xs"
-              @click="completeAllForDay(day)"
+              @click="toggleAllForDay(day)"
             >
               <CheckCircle2 class="h-3 w-3" />
-              Complete All
+              {{ allHabitsCompleted(day) ? 'Uncomplete All' : 'Complete All' }}
             </Button>
             <Badge v-if="isToday(day)" variant="default">Today</Badge>
           </div>

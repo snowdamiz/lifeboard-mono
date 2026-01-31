@@ -47,8 +47,23 @@ const skippingHabit = ref<HabitWithStatus | null>(null)
 const skipReason = ref('')
 
 
+// LocalStorage key for settings persistence
+const HABITS_STORAGE_KEY = 'lifeboard_habits_timeline_settings'
+
+// Helper to get initial activeTab from localStorage
+const getInitialActiveTab = (): 'inventory' | 'calendar' => {
+  try {
+    const saved = localStorage.getItem(HABITS_STORAGE_KEY)
+    if (saved) {
+      const settings = JSON.parse(saved)
+      return settings.activeTab === 'calendar' ? 'calendar' : 'inventory'
+    }
+  } catch { /* ignore */ }
+  return 'inventory'
+}
+
 // Tab navigation
-const activeTab = ref<'inventory' | 'calendar'>('inventory')
+const activeTab = ref<'inventory' | 'calendar'>(getInitialActiveTab())
 
 const newHabit = ref({
   name: '',
@@ -132,31 +147,34 @@ const filterAppliedTagIds = computed(() => new Set<string>())
 const sortByTag = ref(false)
 
 // Timeline settings with localStorage persistence
-const STORAGE_KEY = 'lifeboard_habits_timeline_settings'
 
 // Load saved settings from localStorage
 const loadTimelineSettings = () => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(HABITS_STORAGE_KEY)
     if (saved) {
       const settings = JSON.parse(saved)
       return {
         scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, settings.scale ?? 3)),
-        collapsed: Boolean(settings.collapsed)
+        collapsed: Boolean(settings.collapsed),
+        activeTab: settings.activeTab === 'calendar' ? 'calendar' : 'inventory',
+        showScheduledOnly: settings.showScheduledOnly !== false // default true
       }
     }
   } catch (e) {
     console.warn('Failed to load timeline settings:', e)
   }
-  return { scale: 3, collapsed: false }
+  return { scale: 3, collapsed: false, activeTab: 'inventory' as const, showScheduledOnly: true }
 }
 
 // Save settings to localStorage
 const saveTimelineSettings = () => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(HABITS_STORAGE_KEY, JSON.stringify({
       scale: timelineScale.value,
-      collapsed: collapsedMode.value
+      collapsed: collapsedMode.value,
+      activeTab: activeTab.value,
+      showScheduledOnly: showScheduledOnly.value
     }))
   } catch (e) {
     console.warn('Failed to save timeline settings:', e)
@@ -173,10 +191,10 @@ const timelineScale = ref(savedSettings.scale)
 const collapsedMode = ref(savedSettings.collapsed)
 
 // Toggle for showing only habits scheduled for the selected day vs all habits
-const showScheduledOnly = ref(true)
+const showScheduledOnly = ref(savedSettings.showScheduledOnly)
 
 // Watch for setting changes and persist
-watch([timelineScale, collapsedMode], () => {
+watch([timelineScale, collapsedMode, activeTab, showScheduledOnly], () => {
   saveTimelineSettings()
 })
 
