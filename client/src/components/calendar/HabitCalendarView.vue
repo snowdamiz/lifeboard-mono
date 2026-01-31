@@ -79,6 +79,16 @@ const handleToggleComplete = async (habit: HabitWithStatus) => {
   }
 }
 
+// Complete all habits for a specific day
+const completeAllForDay = async (day: Date) => {
+  const habits = habitsForDay(day)
+  const pendingHabits = habits.filter(h => !h.completed_today)
+  
+  for (const habit of pendingHabits) {
+    await habitsStore.completeHabit(habit.id)
+  }
+}
+
 // Helper to parse time string (HH:MM) to minutes since midnight
 const timeToMinutes = (timeStr: string | null): number => {
   if (!timeStr) return 9999 // Put unscheduled habits at the end
@@ -335,13 +345,23 @@ onMounted(() => {
             v-for="day in calendarDays"
             :key="day.toISOString()"
             :class="[
-              'min-h-24 p-2 rounded-lg border transition-colors',
+              'min-h-24 p-2 rounded-lg border transition-colors group/day',
               isToday(day) ? 'bg-primary/5 border-primary/50' : 'border-border hover:bg-accent',
               !isSameMonth(day, monthStart) && 'opacity-40'
             ]"
           >
-            <div class="text-sm font-medium mb-1" :class="isToday(day) && 'text-primary'">
-              {{ format(day, 'd') }}
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-sm font-medium" :class="isToday(day) && 'text-primary'">
+                {{ format(day, 'd') }}
+              </div>
+              <button 
+                v-if="habitsForDay(day).some(h => !h.completed_today)"
+                @click="completeAllForDay(day)"
+                class="opacity-0 group-hover/day:opacity-100 h-4 w-4 rounded flex items-center justify-center bg-primary/20 hover:bg-primary/40 transition-all"
+                title="Complete All"
+              >
+                <CheckCircle2 class="h-2.5 w-2.5 text-primary" />
+              </button>
             </div>
 
             <!-- Habits for this day -->
@@ -386,7 +406,19 @@ onMounted(() => {
             </h3>
             <p class="text-sm text-muted-foreground">{{ format(day, 'MMMM d, yyyy') }}</p>
           </div>
-          <Badge v-if="isToday(day)" variant="default">Today</Badge>
+          <div class="flex items-center gap-2">
+            <Button 
+              v-if="habitsForDay(day).some(h => !h.completed_today)"
+              variant="outline" 
+              size="sm"
+              class="gap-1 text-xs"
+              @click="completeAllForDay(day)"
+            >
+              <CheckCircle2 class="h-3 w-3" />
+              Complete All
+            </Button>
+            <Badge v-if="isToday(day)" variant="default">Today</Badge>
+          </div>
         </div>
 
         <div class="space-y-2">
