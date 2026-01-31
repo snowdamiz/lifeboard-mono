@@ -1355,9 +1355,9 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                       <div class="flex-1 min-w-0 overflow-hidden">
                         <h4 :class="['text-xs font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h4>
                         <div class="flex items-center gap-1 flex-wrap">
-                          <span class="text-[9px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
-                          <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">· {{ formatDuration(habit.duration_minutes) }}</span>
-                          <span v-if="!showScheduledOnly && habit.days_of_week && habit.days_of_week.length > 0 && habit.days_of_week.length < 7" class="text-[9px] text-muted-foreground/70">· {{ formatDaysShort(habit.days_of_week) }}</span>
+                          <span class="text-[9px] text-foreground/80">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                          <span v-if="habit.duration_minutes" class="text-[9px] text-foreground/80">· {{ formatDuration(habit.duration_minutes) }}</span>
+                          <span v-if="!showScheduledOnly && habit.days_of_week && habit.days_of_week.length > 0 && habit.days_of_week.length < 7" class="text-[9px] text-foreground/80">· {{ formatDaysShort(habit.days_of_week) }}</span>
                         </div>
                       </div>
                       <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -1494,9 +1494,9 @@ const completeAllInInventory = async (inventoryId: string | null) => {
                     <div class="flex-1 min-w-0 overflow-hidden">
                       <h4 :class="['text-xs font-medium truncate', habit.completed_today && 'line-through text-muted-foreground']" :title="habit.name">{{ habit.name }}</h4>
                       <div class="flex items-center gap-1 flex-wrap">
-                        <span class="text-[9px] text-muted-foreground">{{ formatTimeReadable(habit.scheduled_time) }}</span>
-                        <span v-if="habit.duration_minutes" class="text-[9px] text-muted-foreground">· {{ formatDuration(habit.duration_minutes) }}</span>
-                        <span v-if="!showScheduledOnly && habit.days_of_week && habit.days_of_week.length > 0 && habit.days_of_week.length < 7" class="text-[9px] text-muted-foreground/70">· {{ formatDaysShort(habit.days_of_week) }}</span>
+                        <span class="text-[9px] text-foreground/80">{{ formatTimeReadable(habit.scheduled_time) }}</span>
+                        <span v-if="habit.duration_minutes" class="text-[9px] text-foreground/80">· {{ formatDuration(habit.duration_minutes) }}</span>
+                        <span v-if="!showScheduledOnly && habit.days_of_week && habit.days_of_week.length > 0 && habit.days_of_week.length < 7" class="text-[9px] text-foreground/80">· {{ formatDaysShort(habit.days_of_week) }}</span>
                       </div>
                     </div>
                     <div class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
