@@ -124,6 +124,10 @@ defmodule MegaPlannerWeb.Router do
       post "/purchases/to-inventory", PurchaseController, :add_to_inventory
       
       resources "/drivers", DriverController, only: [:index, :create]
+      
+      # Receipt scanning (AI-powered)
+      post "/scan", ReceiptUploadController, :scan
+      post "/confirm", ReceiptUploadController, :confirm
     end
 
     # Notes

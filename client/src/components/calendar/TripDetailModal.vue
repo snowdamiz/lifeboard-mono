@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { X, Plus, MapPin, Trash } from 'lucide-vue-next'
+import { X, Plus, MapPin, Trash, Camera } from 'lucide-vue-next'
 import type { Trip, Stop, Purchase, Store } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,9 +10,11 @@ import { useReceiptsStore } from '@/stores/receipts'
 import PurchaseForm from '@/components/budget/PurchaseForm.vue'
 import PurchaseList from '@/components/budget/PurchaseList.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
+import ReceiptScanModal from '@/components/calendar/ReceiptScanModal.vue'
 
 interface Props {
   tripId: string
+  inlineMode?: boolean
 }
 
 const props = defineProps<Props>()
@@ -31,6 +33,7 @@ const showPurchaseForm = ref(false)
 const selectedStopId = ref<string | null>(null)
 const editingPurchase = ref<Purchase | null>(null)
 const storeSearchMap = ref<Record<string, string>>({})
+const showReceiptScan = ref(false)
 
 // Driver state
 const driverSearchText = ref('')
@@ -256,6 +259,11 @@ const handleDeleteTrip = async () => {
   emit('close')
 }
 
+const handleReceiptScanned = async () => {
+  showReceiptScan.value = false
+  await loadTrip()
+}
+
 onMounted(() => {
   console.log('[DEBUG] TripDetailModal Mounted')
   loadTrip()
@@ -263,7 +271,204 @@ onMounted(() => {
 </script>
 
 <template>
-  <Teleport to="body">
+  <!-- Inline mode: render directly without Teleport -->
+  <div v-if="inlineMode" class="h-full flex flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between p-4 border-b border-white/[0.08] shrink-0 bg-secondary/30">
+      <div class="flex-1">
+        <h2 class="text-lg font-semibold">Manage Trip</h2>
+        <div class="flex items-center gap-3 mt-2">
+           <input 
+             type="date"
+             :value="getPurchaseDate()"
+             class="bg-transparent text-sm border border-border rounded px-2 py-0.5"
+             @change="(e) => updateTripDate((e.target as HTMLInputElement).value)"
+           />
+           <div class="flex items-center gap-2 border-l border-border pl-3">
+             <label class="text-xs font-medium text-muted-foreground">Driver:</label>
+             <SearchableInput 
+               v-model="driverSearchText"
+               @select="selectDriver"
+               @update:model-value="(val) => { if (!val && trip) updateTripDriver(null) }"
+               :search-function="searchDrivers"
+               :display-function="(d) => d.name"
+               :value-function="(d) => d.name"
+               :show-create-option="true"
+               :min-chars="0"
+               placeholder="Select or create driver"
+               class="w-48 text-sm"
+               @create="createDriver"
+             />
+           </div>
+        </div>
+      </div>
+      <Button variant="ghost" size="icon" @click="emit('close')">
+        <X class="h-4 w-4" />
+      </Button>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="flex-1 flex items-center justify-center py-12">
+      <div class="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+
+    <!-- Stops List -->
+    <div v-else class="flex-1 overflow-auto p-4 space-y-4">
+      <div v-for="(stop, index) in stops" :key="stop.id" class="border border-border rounded-lg overflow-hidden">
+        <!-- Stop Header -->
+        <div class="bg-secondary/30 p-3 border-b border-border">
+          <div class="flex items-start gap-3">
+            <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+              <MapPin class="h-4 w-4 text-primary" />
+            </div>
+             <div class="flex-1 space-y-3">
+               <!-- Store Selection -->
+               <div class="space-y-2">
+                  <SearchableInput 
+                    :model-value="getStoreSearch(stop.id)"
+                    @update:model-value="(val) => setStoreSearch(stop.id, val)"
+                    :search-function="searchStopStores"
+                    :display-function="(s) => s.name"
+                    :value-function="(s) => s.name"
+                    :show-create-option="true"
+                    :min-chars="0"
+                    placeholder="Search or create store..." 
+                    class="flex-1"
+                    @select="(store) => selectStore(stop, store)"
+                    @create="(name) => createAndSelectStore(stop, name)"
+                  />
+               </div>
+
+               <!-- Time Tracking -->
+               <div class="grid grid-cols-2 gap-2">
+                 <div>
+                   <label class="text-xs font-medium text-muted-foreground">Time Arrived</label>
+                    <Input
+                      :model-value="stop.time_arrived || ''"
+                      type="text"
+                      placeholder="0800 or 08:00"
+                      maxlength="5"
+                      class="mt-1 text-sm"
+                      @blur="(e: FocusEvent) => {
+                        const input = (e.target as HTMLInputElement).value.trim()
+                        if (!input) return
+                        const formatted = input.replace(/^(\d{1,2})(\d{2})$/, '$1:$2').replace(/^(\d):/, '0$1:').replace(/:(\d)$/, ':0$1')
+                        if (/^\d{2}:\d{2}$/.test(formatted)) {
+                          stop.time_arrived = formatted
+                          updateStop(stop, { time_arrived: formatted })
+                        }
+                      }"
+                    />
+                 </div>
+                 <div>
+                   <label class="text-xs font-medium text-muted-foreground">Time Left</label>
+                    <Input
+                      :model-value="stop.time_left || ''"
+                      type="text"
+                      placeholder="1700 or 17:00"
+                      maxlength="5"
+                      class="mt-1 text-sm"
+                      @blur="(e: FocusEvent) => {
+                        const input = (e.target as HTMLInputElement).value.trim()
+                        if (!input) return
+                        const formatted = input.replace(/^(\d{1,2})(\d{2})$/, '$1:$2').replace(/^(\d):/, '0$1:').replace(/:(\d)$/, ':0$1')
+                        if (/^\d{2}:\d{2}$/.test(formatted)) {
+                          stop.time_left = formatted
+                          updateStop(stop, { time_left: formatted })
+                        }
+                      }"
+                    />
+                 </div>
+               </div>
+
+               <Input
+                 :model-value="stop.notes || ''"
+                 @blur="(e: FocusEvent) => updateStop(stop, { notes: (e.target as HTMLInputElement).value })"
+                 placeholder="Notes for this stop..."
+               />
+             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="shrink-0 text-destructive hover:text-destructive -mt-1 -mr-1"
+              @click="removeStop(stop.id)"
+            >
+              <Trash class="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <!-- Purchases for this stop -->
+        <div class="p-3">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-medium">Purchases ({{ stop.purchases?.length || 0 }})</p>
+            <Button size="sm" variant="outline" @click="openAddPurchase(stop.id)">
+              <Plus class="h-3.5 w-3.5 mr-1" />
+              Add Purchase
+            </Button>
+          </div>
+          
+          <PurchaseList
+            v-if="stop.purchases && stop.purchases.length > 0"
+            :purchases="stop.purchases"
+            @edit="openEditPurchase"
+            @delete="handleDeletePurchase"
+          />
+          
+          <p v-else class="text-sm text-muted-foreground text-center py-4">
+            No purchases yet
+          </p>
+        </div>
+      </div>
+
+      <!-- Add Stop Button -->
+      <Button variant="outline" class="w-full" @click="addStop" :disabled="addingStop">
+        <Plus class="h-4 w-4 mr-2" />
+        {{ addingStop ? 'Adding...' : 'Add Stop' }}
+      </Button>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex gap-3 p-4 border-t border-white/[0.08] bg-card shrink-0">
+      <Button variant="outline" class="flex-1 sm:flex-none" @click="emit('close')">
+        Done
+      </Button>
+      <Button variant="outline" @click="showReceiptScan = true">
+        <Camera class="h-4 w-4 mr-2" />
+        Scan Receipt
+      </Button>
+      <div class="flex-1"></div>
+      <Button 
+        variant="ghost" 
+        class="text-destructive hover:text-destructive hover:bg-destructive/10"
+        @click="handleDeleteTrip"
+      >
+        <Trash class="h-4 w-4 mr-2" />
+        Delete Trip
+      </Button>
+    </div>
+
+    <!-- Purchase Form Modal -->
+    <PurchaseForm
+      v-if="showPurchaseForm && selectedStopId"
+      :stop-id="selectedStopId"
+      :purchase="editingPurchase || undefined"
+      :initial-date="getPurchaseDate()"
+      @close="showPurchaseForm = false"
+      @saved="handlePurchaseSaved"
+    />
+
+    <!-- Receipt Scan Modal -->
+    <ReceiptScanModal
+      v-if="showReceiptScan"
+      :trip-id="tripId"
+      @close="showReceiptScan = false"
+      @confirmed="handleReceiptScanned"
+    />
+  </div>
+
+  <!-- Modal mode: use Teleport -->
+  <Teleport v-else to="body">
     <div class="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" style="z-index: 50;">
       <div class="w-full sm:max-w-4xl bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[95vh] sm:max-h-[92vh] flex flex-col">
         <!-- Header -->
@@ -426,6 +631,10 @@ onMounted(() => {
           <Button variant="outline" class="flex-1 sm:flex-none" @click="emit('close')">
             Done
           </Button>
+          <Button variant="outline" @click="showReceiptScan = true">
+            <Camera class="h-4 w-4 mr-2" />
+            Scan Receipt
+          </Button>
           <div class="flex-1"></div>
           <Button 
             variant="ghost" 
@@ -447,6 +656,14 @@ onMounted(() => {
       :initial-date="getPurchaseDate()"
       @close="showPurchaseForm = false"
       @saved="handlePurchaseSaved"
+    />
+
+    <!-- Receipt Scan Modal -->
+    <ReceiptScanModal
+      v-if="showReceiptScan"
+      :trip-id="tripId"
+      @close="showReceiptScan = false"
+      @confirmed="handleReceiptScanned"
     />
   </Teleport>
 </template>

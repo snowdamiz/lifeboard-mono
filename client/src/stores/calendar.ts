@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Task, TaskStep } from '@/types'
+import type { Task, TaskStep, Trip } from '@/types'
 import { api } from '@/services/api'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, addMonths, parseISO, getDay } from 'date-fns'
 
 export const useCalendarStore = defineStore('calendar', () => {
   const tasks = ref<Task[]>([])
+  const trips = ref<Trip[]>([])
   const todaysTasks = ref<Task[]>([])
   const loading = ref(false)
   const currentDate = ref(new Date())
@@ -73,6 +74,21 @@ export const useCalendarStore = defineStore('calendar', () => {
     return grouped
   })
 
+  // Group trips by date (using trip_start date)
+  const tripsByDate = computed(() => {
+    const grouped: Record<string, Trip[]> = {}
+    console.log('[DEBUG] tripsByDate computing with trips:', trips.value.length, trips.value)
+    for (const trip of trips.value) {
+      // Use trip_start date, fallback to inserted_at
+      const dateStr = trip.trip_start?.split('T')[0] || trip.inserted_at?.split('T')[0] || 'unscheduled'
+      console.log('[DEBUG] Trip date:', dateStr, 'trip:', trip.id, trip)
+      if (!grouped[dateStr]) grouped[dateStr] = []
+      grouped[dateStr].push(trip)
+    }
+    console.log('[DEBUG] tripsByDate result:', grouped)
+    return grouped
+  })
+
   async function fetchTasks(startDate?: Date, endDate?: Date) {
     loading.value = true
     try {
@@ -88,15 +104,37 @@ export const useCalendarStore = defineStore('calendar', () => {
     }
   }
 
+  async function fetchTripsForPeriod(startDate: Date, endDate: Date) {
+    try {
+      const params = {
+        start_date: format(startDate, 'yyyy-MM-dd'),
+        end_date: format(endDate, 'yyyy-MM-dd')
+      }
+      console.log('[DEBUG] fetchTripsForPeriod params:', params)
+      const response = await api.listTrips(params)
+      console.log('[DEBUG] fetchTripsForPeriod response:', response)
+      trips.value = response.data
+    } catch (error) {
+      console.error('Failed to fetch trips:', error)
+      trips.value = []
+    }
+  }
+
   async function fetchWeekTasks() {
-    await fetchTasks(weekStart.value, weekEnd.value)
+    await Promise.all([
+      fetchTasks(weekStart.value, weekEnd.value),
+      fetchTripsForPeriod(weekStart.value, weekEnd.value)
+    ])
   }
 
   async function fetchMonthTasks() {
-    // Fetch tasks for the entire visible month grid (including padding days)
+    // Fetch tasks and trips for the entire visible month grid (including padding days)
     const firstVisible = monthDays.value[0]
     const lastVisible = monthDays.value[monthDays.value.length - 1]
-    await fetchTasks(firstVisible, lastVisible)
+    await Promise.all([
+      fetchTasks(firstVisible, lastVisible),
+      fetchTripsForPeriod(firstVisible, lastVisible)
+    ])
   }
 
   async function fetchCurrentViewTasks() {
@@ -204,8 +242,30 @@ export const useCalendarStore = defineStore('calendar', () => {
     }
   }
 
+  function removeTrip(tripId: string) {
+    trips.value = trips.value.filter(t => t.id !== tripId)
+  }
+
+  function addTrip(trip: Trip) {
+    // Add trip if not already present
+    const exists = trips.value.some(t => t.id === trip.id)
+    if (!exists) {
+      trips.value.push(trip)
+    }
+  }
+
+  function upsertTrip(trip: Trip) {
+    const index = trips.value.findIndex(t => t.id === trip.id)
+    if (index !== -1) {
+      trips.value[index] = trip
+    } else {
+      trips.value.push(trip)
+    }
+  }
+
   return {
     tasks,
+    trips,
     todaysTasks,
     loading,
     currentDate,
@@ -217,7 +277,9 @@ export const useCalendarStore = defineStore('calendar', () => {
     monthEnd,
     monthDays,
     tasksByDate,
+    tripsByDate,
     fetchTasks,
+    fetchTripsForPeriod,
     fetchWeekTasks,
     fetchMonthTasks,
     fetchCurrentViewTasks,
@@ -234,7 +296,10 @@ export const useCalendarStore = defineStore('calendar', () => {
     goToToday,
     nextPeriod,
     prevPeriod,
-    filterTags
+    filterTags,
+    removeTrip,
+    addTrip,
+    upsertTrip
   }
 })
 

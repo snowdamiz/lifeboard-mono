@@ -11,6 +11,7 @@ defmodule MegaPlanner.Receipts.Store do
     field :state, :string
     field :store_code, :string
     field :tax_rate, :decimal
+    field :image_url, :string
 
     belongs_to :household, MegaPlanner.Households.Household
     has_many :stops, MegaPlanner.Receipts.Stop
@@ -21,7 +22,7 @@ defmodule MegaPlanner.Receipts.Store do
   @doc false
   def changeset(store, attrs) do
     store
-    |> cast(attrs, [:name, :address, :state, :store_code, :tax_rate, :household_id])
+    |> cast(attrs, [:name, :address, :state, :store_code, :tax_rate, :image_url, :household_id])
     |> validate_required([:name, :household_id])
     |> foreign_key_constraint(:household_id)
   end

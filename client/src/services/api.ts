@@ -33,7 +33,8 @@ import type {
   UserPreferences,
   ApiResponse,
   Driver,
-  TripReceipt
+  TripReceipt,
+  ReceiptScanResult
 } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
@@ -649,6 +650,24 @@ class ApiClient {
     return this.request('/receipts/purchases/to-inventory', {
       method: 'POST',
       body: JSON.stringify(data)
+    })
+  }
+
+  // Receipt Scanning (AI-powered)
+  async scanReceipt(imageData: string): Promise<ApiResponse<ReceiptScanResult>> {
+    return this.request('/receipts/scan', {
+      method: 'POST',
+      body: JSON.stringify({ image: imageData })
+    })
+  }
+
+  async confirmReceiptScan(
+    scanResult: ReceiptScanResult,
+    tripId?: string
+  ): Promise<ApiResponse<{ store: Store; stop_id?: string; purchases: Purchase[]; created_count: number }>> {
+    return this.request('/receipts/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ ...scanResult, trip_id: tripId })
     })
   }
 

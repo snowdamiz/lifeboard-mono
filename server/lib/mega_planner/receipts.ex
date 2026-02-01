@@ -6,7 +6,7 @@ defmodule MegaPlanner.Receipts do
   import Ecto.Query, warn: false
   require Logger
   alias MegaPlanner.Repo
-  alias MegaPlanner.Receipts.{Store, Trip, Stop, Brand, Purchase, Unit}
+  alias MegaPlanner.Receipts.{Store, Trip, Stop, Brand, Purchase, Unit, FormatCorrection}
   alias MegaPlanner.Budget
   alias MegaPlanner.Tags.Tag
   alias Ecto.Multi
@@ -42,6 +42,27 @@ defmodule MegaPlanner.Receipts do
     %Store{}
     |> Store.changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Gets a store by ID. Raises if not found.
+  """
+  def get_store!(id) do
+    Repo.get!(Store, id)
+  end
+
+  @doc """
+  Finds a store by name for a household.
+  Returns nil if not found.
+  """
+  def find_store_by_name(_household_id, nil), do: nil
+  def find_store_by_name(household_id, name) do
+    from(s in Store,
+      where: s.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", s.name, ^name),
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   @doc """
@@ -325,6 +346,15 @@ defmodule MegaPlanner.Receipts do
   end
 
   @doc """
+  Gets a trip by ID. Raises if not found.
+  """
+  def get_trip!(id) do
+    Trip
+    |> Repo.get!(id)
+    |> Repo.preload(stops: [:store, purchases: [:tags]])
+  end
+
+  @doc """
   Gets a trip for a specific household.
   """
   def get_household_trip(household_id, id) do
@@ -474,6 +504,15 @@ defmodule MegaPlanner.Receipts do
   end
 
   @doc """
+  Creates a stop for a specific trip.
+  """
+  def create_stop(trip_id, attrs) when is_binary(trip_id) do
+    attrs
+    |> Map.put("trip_id", trip_id)
+    |> create_stop()
+  end
+
+  @doc """
   Updates a stop.
   """
   def update_stop(%Stop{} = stop, attrs) do
@@ -578,6 +617,20 @@ defmodule MegaPlanner.Receipts do
     |> Repo.update()
   end
 
+  @doc """
+  Gets a brand by name for a household.
+  Returns nil if not found.
+  """
+  def get_brand_by_name(_household_id, nil), do: nil
+  def get_brand_by_name(household_id, name) do
+    from(b in Brand,
+      where: b.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", b.name, ^name),
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
   # Units
 
   @doc """
@@ -605,6 +658,20 @@ defmodule MegaPlanner.Receipts do
       nil -> create_unit(%{household_id: household_id, name: name})
       unit -> {:ok, unit}
     end
+  end
+
+  @doc """
+  Gets a unit by name for a household.
+  Returns nil if not found.
+  """
+  def get_unit_by_name(_household_id, nil), do: nil
+  def get_unit_by_name(household_id, name) do
+    from(u in Unit,
+      where: u.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", u.name, ^name),
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   # Purchases
@@ -1096,5 +1163,32 @@ defmodule MegaPlanner.Receipts do
     |> Enum.uniq()
     |> Enum.sort()
     |> Enum.take(10)
+  end
+
+  # Format Corrections (for learning from user edits)
+
+  @doc """
+  Upserts a format correction record to store user's preferred formatting.
+  Used to learn from how users correct OCR text.
+  """
+  def upsert_format_correction(attrs) do
+    changeset = FormatCorrection.changeset(%FormatCorrection{}, attrs)
+    
+    Repo.insert(changeset,
+      on_conflict: {:replace, [:corrected_brand, :corrected_item, :updated_at]},
+      conflict_target: [:household_id, :raw_text]
+    )
+  end
+
+  @doc """
+  Gets a format correction by raw text for a household.
+  """
+  def get_format_correction(household_id, raw_text) do
+    from(fc in FormatCorrection,
+      where: fc.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", fc.raw_text, ^raw_text),
+      limit: 1
+    )
+    |> Repo.one()
   end
 end

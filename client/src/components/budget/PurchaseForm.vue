@@ -34,11 +34,13 @@ const isEditing = computed(() => !!props.purchase)
 
 
 
+// Unit autocomplete helpers - shows defaults + custom units from store
+import { mergeUnitsWithDefaults } from '@/utils/units'
 
-// Unit autocomplete helpers (most logic moved to SearchableInput or inline)
 const searchUnits = async (query: string) => {
   const q = query.toLowerCase()
-  return receiptsStore.units.filter(u => u.name.toLowerCase().includes(q))
+  const allUnits = mergeUnitsWithDefaults(receiptsStore.units)
+  return allUnits.filter(u => u.name.toLowerCase().includes(q))
 }
 
 const handleUnitCreate = async (name: string) => {

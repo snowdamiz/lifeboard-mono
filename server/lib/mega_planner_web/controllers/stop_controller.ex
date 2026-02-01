@@ -50,10 +50,16 @@ defmodule MegaPlannerWeb.StopController do
       store_address: stop.store_address || (stop.store && stop.store.address),
       notes: stop.notes,
       position: stop.position,
+      time_arrived: format_time(stop.time_arrived),
+      time_left: format_time(stop.time_left),
       purchases: Enum.map(stop.purchases || [], &purchase_to_json/1),
       inserted_at: stop.inserted_at
     }
   end
+
+  defp format_time(nil), do: nil
+  defp format_time(%Time{} = time), do: Calendar.strftime(time, "%H:%M")
+  defp format_time(other), do: other
 
   defp purchase_to_json(purchase) do
     %{

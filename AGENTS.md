@@ -1,246 +1,348 @@
-# AGENTS.md - AI Assistant Guide for MegaPlanner
+# AGENTS.md - AI Coding Assistant Guide for LifeBoard
 
-## Project Overview
+> A personal planning application with Calendar, Inventory, Budget, Notes, Goals, and Habits modules.
 
-MegaPlanner is a personal planning web application with modules for Calendar, Inventory, Budget, Notes, Goals, and Habits. It features multi-tenant support via households and OAuth authentication.
+## Quick Reference
 
-### Monorepo Structure
+| Component | Technology | Location |
+|-----------|------------|----------|
+| Frontend | Vue 3 + TypeScript + Tailwind | `client/` |
+| Backend | Elixir/Phoenix REST API | `server/` |
+| Database | PostgreSQL 16 | Docker container |
+| Auth | OAuth 2.0 (Google, GitHub) + JWT | Via Guardian |
+| Deploy | Fly.io (auto-deploy on push to `master`) | `.github/workflows/deploy.yml` |
 
-```
-mega-planner/
-├── client/              # Vue 3 + TypeScript SPA
-├── server/              # Elixir/Phoenix REST API
-├── LifeBoard-Simple/    # Standalone Java/JS alternative (not actively developed)
-└── docker-compose.yml   # PostgreSQL for development
-```
+---
 
-## Architecture
+## Development Environment
 
-- **Frontend**: Single-page application communicating via REST API
-- **Backend**: Phoenix JSON API with PostgreSQL database
-- **Auth**: OAuth 2.0 (Google, GitHub) with JWT access/refresh tokens
-- **Multi-tenancy**: Users belong to households; all data is scoped by `household_id`
+### Prerequisites
 
-## Tech Stack
+- **Docker Desktop** – PostgreSQL runs in a container
+- **Node.js 18+** – Frontend tooling
+- **Elixir 1.15+** (with Erlang 26+) – Backend runtime
 
-### Frontend (`client/`)
-
-| Technology | Purpose |
-|------------|---------|
-| Vue 3 | UI framework (Composition API with `<script setup>`) |
-| TypeScript | Type safety |
-| Pinia | State management |
-| Tailwind CSS | Styling with CSS variables for theming |
-| Radix Vue | Accessible UI primitives |
-| Vite | Build tool |
-
-### Backend (`server/`)
-
-| Technology | Purpose |
-|------------|---------|
-| Elixir 1.15+ | Language |
-| Phoenix 1.7 | Web framework (JSON API only) |
-| Ecto | Database ORM |
-| PostgreSQL 16 | Database (binary UUIDs) |
-| Guardian | JWT authentication |
-
-## Development Setup
+### Start Development
 
 ```bash
-# 1. Start PostgreSQL
+# 1. Start the database
 docker-compose up -d
 
-# 2. Backend (terminal 1)
-cd server
-mix deps.get
-mix ecto.setup
-mix phx.server
-# API runs at http://localhost:4000
+# 2. Install all dependencies and set up database
+npm run setup
 
-# 3. Frontend (terminal 2)
-cd client
-npm install
+# 3. Run both frontend and backend
 npm run dev
-# UI runs at http://localhost:5173
 ```
 
-## Key Files Reference
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:4000
+- **Live Dashboard** (dev only): http://localhost:4000/dev/dashboard
 
-### Frontend
+### Verify Build Before Commit
 
-| Path | Purpose |
-|------|---------|
-| `client/src/types/index.ts` | All TypeScript interfaces |
-| `client/src/services/api.ts` | API client singleton |
-| `client/src/stores/*.ts` | Pinia stores (one per domain) |
-| `client/src/components/ui/` | Reusable UI components (shadcn-vue style) |
-| `client/src/views/` | Page components |
-| `client/src/router/index.ts` | Route definitions |
-| `client/tailwind.config.js` | Theme configuration |
+```bash
+# Frontend type-check + build (catches TypeScript errors)
+cd client && npm run build
 
-### Backend
+# Backend tests
+cd server && mix test
+```
 
-| Path | Purpose |
-|------|---------|
-| `server/lib/mega_planner/` | Business logic contexts |
-| `server/lib/mega_planner_web/controllers/` | API controllers |
-| `server/lib/mega_planner_web/router.ex` | API routes |
-| `server/priv/repo/migrations/` | Database migrations |
-| `server/config/` | Environment configurations |
+---
+
+## Project Structure
+
+```
+lifeboard-mono/
+├── client/                    # Vue 3 SPA
+│   ├── src/
+│   │   ├── components/        # Reusable UI (ui/ for primitives, shared/ for complex)
+│   │   ├── views/             # Page-level components
+│   │   ├── stores/            # Pinia stores (one per domain)
+│   │   ├── services/api.ts    # API client singleton
+│   │   ├── types/index.ts     # ALL TypeScript interfaces
+│   │   └── lib/utils.ts       # cn() utility for Tailwind classes
+│   └── tailwind.config.js     # Theme configuration
+│
+├── server/                    # Phoenix REST API
+│   ├── lib/
+│   │   ├── mega_planner/      # Business logic contexts
+│   │   └── mega_planner_web/  # Controllers, router, plugs
+│   ├── priv/repo/migrations/  # Database migrations
+│   └── config/                # Environment configs
+│
+├── .agent/workflows/          # AI agent workflows (see /setup_dev_env)
+├── .antigravity/              # Agent skills and knowledge
+└── docker-compose.yml         # Local PostgreSQL
+```
+
+---
 
 ## Coding Conventions
 
-### Vue/TypeScript
+### Vue/TypeScript (Frontend)
 
-```vue
-<!-- Always use Composition API with script setup -->
-<script setup lang="ts">
-import { ref, computed } from 'vue'
-import type { Task } from '@/types'
-import { cn } from '@/lib/utils'
+1. **Always use Composition API with `<script setup lang="ts">`**
+2. **Define props with TypeScript interfaces**:
+   ```vue
+   <script setup lang="ts">
+   import type { Habit } from '@/types'
+   
+   interface Props {
+     habit: Habit
+     editable?: boolean
+   }
+   const props = withDefaults(defineProps<Props>(), {
+     editable: false
+   })
+   </script>
+   ```
+3. **Use the `cn()` utility** for conditional Tailwind classes:
+   ```ts
+   import { cn } from '@/lib/utils'
+   const classes = cn('base-class', isActive && 'active-class')
+   ```
+4. **Import types from `@/types`** – never create duplicate interfaces
+5. **Use Pinia stores with setup function syntax**:
+   ```ts
+   export const useHabitsStore = defineStore('habits', () => {
+     const habits = ref<Habit[]>([])
+     const loading = ref(false)
+     // ...
+     return { habits, loading, fetchHabits }
+   })
+   ```
+6. **Use the `api` singleton** for all HTTP requests (`@/services/api`)
 
-// Props with TypeScript interface
-interface Props {
-  task: Task
-  editable?: boolean
+### Elixir/Phoenix (Backend)
+
+1. **Context module pattern** – Business logic in `lib/mega_planner/`, not controllers
+2. **Always scope by `household_id`**:
+   ```elixir
+   def list_habits(household_id, opts \\ []) do
+     from(h in Habit, where: h.household_id == ^household_id)
+     |> Repo.all()
+   end
+   ```
+3. **Use module attributes for preloads**:
+   ```elixir
+   @habit_preloads [:tags, :completions]
+   ```
+4. **Wrap all responses in `{ "data": ... }`**
+5. **Controllers use `action_fallback MegaPlannerWeb.FallbackController`**
+
+### API Response Format
+
+All endpoints return JSON in this format:
+```json
+{
+  "data": { ... }  // Single object or array
 }
-const props = withDefaults(defineProps<Props>(), {
-  editable: false
-})
-
-// Reactive state
-const isOpen = ref(false)
-
-// Computed properties
-const statusClass = computed(() => cn(
-  'px-2 py-1 rounded',
-  props.task.status === 'completed' && 'bg-green-100'
-))
-</script>
 ```
 
-### Pinia Stores
-
-```typescript
-// Use setup function syntax
-export const useExampleStore = defineStore('example', () => {
-  const items = ref<Item[]>([])
-  const loading = ref(false)
-
-  async function fetchItems() {
-    loading.value = true
-    try {
-      const response = await api.listItems()
-      items.value = response.data
-    } finally {
-      loading.value = false
-    }
-  }
-
-  return { items, loading, fetchItems }
-})
+Errors return:
+```json
+{
+  "error": "Description"  // or "errors": { "field": ["message"] }
+}
 ```
 
-### Elixir/Phoenix
+---
 
-```elixir
-# Context module pattern (business logic)
-defmodule MegaPlanner.Calendar do
-  alias MegaPlanner.Repo
-  alias MegaPlanner.Calendar.Task
+## Key Domain Concepts
 
-  @task_preloads [:steps, :tags]  # Define preloads as module attributes
+### Multi-Tenancy via Households
 
-  def list_tasks(household_id, opts \\ []) do
-    # Always scope by household_id
-    from(t in Task, where: t.household_id == ^household_id)
-    |> Repo.all()
-    |> Repo.preload(@task_preloads)
-  end
-end
+Every data entity belongs to a `household_id`. Users authenticate via OAuth and belong to exactly one household. **Never bypass household scoping** – this is a security boundary.
 
-# Controller pattern
-defmodule MegaPlannerWeb.TaskController do
-  use MegaPlannerWeb, :controller
-  alias MegaPlanner.Calendar
+### Core Entities
 
-  action_fallback MegaPlannerWeb.FallbackController
+| Entity | Notes |
+|--------|-------|
+| **Tasks** | Calendar items with steps, tags, recurrence |
+| **Habits** | Daily/weekly tracking with completions, streaks |
+| **HabitInventories** | Groups of habits (whole-day or partial-day coverage) |
+| **Goals** | Long-term objectives with milestones |
+| **InventorySheets** | Collections of items (e.g., Pantry, Freezer) |
+| **ShoppingLists** | Auto-generated from low inventory |
+| **Trips/Stops/Purchases** | Shopping trip logistics |
+| **Notebooks/Pages** | Markdown notes with linking |
+| **Tags** | Cross-cutting categorization |
 
-  def index(conn, _params) do
-    user = Guardian.Plug.current_resource(conn)
-    tasks = Calendar.list_tasks(user.household_id)
-    json(conn, %{data: Enum.map(tasks, &task_to_json/1)})  # Wrap in data key
-  end
-end
+---
+
+## Common Tasks
+
+### Add a New API Endpoint
+
+1. **Define route** in `server/lib/mega_planner_web/router.ex`
+2. **Create/update controller** in `server/lib/mega_planner_web/controllers/`
+3. **Add context function** in `server/lib/mega_planner/` (keep controllers thin)
+4. **Add API method** in `client/src/services/api.ts`
+5. **Add TypeScript types** in `client/src/types/index.ts` if new shapes
+
+### Add a New Vue Component
+
+1. Place in `client/src/components/ui/` (primitives) or `client/src/components/shared/` (complex)
+2. Use `<script setup lang="ts">` with typed props
+3. Use existing UI primitives from `components/ui/` (Button, Select, etc.)
+4. Check `@/types` for existing interfaces
+
+### Create a Database Migration
+
+```bash
+cd server
+mix ecto.gen.migration add_some_field
+# Edit the migration file in priv/repo/migrations/
+mix ecto.migrate
 ```
 
-## API Conventions
-
-- All responses wrapped in `{ "data": ... }`
-- Use `household_id` from authenticated user for scoping
-- RESTful endpoints under `/api/`
-- Auth endpoints under `/auth/`
-
-## Domain Model
-
-```
-User (belongs to Household)
-├── Tasks (with Steps, Tags)
-├── Goals (with Milestones, Categories, Tags)
-├── Habits (with Completions, Tags)
-├── Inventory Sheets (with Items, Tags)
-├── Shopping Lists (with Items, Tags)
-├── Budget Sources & Entries (with Tags)
-├── Notebooks (with Pages, Tags)
-└── Notifications & Preferences
-```
-
-## Do's
-
-- Follow existing patterns in the codebase
-- Use types from `client/src/types/index.ts`
-- Scope all queries by `household_id` on the backend
-- Use the `api` singleton for HTTP requests
-- Use `cn()` utility for conditional Tailwind classes
-- Keep business logic in Phoenix contexts, not controllers
-- Use module attributes for Ecto preloads
-
-## Don'ts
-
-- Don't add dependencies without clear justification
-- Don't put business logic in controllers
-- Don't hardcode environment values (use config)
-- Don't bypass household scoping (security risk)
-- Don't use `any` type in TypeScript without justification
-- Don't create new UI components if existing ones suffice
+---
 
 ## Testing
 
-```bash
-# Backend tests
-cd server && mix test
+### Backend
 
-# Frontend type checking
-cd client && npm run build  # Includes vue-tsc
+```bash
+cd server
+mix test                      # Run all tests
+mix test test/path/to_test.exs  # Run specific file
+mix test --failed             # Rerun failed tests
 ```
+
+### Frontend
+
+```bash
+cd client
+npm run build    # Type-check via vue-tsc + production build
+npm run lint     # ESLint + fix
+```
+
+> **Note**: There is no Jest/Vitest test suite currently. Type-checking via `vue-tsc` during build is the primary frontend validation.
+
+---
+
+## Git & Deployment
+
+### Workflow
+
+1. Commit changes: `git add -A && git commit -m "Descriptive message"`
+2. Pull with rebase: `git pull --rebase origin master`
+3. Resolve conflicts if any (watch for `null` vs `undefined` swaps in Vue)
+4. **Run `npm run build`** in client to catch TypeScript errors before pushing
+5. Push: `git push origin master`
+
+### Auto-Deploy
+
+Pushing to `master` triggers GitHub Actions (`.github/workflows/deploy.yml`) which deploys both client and server to Fly.io.
+
+### Common Hazards
+
+- **Orphan Erlang processes**: If API calls are ignored, check `netstat -ano | findstr ":4000"` and kill stale `beam.smp` processes
+- **Conflict resolution in Vue**: Merging often swaps `null` for `undefined` – always verify with `npm run build`
+- **Stale conflict markers**: Grep for `<<<<<<<` after rebasing
+
+---
+
+## Do's
+
+- ✅ Follow existing patterns in the codebase
+- ✅ Use types from `client/src/types/index.ts`
+- ✅ Scope all backend queries by `household_id`
+- ✅ Use the `api` singleton for HTTP requests
+- ✅ Use `cn()` for conditional Tailwind classes
+- ✅ Keep business logic in Phoenix contexts
+- ✅ Run `npm run build` before pushing changes
+- ✅ Use module attributes for Ecto preloads
+- ✅ Use `@click.stop` on nested interactive elements in Vue
+
+## Don'ts
+
+- ❌ Add dependencies without clear justification
+- ❌ Put business logic in controllers
+- ❌ Hardcode environment values (use config)
+- ❌ Bypass household scoping (security risk)
+- ❌ Use `any` type without justification
+- ❌ Create new UI components if existing ones suffice
+- ❌ Commit without running type-check on frontend
+
+---
 
 ## Environment Variables
 
-Backend requires (see `server/env.example`):
-- `DATABASE_URL` - PostgreSQL connection
-- `SECRET_KEY_BASE` - Phoenix secret
-- `GUARDIAN_SECRET_KEY` - JWT signing key
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - OAuth
-- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - OAuth
+### Backend (`server/.env`)
 
-Frontend uses:
-- `VITE_API_URL` - Backend URL (defaults to same origin in production)
+Copy from `server/env.example` and configure:
 
-## LifeBoard-Simple (Legacy)
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL connection (auto-set in Docker) |
+| `SECRET_KEY_BASE` | Phoenix secret (generate with `mix phx.gen.secret`) |
+| `GUARDIAN_SECRET_KEY` | JWT signing key |
+| `GOOGLE_CLIENT_ID/SECRET` | OAuth credentials |
+| `GITHUB_CLIENT_ID/SECRET` | OAuth credentials |
 
-The `LifeBoard-Simple/` directory contains a standalone Java/JavaScript version designed for simplicity and readability. It uses:
-- Pure Java HTTP server (no frameworks)
-- SQLite database
-- Vanilla HTML/CSS/JavaScript
+### Frontend
 
-This is a separate application, not integrated with the main client/server stack. Avoid modifying unless specifically requested.
+| Variable | Purpose |
+|----------|---------|
+| `VITE_API_URL` | Backend URL (defaults to same origin in production) |
+
+---
+
+## Troubleshooting
+
+### Port 4000 Already in Use
+
+```powershell
+# Find and kill orphan Erlang processes (Windows)
+Get-Process -Name "beam.smp","erl" -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+### Database Connection Failed
+
+1. Ensure Docker is running: `docker-compose up -d`
+2. Wait a few seconds for PostgreSQL to initialize
+3. Check container: `docker ps`
+
+### Frontend Build Fails After Merge
+
+Common cause: `null` vs `undefined` mismatch from conflict resolution.
+Solution: Check template initializations in `.vue` files.
+
+### API Returning 401 on Fresh Start
+
+The browser may have stale tokens. Clear localStorage or use incognito mode.
+
+---
+
+## Agent-Specific Notes
+
+### Knowledge Base
+
+The `.antigravity/` directory contains skills and the `knowledge/` directory contains distilled Knowledge Items (KIs) on topics like:
+- Custom UI component patterns
+- Elixir debugging techniques
+- Layout stabilization patterns
+- Acquisition/inventory management flows
+
+**Check relevant KIs before implementing patterns that may already be documented.**
+
+### Workflows
+
+The `.agent/workflows/` directory contains step-by-step guides. Use `/setup_dev_env` to set up the development environment.
+
+### File-Scoped Validation
+
+For quick validation of a single Vue file's types:
+```bash
+cd client
+npx vue-tsc --noEmit src/views/SomeView.vue
+```
+
+---
+
+## Legacy: LifeBoard-Simple
+
+The `LifeBoard-Simple/` directory contains a standalone Java/JavaScript version (pure HTTP server, SQLite, vanilla JS). **Do not modify** unless specifically requested – it is not integrated with the main stack.

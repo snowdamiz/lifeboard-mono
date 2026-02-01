@@ -9,6 +9,7 @@ defmodule MegaPlanner.Application do
       MegaPlannerWeb.Telemetry,
       MegaPlanner.Repo,
       {Phoenix.PubSub, name: MegaPlanner.PubSub},
+      {Finch, name: MegaPlanner.Finch},
       MegaPlannerWeb.Endpoint
     ]
 

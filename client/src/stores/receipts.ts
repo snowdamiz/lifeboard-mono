@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Store, Trip, Stop, Brand, Unit, Purchase, BrandSuggestion, Driver } from '@/types'
+import type { Store, Trip, Stop, Brand, Unit, Purchase, BrandSuggestion, Driver, ReceiptScanResult } from '@/types'
 import { api } from '@/services/api'
 
 export const useReceiptsStore = defineStore('receipts', () => {
@@ -98,6 +98,10 @@ export const useReceiptsStore = defineStore('receipts', () => {
     async function createTrip(trip: Partial<Trip>) {
         const response = await api.createTrip(trip)
         trips.value.unshift(response.data)
+        // Sync to calendar store
+        const { useCalendarStore } = await import('./calendar')
+        const calendarStore = useCalendarStore()
+        calendarStore.addTrip(response.data)
         return response.data
     }
 
@@ -110,6 +114,10 @@ export const useReceiptsStore = defineStore('receipts', () => {
         if (currentTrip.value?.id === id) {
             currentTrip.value = response.data
         }
+        // Sync to calendar store
+        const { useCalendarStore } = await import('./calendar')
+        const calendarStore = useCalendarStore()
+        calendarStore.upsertTrip(response.data)
         return response.data
     }
 
@@ -119,6 +127,10 @@ export const useReceiptsStore = defineStore('receipts', () => {
         if (currentTrip.value?.id === id) {
             currentTrip.value = null
         }
+        // Also remove from calendar store so it disappears from calendar view
+        const { useCalendarStore } = await import('./calendar')
+        const calendarStore = useCalendarStore()
+        calendarStore.removeTrip(id)
     }
 
     // Stops
@@ -342,6 +354,31 @@ export const useReceiptsStore = defineStore('receipts', () => {
         })
     }
 
+    // Receipt Scanning
+    async function scanReceipt(imageData: string): Promise<ReceiptScanResult> {
+        const response = await api.scanReceipt(imageData)
+        return response.data
+    }
+
+    async function confirmReceiptScan(
+        scanResult: ReceiptScanResult,
+        tripId?: string
+    ): Promise<{ store: Store; stop_id?: string; purchases: Purchase[]; created_count: number }> {
+        const response = await api.confirmReceiptScan(scanResult, tripId)
+
+        // Refresh data after confirmation
+        await fetchBrands()
+        await fetchUnits()
+        await fetchStores()
+
+        // Refresh current trip if it was affected
+        if (tripId && currentTrip.value?.id === tripId) {
+            await fetchTrip(tripId)
+        }
+
+        return response.data
+    }
+
     return {
         // State
         stores,
@@ -402,6 +439,10 @@ export const useReceiptsStore = defineStore('receipts', () => {
         // Units
         units,
         fetchUnits,
-        createUnit
+        createUnit,
+
+        // Receipt Scanning
+        scanReceipt,
+        confirmReceiptScan
     }
 })

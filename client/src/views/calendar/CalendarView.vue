@@ -5,7 +5,9 @@ import { ChevronLeft, ChevronRight, Plus, Calendar, CalendarDays, X } from 'luci
 import { Button } from '@/components/ui/button'
 import { useCalendarStore } from '@/stores/calendar'
 import TaskCard from '@/components/calendar/TaskCard.vue'
+import TripCard from '@/components/calendar/TripCard.vue'
 import TaskForm from '@/components/calendar/TaskForm.vue'
+import TaskDetailPopout from '@/components/calendar/TaskDetailPopout.vue'
 import { cn } from '@/lib/utils'
 import type { Task } from '@/types'
 
@@ -16,8 +18,22 @@ const selectedTask = ref<Task | null>(null)
 const mobileSelectedDay = ref<Date>(new Date())
 const expandedDay = ref<string | null>(null) // Stores ISO string of expanded day in month view
 
-// Trip detail modal
-const showTripDetailModal = ref(false)
+// Inline popout editing state for weekly view
+const editingTask = ref<Task | null>(null)
+const editingDayIndex = ref<number | null>(null)
+
+const handleEditTask = (task: Task, dayIndex: number) => {
+  editingTask.value = task
+  editingDayIndex.value = dayIndex
+}
+
+const closeEditPopout = () => {
+  editingTask.value = null
+  editingDayIndex.value = null
+}
+
+// Trip detail inline state (shown in the week grid like edit popout)
+const showInlineTripDetail = ref(false)
 const selectedTripId = ref<string | null>(null)
 
 // Filtering Logic
@@ -132,16 +148,12 @@ const closeTaskForm = () => {
 const handleOpenTripDetail = (tripId: string) => {
   if (!tripId) return
   selectedTripId.value = tripId
-  showTripDetailModal.value = true
-  
-  // Delay closing the form slightly to ensure clean transition
-  setTimeout(() => {
-    showTaskForm.value = false
-  }, 10)
+  showInlineTripDetail.value = true
+  // Keep editingTask open so user can return to edit after closing trip
 }
 
 const closeTripDetailModal = () => {
-  showTripDetailModal.value = false
+  showInlineTripDetail.value = false
   selectedTripId.value = null
 }
 
@@ -176,7 +188,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
 </script>
 
 <template>
-  <div class="h-full flex flex-col animate-fade-in relative">
+  <div class="h-[calc(100vh-170px)] flex flex-col animate-fade-in relative overflow-hidden">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
       <div class="flex items-center gap-3">
@@ -407,162 +419,292 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
     </div>
 
     <!-- Desktop Week Calendar Grid -->
-    <div v-if="calendarStore.viewMode === 'week'" class="hidden md:grid flex-1 grid-cols-7 gap-px bg-border/80 rounded-xl overflow-hidden border border-border/80">
-      <div
-        v-for="day in calendarStore.weekDays"
-        :key="day.toISOString()"
-        :class="[
-          'bg-card flex flex-col',
-          isToday(day) && 'bg-primary/[0.02]'
-        ]"
-      >
-        <!-- Day Header -->
+    <div v-if="calendarStore.viewMode === 'week'" class="hidden md:flex flex-1 min-h-0 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
+      <!-- Day of week headers -->
+      <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-white/[0.06]">
         <div 
+          v-for="(day, index) in calendarStore.weekDays" 
+          :key="'header-' + day.toISOString()" 
           :class="[
-            'p-3 border-b border-border/60 text-center',
-            isToday(day) && 'bg-primary/5'
+            'py-2.5 text-center border-r border-white/[0.04] last:border-r-0',
+            index >= 5 ? 'text-muted-foreground/60' : ''
           ]"
         >
-          <p class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-            {{ format(day, 'EEE') }}
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            {{ format(day, 'EEEE') }}
           </p>
           <div class="mt-1 flex items-center justify-center">
             <span 
               :class="[
-                'inline-flex items-center justify-center text-lg font-semibold',
+                'inline-flex items-center justify-center text-lg font-semibold transition-all',
                 isToday(day) 
-                  ? 'h-8 w-8 rounded-full bg-primary text-primary-foreground' 
-                  : 'text-foreground'
+                  ? 'h-8 w-8 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
+                  : 'text-foreground/90'
               ]"
             >
               {{ format(day, 'd') }}
             </span>
           </div>
         </div>
+      </div>
 
-        <!-- Day Content -->
-        <div class="flex-1 p-1.5 space-y-1 overflow-auto scrollbar-thin min-h-[200px]">
-          <TaskCard
-            v-for="task in calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []"
-            :key="task.id"
-            :task="task"
+      <!-- Week grid content -->
+      <div class="flex-1 flex gap-px bg-white/[0.03] relative">
+        <!-- Full-width popout overlay when editing -->
+        <div 
+          v-if="editingTask && !showInlineTripDetail"
+          class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+        >
+          <TaskDetailPopout
+            :task="editingTask"
+            :day-index="editingDayIndex ?? 0"
+            class="h-full"
+            @close="closeEditPopout"
+            @saved="closeEditPopout"
             @manage-trip="handleOpenTripDetail"
           />
+        </div>
 
+        <!-- Inline Trip Detail overlay -->
+        <div 
+          v-if="showInlineTripDetail && selectedTripId"
+          class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+        >
+          <TripDetailModal
+            :trip-id="selectedTripId"
+            :inline-mode="true"
+            class="h-full"
+            @close="closeTripDetailModal"
+          />
+        </div>
+
+        <!-- Day columns -->
+        <div
+          v-for="(day, dayIndex) in calendarStore.weekDays"
+          :key="day.toISOString()"
+          :class="[
+            'group relative flex flex-col flex-1 w-full transition-all duration-200',
+            'border-r border-white/[0.04] last:border-r-0',
+            isToday(day) 
+              ? 'bg-primary/[0.06] ring-1 ring-inset ring-primary/20' 
+              : dayIndex >= 5 
+                ? 'bg-white/[0.01]' 
+                : 'bg-card',
+            'hover:bg-white/[0.03] hover:z-[1]'
+          ]"
+        >
+          <!-- Day Content -->
+          <div class="flex-1 px-1.5 py-2 space-y-1 overflow-auto scrollbar-thin relative">
+            <!-- Trips list -->
+            <TripCard
+              v-for="trip in calendarStore.tripsByDate[format(day, 'yyyy-MM-dd')] || []"
+              :key="trip.id"
+              :trip="trip"
+              @click="handleOpenTripDetail"
+            />
+            <!-- Task list -->
+            <TaskCard
+              v-for="task in calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []"
+              :key="task.id"
+              :task="task"
+              :day-index="dayIndex"
+              @manage-trip="handleOpenTripDetail"
+              @edit="(task) => handleEditTask(task, dayIndex)"
+            />
+          </div>
+
+          <!-- Add task button on hover -->
           <button
-            class="w-full p-2 border border-dashed border-border/60 rounded-lg text-muted-foreground/60 hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
+            v-if="!editingTask"
+            :class="[
+              'opacity-0 group-hover:opacity-100 absolute bottom-3 right-3 h-8 w-8 rounded-full flex items-center justify-center transition-all duration-200 z-10',
+              'bg-primary/20 hover:bg-primary/30 hover:scale-110',
+              'shadow-lg shadow-primary/10'
+            ]"
             @click="openNewTask(day)"
           >
-            <Plus class="h-4 w-4 mx-auto" />
+            <Plus class="h-4 w-4 text-primary" />
           </button>
         </div>
       </div>
     </div>
 
     <!-- Desktop Month Calendar Grid -->
-    <div v-if="calendarStore.viewMode === 'month'" class="hidden md:flex flex-1 flex-col rounded-xl border border-border/80 bg-card">
+    <div v-if="calendarStore.viewMode === 'month'" class="hidden md:flex flex-1 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
       <!-- Day of week headers -->
-      <div class="grid grid-cols-7 bg-secondary/50 border-b border-border/60">
+      <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-white/[0.06]">
         <div 
-          v-for="dayName in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']" 
+          v-for="(dayName, index) in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']" 
           :key="dayName" 
-          class="py-2 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider"
+          :class="[
+            'py-2.5 text-center text-[11px] font-semibold uppercase tracking-widest',
+            index >= 5 ? 'text-muted-foreground/60' : 'text-muted-foreground'
+          ]"
         >
           {{ dayName }}
         </div>
       </div>
 
       <!-- Month grid -->
-      <div class="flex-1 grid grid-cols-7 grid-rows-6 gap-px bg-border/60">
+      <div class="flex-1 grid grid-cols-7 grid-rows-6 gap-px bg-white/[0.03]">
         <div
-          v-for="day in calendarStore.monthDays"
+          v-for="(day, dayIndex) in calendarStore.monthDays"
           :key="day.toISOString()"
           :class="[
-            'group relative bg-card flex flex-col min-h-[100px] transition-colors',
-            isToday(day) && 'bg-primary/[0.03]',
-            !isSameMonth(day, calendarStore.currentDate) && 'bg-secondary/30'
+            'group relative flex flex-col min-h-[110px] transition-all duration-200',
+            'border-r border-b border-white/[0.04]',
+            isToday(day) 
+              ? 'bg-primary/[0.06] ring-1 ring-inset ring-primary/20' 
+              : !isSameMonth(day, calendarStore.currentDate)
+                ? 'bg-black/20'
+                : dayIndex % 7 >= 5 
+                  ? 'bg-white/[0.01]' 
+                  : 'bg-card',
+            'hover:bg-white/[0.03] hover:z-[1]'
           ]"
         >
           <!-- Day Header -->
           <div 
             :class="[
-              'px-2 py-1 flex items-center justify-between',
-              isToday(day) && 'bg-primary/5'
+              'px-2 py-1.5 flex items-center justify-between border-b',
+              isToday(day) 
+                ? 'border-primary/10 bg-primary/[0.03]' 
+                : 'border-transparent'
             ]"
           >
+            <!-- Day number -->
             <span 
               :class="[
-                'inline-flex items-center justify-center text-sm font-medium',
+                'inline-flex items-center justify-center font-semibold transition-all',
                 isToday(day) 
-                  ? 'h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs' 
+                  ? 'h-7 w-7 rounded-full bg-primary text-primary-foreground text-sm shadow-lg shadow-primary/30' 
                   : !isSameMonth(day, calendarStore.currentDate)
-                    ? 'text-muted-foreground/50'
-                    : 'text-foreground'
+                    ? 'text-muted-foreground/30 text-sm'
+                    : 'text-foreground/90 text-sm'
               ]"
             >
               {{ format(day, 'd') }}
             </span>
-            <span v-if="getTaskCount(day) > 0" class="text-[10px] text-muted-foreground">
-              {{ getTaskCount(day) }} {{ getTaskCount(day) === 1 ? 'task' : 'tasks' }}
+            
+            <!-- Task count badge -->
+            <span 
+              v-if="getTaskCount(day) > 0" 
+              :class="[
+                'inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors',
+                isToday(day)
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-white/[0.06] text-muted-foreground/70'
+              ]"
+            >
+              {{ getTaskCount(day) }}
             </span>
           </div>
 
           <!-- Day Content -->
-          <div class="flex-1 px-1 pb-1 space-y-1 overflow-auto scrollbar-thin">
+          <div class="flex-1 px-1.5 py-1 space-y-0.5 overflow-hidden relative">
+            <!-- Trips list with compact cards -->
+            <TripCard
+              v-for="trip in (calendarStore.tripsByDate[format(day, 'yyyy-MM-dd')] || []).slice(0, 2)"
+              :key="trip.id"
+              :trip="trip"
+              :compact="true"
+              @click="handleOpenTripDetail"
+            />
+            <!-- Task list with compact cards -->
             <TaskCard
-              v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).slice(0, 3)"
+              v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).slice(0, 4)"
               :key="task.id"
               :task="task"
-              class="border-border/50 shadow-none hover:border-primary/30"
+              :compact="true"
               @manage-trip="handleOpenTripDetail"
             />
+            
+            <!-- Overflow indicator -->
             <button 
-              v-if="(calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length > 3"
-              class="text-[10px] text-muted-foreground px-1.5 text-center py-1 w-full hover:bg-secondary/50 rounded transition-colors cursor-pointer"
+              v-if="(calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length > 4"
+              :class="[
+                'flex items-center justify-center gap-1 w-full py-1 rounded-md text-[10px] font-medium transition-all cursor-pointer',
+                'bg-gradient-to-r from-white/[0.03] to-transparent',
+                'hover:from-white/[0.08] hover:to-white/[0.02]',
+                'text-muted-foreground/70 hover:text-primary'
+              ]"
               @click.stop="toggleExpandedDay(day)"
             >
-              +{{ (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length - 3 }} more
+              <span class="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm bg-white/[0.08] text-[9px]">
+                +{{ (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length - 4 }}
+              </span>
+              <span>more</span>
             </button>
+            
+            <!-- Empty state indicator -->
+            <div 
+              v-if="(calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length === 0 && isSameMonth(day, calendarStore.currentDate)"
+              class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <div class="w-8 h-8 rounded-full bg-white/[0.03] flex items-center justify-center border border-dashed border-white/[0.08]">
+                <Plus class="h-4 w-4 text-muted-foreground/40" />
+              </div>
+            </div>
             
             <!-- Expanded Tasks Dropdown -->
             <div 
               v-if="expandedDay === format(day, 'yyyy-MM-dd')" 
-              class="absolute left-[-1px] right-[-1px] top-[-1px] z-20 bg-card border border-border shadow-2xl rounded-lg flex flex-col p-2 min-h-[calc(100%+2px)] max-h-[350px]"
+              class="absolute left-[-1px] right-[-1px] top-[-1px] z-20 backdrop-blur-xl bg-card/95 border border-white/[0.1] shadow-2xl shadow-black/40 rounded-lg flex flex-col p-2.5 min-h-[calc(100%+2px)] max-h-[350px]"
             >
-              <div class="flex items-center justify-between mb-2 pb-2 border-b border-border/50">
-                <span class="text-xs font-semibold text-muted-foreground uppercase">{{ format(day, 'MMM d') }}</span>
+              <!-- Expanded header -->
+              <div class="flex items-center justify-between mb-2 pb-2 border-b border-white/[0.08]">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold">{{ format(day, 'MMM d') }}</span>
+                  <span class="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded-full bg-white/[0.06]">
+                    {{ (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).length }} tasks
+                  </span>
+                </div>
                 <button 
-                  class="h-5 w-5 rounded-full hover:bg-secondary flex items-center justify-center text-muted-foreground transition-colors"
+                  class="h-6 w-6 rounded-full hover:bg-white/[0.1] flex items-center justify-center text-muted-foreground transition-colors"
                   @click.stop="expandedDay = null"
                 >
-                  <X class="h-3 w-3" />
+                  <X class="h-3.5 w-3.5" />
                 </button>
               </div>
+              
+              <!-- Expanded task list -->
               <div class="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin pr-1">
                 <TaskCard
                   v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || [])"
                   :key="task.id"
                   :task="task"
-                  class="border-border/50 shadow-sm hover:border-primary/30"
                   @manage-trip="handleOpenTripDetail"
                 />
               </div>
+              
+              <!-- Add task in expanded view -->
+              <button 
+                class="mt-2 pt-2 border-t border-white/[0.06] flex items-center justify-center gap-1.5 py-1.5 text-[11px] text-muted-foreground/70 hover:text-primary transition-colors"
+                @click="openNewTask(day)"
+              >
+                <Plus class="h-3.5 w-3.5" />
+                Add task
+              </button>
             </div>
 
             <!-- Backdrop for closing -->
             <div 
               v-if="expandedDay === format(day, 'yyyy-MM-dd')" 
-              class="fixed inset-0 z-10 bg-transparent cursor-default" 
+              class="fixed inset-0 z-10 bg-black/20 backdrop-blur-sm cursor-default" 
               @click.stop="expandedDay = null" 
             />
           </div>
 
           <!-- Add task button on hover -->
           <button
-            class="opacity-0 group-hover:opacity-100 absolute bottom-1 right-1 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center transition-opacity hover:bg-primary/20 z-10"
+            :class="[
+              'opacity-0 group-hover:opacity-100 absolute bottom-2 right-2 h-7 w-7 rounded-full flex items-center justify-center transition-all duration-200 z-10',
+              'bg-primary/20 hover:bg-primary/30 hover:scale-110',
+              'shadow-lg shadow-primary/10'
+            ]"
             @click="openNewTask(day)"
           >
-            <Plus class="h-3.5 w-3.5 text-primary" />
+            <Plus class="h-4 w-4 text-primary" />
           </button>
         </div>
       </div>
@@ -578,8 +720,9 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
       @manage-trip="handleOpenTripDetail"
     />
 
+    <!-- Keep TripDetailModal for month view/mobile -->
     <TripDetailModal
-      v-if="showTripDetailModal && selectedTripId"
+      v-if="showInlineTripDetail && selectedTripId && calendarStore.viewMode !== 'week'"
       :trip-id="selectedTripId"
       @close="closeTripDetailModal"
     />

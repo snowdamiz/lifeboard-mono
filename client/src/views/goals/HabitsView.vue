@@ -1201,7 +1201,7 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
 
     <!-- Timeline Zoom Controls - Always rendered for consistent layout -->
     <div class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50" :class="{ 'opacity-50 pointer-events-none': habitsStore.habits.length === 0 }">
-      <span class="text-xs text-muted-foreground">Zoom:</span>
+      <span class="text-xs text-muted-foreground">Auto-Zoom:</span>
       <Button 
         variant="ghost" 
         size="icon" 

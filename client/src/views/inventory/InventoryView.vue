@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Package, Trash, Edit, ChevronRight, Layers, Filter, X, PlusCircle, MinusCircle } from 'lucide-vue-next'
+import { Plus, Package, Trash, Edit, ChevronRight, Layers, PlusCircle, MinusCircle } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,10 @@ import { Badge } from '@/components/ui/badge'
 import { useInventoryStore } from '@/stores/inventory'
 import { useTagsStore } from '@/stores/tags'
 import TagManager from '@/components/shared/TagManager.vue'
+import PageHeader from '@/components/shared/PageHeader.vue'
+import FilterDropdown from '@/components/shared/FilterDropdown.vue'
+import EmptyState from '@/components/shared/EmptyState.vue'
+import FormModal from '@/components/shared/FormModal.vue'
 import type { InventorySheet, Tag } from '@/types'
 
 const router = useRouter()
@@ -17,7 +21,6 @@ const tagsStore = useTagsStore()
 const showSheetModal = ref(false)
 const editingSheet = ref<InventorySheet | null>(null)
 const sheetNameInput = ref<InstanceType<typeof Input> | null>(null)
-const isFilterOpen = ref(false)
 const filterCheckedTagIds = ref<Set<string>>(new Set())
 
 // Sync filter tags from store
@@ -39,13 +42,9 @@ const resolveTags = (tagIds: string[]): Tag[] => {
 }
 
 const addCheckedTags = () => {
-  console.log('addCheckedTags called')
-  console.log('Current tempSelectedTags:', Array.from(tempSelectedTags.value))
-  console.log('Current formData tags:', [...formData.value.tag_ids])
   const currentSet = new Set(formData.value.tag_ids)
   tempSelectedTags.value.forEach(id => currentSet.add(id))
   formData.value.tag_ids = Array.from(currentSet)
-  console.log('New formData tags:', formData.value.tag_ids)
   tempSelectedTags.value = new Set()
 }
 
@@ -61,33 +60,19 @@ const removeTag = (tagId: string) => {
 }
 
 onMounted(() => {
-  // Reset filters on mount
   inventoryStore.sheetFilterTags = []
   inventoryStore.fetchSheets()
 })
 
-const activeFilterCount = computed(() => inventoryStore.sheetFilterTags.length)
-
-const toggleFilterTag = (tagId: string) => {
-  const index = inventoryStore.sheetFilterTags.indexOf(tagId)
-  if (index === -1) {
-    inventoryStore.sheetFilterTags.push(tagId)
-  } else {
-    inventoryStore.sheetFilterTags.splice(index, 1)
-  }
-}
-
-const applyFilters = () => {
+const handleFilterApply = () => {
   inventoryStore.sheetFilterTags = Array.from(filterCheckedTagIds.value)
   inventoryStore.fetchSheets()
-  isFilterOpen.value = false
 }
 
-const clearFilters = () => {
+const handleFilterClear = () => {
   inventoryStore.sheetFilterTags = []
   filterCheckedTagIds.value = new Set()
   inventoryStore.fetchSheets()
-  isFilterOpen.value = false
 }
 
 const openCreateModal = () => {
@@ -139,108 +124,20 @@ const deleteSheet = async (id: string) => {
 <template>
   <div class="space-y-6 animate-fade-in pb-20 sm:pb-0">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Package class="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 class="text-xl sm:text-2xl font-semibold tracking-tight">Inventory</h1>
-          <p class="text-muted-foreground text-sm mt-0.5">Manage your inventory sheets and items</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <div class="relative">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            class="h-9 relative" 
-            :class="{ 'border-primary text-primary': activeFilterCount > 0 }"
-            @click="isFilterOpen = !isFilterOpen"
-          >
-            <Filter class="h-4 w-4 sm:mr-2" />
-            <span class="hidden sm:inline">Filter</span>
-            <Badge 
-              v-if="activeFilterCount > 0" 
-              variant="secondary" 
-              class="ml-2 h-5 min-w-[20px] px-1 bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              {{ activeFilterCount }}
-            </Badge>
-          </Button>
-
-          <!-- Filter Dropdown -->
-          <div 
-            v-if="isFilterOpen" 
-            class="absolute right-0 top-full mt-2 w-80 bg-popover text-popover-foreground border rounded-lg shadow-lg z-50 overflow-hidden"
-          >
-            <div class="p-3 border-b">
-              <h4 class="font-medium leading-none">Filter Sheets</h4>
-              <p class="text-xs text-muted-foreground mt-1.5">Select tags to filter by</p>
-            </div>
-            <div class="p-2">
-              <TagManager
-                v-model:checkedTagIds="filterCheckedTagIds"
-                mode="select"
-                embedded
-                compact
-                hide-input
-                class="max-h-[300px] overflow-auto"
-              />
-            </div>
-            <div class="p-3 border-t bg-muted/20 flex justify-between gap-2">
-              <Button variant="ghost" size="sm" @click="clearFilters" :disabled="activeFilterCount === 0">
-                Clear
-              </Button>
-              <Button size="sm" @click="applyFilters">
-                Apply
-              </Button>
-            </div>
-          </div>
-          <!-- Backdrop -->
-          <div v-if="isFilterOpen" class="fixed inset-0 z-40 bg-transparent" @click="isFilterOpen = false" />
-        </div>
-
+    <PageHeader :icon="Package" title="Inventory" subtitle="Manage your inventory sheets and items">
+      <template #actions>
+        <FilterDropdown
+          v-model="filterCheckedTagIds"
+          title="Filter Sheets"
+          @apply="handleFilterApply"
+          @clear="handleFilterClear"
+        />
         <Button size="sm" class="w-full sm:w-auto" @click="openCreateModal">
           <Plus class="h-4 w-4 sm:mr-2" />
           <span>New Sheet</span>
         </Button>
-      </div>
-    </div>
-
-    <!-- Active Filters Display -->
-    <div v-if="activeFilterCount > 0" class="flex flex-wrap gap-2 items-center">
-      <span class="text-xs text-muted-foreground">Active filters:</span>
-      <Badge 
-        v-for="tagId in inventoryStore.sheetFilterTags" 
-        :key="tagId"
-        variant="secondary"
-        class="gap-1 pl-2 pr-1 py-0.5"
-      >
-        <span class="truncate max-w-[100px]">
-          <!-- We need to find the tag name, but without full tag list in store, we might rely on TagManager or just show ID/loading if not simple. 
-               Actually TagManager handles display. Here we might want to just show 'N tags' or fetch tags. 
-               Ideally TagManager exposes a way to get tag details or we look them up if we have them. 
-               For now, let's trust the user knows what they picked or just show the count in the button. 
-               Displaying names requires fetching them. The habits view handles this by having tags available. 
-               Inventory store doesn't have a 'allTags' list. 
-               We can just remove this section and rely on the badge count in the button, or render chips if we had the data. -->
-          Tag selected
-        </span>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          class="h-3 w-3 sm:h-4 sm:w-4 ml-1 rounded-full -mr-0.5 hover:bg-transparent hover:text-destructive"
-          @click.stop="toggleFilterTag(tagId); applyFilters()"
-        >
-          <X class="h-2 w-2 sm:h-3 sm:w-3" />
-        </Button>
-      </Badge>
-      <Button variant="link" size="sm" class="h-auto p-0 text-xs text-muted-foreground" @click="clearFilters">
-        Clear all
-      </Button>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Loading State -->
     <div v-if="inventoryStore.loading" class="flex items-center justify-center py-20">
@@ -248,19 +145,16 @@ const deleteSheet = async (id: string) => {
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="inventoryStore.sheets.length === 0" class="text-center py-20">
-      <div class="h-16 w-16 rounded-2xl bg-primary/5 mx-auto mb-5 flex items-center justify-center">
-        <Layers class="h-8 w-8 text-primary/50" />
-      </div>
-      <h2 class="text-lg font-medium mb-2">No inventory sheets found</h2>
-      <p class="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
-        {{ activeFilterCount > 0 ? "Try adjusting your filters" : "Create your first sheet to start tracking items" }}
-      </p>
-      <Button @click="activeFilterCount > 0 ? clearFilters() : openCreateModal()">
-        <component :is="activeFilterCount > 0 ? 'X' : Plus" class="h-4 w-4 mr-2" />
-        {{ activeFilterCount > 0 ? "Clear Filters" : "Create Sheet" }}
-      </Button>
-    </div>
+    <EmptyState
+      v-else-if="inventoryStore.sheets.length === 0"
+      :icon="Layers"
+      title="No inventory sheets found"
+      :description="inventoryStore.sheetFilterTags.length > 0 ? 'Try adjusting your filters' : 'Create your first sheet to start tracking items'"
+      :action-label="inventoryStore.sheetFilterTags.length > 0 ? 'Clear Filters' : 'Create Sheet'"
+      :show-clear-action="inventoryStore.sheetFilterTags.length > 0"
+      @action="openCreateModal"
+      @clear="handleFilterClear"
+    />
 
     <!-- Sheets List -->
     <div v-else class="grid gap-3">

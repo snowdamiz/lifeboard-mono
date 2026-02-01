@@ -193,6 +193,7 @@ export interface Store {
   state: string | null
   store_code: string | null
   tax_rate: string | null
+  image_url: string | null
   inserted_at: string
   updated_at: string
 }
@@ -284,6 +285,51 @@ export interface TripReceipt {
 export interface BrandSuggestion {
   brand: Brand | { name: string } | null
   recent_purchases: Purchase[]
+}
+
+// Receipt Scanning
+export interface ReceiptScanStore {
+  name: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  store_code: string | null
+  phone: string | null
+  is_new?: boolean
+  id?: string | null
+}
+
+export interface ReceiptScanTransaction {
+  date: string | null
+  time: string | null
+  subtotal: string | null
+  tax: string | null
+  total: string | null
+  payment_method: string | null
+}
+
+export interface ReceiptScanItem {
+  raw_text: string | null
+  brand: string
+  item: string
+  quantity: number
+  unit: string | null
+  unit_quantity: string | null
+  unit_price: string | null
+  total_price: string | null
+  taxable: boolean
+  tax_amount: string | null
+  store_code: string | null
+  brand_is_new?: boolean
+  brand_id?: string | null
+  unit_is_new?: boolean
+  unit_id?: string | null
+}
+
+export interface ReceiptScanResult {
+  store: ReceiptScanStore
+  transaction: ReceiptScanTransaction
+  items: ReceiptScanItem[]
 }
 
 // Notes
