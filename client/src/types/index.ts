@@ -99,8 +99,8 @@ export interface InventorySheet {
 export interface InventoryItem {
   id: string
   name: string
-  quantity: number
-  min_quantity: number
+  quantity: string | number
+  min_quantity: string | number
   is_necessity: boolean
   store: string | null
   unit_of_measure: string | null
@@ -116,6 +116,11 @@ export interface InventoryItem {
   tag_ids?: string[] // Used when creating/updating
   custom_fields: Record<string, unknown>
   sheet_id: string
+  // Trip/Purchase linkage for data parity with calendar
+  trip_id: string | null
+  stop_id: string | null
+  purchase_id: string | null
+  purchase_date: string | null
   inserted_at: string
   updated_at: string
 }
@@ -276,6 +281,7 @@ export interface Purchase {
 // Trip Receipt (grouped inventory items from shopping trips)
 export interface TripReceipt {
   id: string
+  trip_id: string | null
   store_name: string
   trip_start: string | null
   date: string | null
@@ -318,7 +324,9 @@ export interface ReceiptScanItem {
   unit_price: string | null
   total_price: string | null
   taxable: boolean
+  tax_indicator: string | null
   tax_amount: string | null
+  tax_rate: string | null
   store_code: string | null
   brand_is_new?: boolean
   brand_id?: string | null
@@ -352,6 +360,7 @@ export interface Page {
   id: string
   title: string
   content: string | null
+  metadata: string | null
   notebook_id: string
   links: PageLink[]
   tags: Tag[]

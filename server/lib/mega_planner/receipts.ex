@@ -6,7 +6,7 @@ defmodule MegaPlanner.Receipts do
   import Ecto.Query, warn: false
   require Logger
   alias MegaPlanner.Repo
-  alias MegaPlanner.Receipts.{Store, Trip, Stop, Brand, Purchase, Unit, FormatCorrection}
+  alias MegaPlanner.Receipts.{Store, Trip, Stop, Brand, Purchase, Unit, FormatCorrection, TaxIndicatorMeaning}
   alias MegaPlanner.Budget
   alias MegaPlanner.Tags.Tag
   alias Ecto.Multi
@@ -60,6 +60,21 @@ defmodule MegaPlanner.Receipts do
     from(s in Store,
       where: s.household_id == ^household_id,
       where: fragment("LOWER(?) = LOWER(?)", s.name, ^name),
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Finds a store by store_id for a household.
+  Returns nil if not found.
+  """
+  def find_store_by_store_id(_household_id, nil), do: nil
+  def find_store_by_store_id(_household_id, ""), do: nil
+  def find_store_by_store_id(household_id, store_id) do
+    from(s in Store,
+      where: s.household_id == ^household_id,
+      where: s.store_id == ^store_id,
       limit: 1
     )
     |> Repo.one()
@@ -422,7 +437,7 @@ defmodule MegaPlanner.Receipts do
       
       # Delete the trip (which cascades to stops)
       case Repo.delete(trip) do
-        {:ok, _} -> :ok
+        {:ok, deleted_trip} -> deleted_trip
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
@@ -433,7 +448,7 @@ defmodule MegaPlanner.Receipts do
   """
   def update_trip_date(trip_id, date, start_time) do
     # Ensure start_time is present for DateTime creation
-    start_time = start_time || ~T[00:00:00]
+    start_time = start_time || ~T[12:00:00]
     dt_result = DateTime.new(date, start_time)
     
     # Only proceed if we have a valid date/time
@@ -1170,12 +1185,27 @@ defmodule MegaPlanner.Receipts do
   @doc """
   Upserts a format correction record to store user's preferred formatting.
   Used to learn from how users correct OCR text.
+  
+  Learns:
+  - Brand name preferences
+  - Item name formatting
+  - Unit preferences
+  - Quantity interpretations
+  - Unit quantity (volume/weight) preferences
   """
   def upsert_format_correction(attrs) do
     changeset = FormatCorrection.changeset(%FormatCorrection{}, attrs)
     
     Repo.insert(changeset,
-      on_conflict: {:replace, [:corrected_brand, :corrected_item, :updated_at]},
+      on_conflict: {:replace, [
+        :corrected_brand, 
+        :corrected_item, 
+        :corrected_unit,
+        :corrected_quantity,
+        :corrected_unit_quantity,
+        :preference_notes,
+        :updated_at
+      ]},
       conflict_target: [:household_id, :raw_text]
     )
   end
@@ -1191,4 +1221,66 @@ defmodule MegaPlanner.Receipts do
     )
     |> Repo.one()
   end
+
+  # Tax Indicator Meanings
+
+  @doc """
+  Gets the meaning of a tax indicator for a specific store.
+  Returns nil if no custom meaning has been defined.
+  """
+  def get_tax_indicator_meaning(household_id, store_name, indicator) do
+    from(tim in TaxIndicatorMeaning,
+      where: tim.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", tim.store_name, ^store_name),
+      where: fragment("UPPER(?) = UPPER(?)", tim.indicator, ^indicator),
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Gets all tax indicator meanings for a store.
+  """
+  def list_tax_indicator_meanings(household_id, store_name) do
+    from(tim in TaxIndicatorMeaning,
+      where: tim.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", tim.store_name, ^store_name),
+      order_by: [asc: tim.indicator]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Upserts a tax indicator meaning.
+  Used when user corrects the AI's interpretation of a tax indicator.
+  """
+  def upsert_tax_indicator_meaning(attrs) do
+    changeset = TaxIndicatorMeaning.changeset(%TaxIndicatorMeaning{}, attrs)
+    
+    Repo.insert(changeset,
+      on_conflict: {:replace, [:is_taxable, :description, :default_tax_rate, :updated_at]},
+      conflict_target: [:household_id, :store_name, :indicator]
+    )
+  end
+
+  @doc """
+  Applies learned tax indicator meanings to an item.
+  Returns the item with updated taxable/tax_rate fields if a meaning is found.
+  """
+  def apply_tax_indicator_meaning(item, household_id, store_name) do
+    indicator = item[:tax_indicator] || item["tax_indicator"]
+    
+    if indicator && indicator != "" do
+      case get_tax_indicator_meaning(household_id, store_name, indicator) do
+        nil -> item
+        meaning ->
+          item
+          |> Map.put(:taxable, meaning.is_taxable)
+          |> Map.put(:tax_rate, meaning.default_tax_rate)
+      end
+    else
+      item
+    end
+  end
 end
+

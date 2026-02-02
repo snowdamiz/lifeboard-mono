@@ -37,6 +37,7 @@ const inputClasses = computed(() => cn(
     :placeholder="placeholder"
     :disabled="disabled"
     :class="inputClasses"
+    autocomplete="off"
     @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
   />
 </template>

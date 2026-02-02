@@ -5,6 +5,7 @@ import { X, Plus, Trash, MapPin, Clock, Calendar, ListChecks, Tag as TagIcon } f
 import type { Task, TaskStep, Tag } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateChooser } from '@/components/ui/date-chooser'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
@@ -118,17 +119,11 @@ const onManageTripClick = async () => {
       const trip = await receiptsStore.createTrip({
         driver: null,
         driver_id: null,
-        trip_start: form.value.date ? `${form.value.date}T00:00:00` : null,
+        trip_start: form.value.date ? `${form.value.date}T12:00:00` : null,
         trip_end: null,
         notes: null
       })
       tripId.value = trip.id
-      
-      await receiptsStore.createStop(trip.id, {
-        position: 0,
-        time_arrived: '00:00',
-        time_left: '00:00'
-      })
       
       await calendarStore.updateTask(props.task.id, { trip_id: trip.id })
     } catch (e) {
@@ -161,7 +156,7 @@ const save = async () => {
         if (form.value.start_time) {
           tripStart = `${form.value.date}T${form.value.start_time}:00`
         } else {
-          const date = new Date(`${form.value.date}T00:00:00`)
+          const date = new Date(`${form.value.date}T12:00:00`)
           const userTimezoneOffset = date.getTimezoneOffset() * 60000
           const adjustedDate = new Date(date.getTime() + userTimezoneOffset)
           tripStart = adjustedDate.toISOString()
@@ -177,12 +172,6 @@ const save = async () => {
       })
       createdTripId = trip.id
       tripId.value = trip.id
-      
-      await receiptsStore.createStop(trip.id, { 
-        position: 0,
-        time_arrived: '00:00:00',
-        time_left: '00:00:00'
-      })
     }
     
     const taskSteps = steps.value.map((step, index) => ({
@@ -252,7 +241,7 @@ const save = async () => {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-xs font-medium text-muted-foreground">Date</label>
-              <Input v-model="form.date" type="date" class="mt-1.5" />
+              <DateChooser v-model="form.date" class="mt-1.5" />
             </div>
             <div>
               <label class="text-xs font-medium text-muted-foreground">Type</label>

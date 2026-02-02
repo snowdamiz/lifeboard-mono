@@ -1,21 +1,47 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Clock, Trash, Edit, ListChecks, Loader2, CheckCircle2, Circle, PlayCircle } from 'lucide-vue-next'
-import type { Task } from '@/types'
+import { Clock, ListChecks, CheckCircle2, Circle, PlayCircle, ShoppingCart } from 'lucide-vue-next'
+import type { Task, Trip } from '@/types'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { useCalendarStore } from '@/stores/calendar'
 import TaskForm from './TaskForm.vue'
+import EditButton from '@/components/shared/EditButton.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
 
 interface Props {
   task: Task
   compact?: boolean // For month view cells
   dayIndex?: number // Day of week index (0-6), when provided emits edit event instead of showing modal
+  trip?: Trip | null // Optional trip data for tasks with trip_id
 }
 
 const props = withDefaults(defineProps<Props>(), {
   compact: false,
-  dayIndex: undefined
+  dayIndex: undefined,
+  trip: null
+})
+
+// Trip summary computations (when trip data is provided)
+const tripPurchaseCount = computed(() => {
+  if (!props.trip) return 0
+  return props.trip.stops.reduce((sum, stop) => sum + (stop.purchases?.length || 0), 0)
+})
+
+const tripTotalSpent = computed(() => {
+  if (!props.trip) return '0.00'
+  let total = 0
+  for (const stop of props.trip.stops) {
+    for (const purchase of stop.purchases || []) {
+      total += parseFloat(purchase.total_price || '0')
+    }
+  }
+  return total.toFixed(2)
+})
+
+const tripStoreName = computed(() => {
+  if (!props.trip || props.trip.stops.length === 0) return 'Shopping Trip'
+  if (props.trip.stops.length === 1) return props.trip.stops[0].store_name || 'Shopping Trip'
+  return `${props.trip.stops[0].store_name || 'Trip'} +${props.trip.stops.length - 1}`
 })
 const emit = defineEmits<{
   manageTrip: [tripId: string]
@@ -42,12 +68,8 @@ const statusIcon = computed(() => {
 })
 
 const handleCardClick = () => {
-  // In weekly view (dayIndex provided), emit event so CalendarView can render popout at cell level
-  if (props.dayIndex !== undefined && !props.compact) {
-    emit('edit', props.task)
-  } else {
-    showEditForm.value = true
-  }
+  // Always show the edit form (modal) when clicking the card
+  showEditForm.value = true
 }
 
 const toggleStatus = async () => {
@@ -107,7 +129,7 @@ const deleteTask = async () => {
     <div 
       v-else
       :class="[
-        'group relative overflow-hidden rounded-lg transition-all duration-200 cursor-pointer',
+        'group/task relative overflow-hidden rounded-lg transition-all duration-200 cursor-pointer',
         'border border-white/[0.06] hover:border-white/[0.12]',
         'bg-gradient-to-br hover:shadow-lg hover:shadow-black/10',
         task.status === 'completed' 
@@ -139,7 +161,7 @@ const deleteTask = async () => {
           <div class="flex-1 min-w-0">
             <!-- Title -->
             <p :class="[
-              'text-[13px] font-medium leading-snug',
+              'text-[13px] font-medium leading-snug truncate',
               task.status === 'completed' 
                 ? 'line-through text-muted-foreground' 
                 : 'text-foreground'
@@ -181,30 +203,38 @@ const deleteTask = async () => {
               </span>
             </div>
           </div>
-
-          <!-- Actions (show on hover) -->
-          <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              class="h-6 w-6 text-muted-foreground/60 hover:text-primary hover:bg-primary/10"
-              @click.stop="handleCardClick"
-              title="Edit task"
-            >
-              <Edit class="h-3 w-3" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              class="h-6 w-6 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10"
-              :disabled="isDeleting"
-              @click.stop.prevent="deleteTask"
-              title="Delete task"
-            >
-              <Loader2 v-if="isDeleting" class="h-3 w-3 animate-spin" />
-              <Trash v-else class="h-3 w-3" />
-            </Button>
+        </div>
+        
+        <!-- Trip Info Section (when task has trip data) -->
+        <div 
+          v-if="trip && tripPurchaseCount > 0"
+          class="mt-2 px-2 py-1.5 rounded-md bg-gradient-to-r from-emerald-500/10 to-transparent border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40 hover:bg-emerald-500/15 transition-all"
+          @click.stop="$emit('manageTrip', task.trip_id!)"
+        >
+          <div class="flex items-center gap-1.5">
+            <div class="shrink-0 h-4 w-4 rounded bg-emerald-500/20 flex items-center justify-center">
+              <ShoppingCart class="h-2.5 w-2.5 text-emerald-500" />
+            </div>
+            <span class="text-[11px] font-medium text-foreground/90">{{ tripStoreName }}</span>
           </div>
+          <div class="flex items-center justify-between mt-1 pl-5">
+            <span class="text-[10px] text-muted-foreground">{{ tripPurchaseCount }} items</span>
+            <span class="text-[11px] text-emerald-500 font-semibold">${{ tripTotalSpent }}</span>
+          </div>
+        </div>
+        <!-- Actions row (show on hover, below content) -->
+        <div class="hidden group-hover/task:flex items-center justify-end gap-0.5 mt-1.5 -mb-0.5">
+          <EditButton 
+            :adaptive="true" 
+            title="Edit task"
+            @click="handleCardClick" 
+          />
+          <DeleteButton 
+            :adaptive="true"
+            :loading="isDeleting"
+            title="Delete task"
+            @click="deleteTask" 
+          />
         </div>
       </div>
     </div>

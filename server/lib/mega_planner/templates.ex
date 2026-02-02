@@ -9,18 +9,26 @@ defmodule MegaPlanner.Templates do
 
   @doc """
   Returns a list of matching template values.
+  If query is empty, returns all templates (up to limit), sorted alphabetically.
   """
   def suggest_templates(household_id, field_type, query) do
-    search_pattern = "%#{query}%"
-    
-    from(t in TextTemplate,
-      where: t.household_id == ^household_id and t.field_type == ^field_type and ilike(t.value, ^search_pattern),
+    base_query = from(t in TextTemplate,
+      where: t.household_id == ^household_id and t.field_type == ^field_type,
       select: t.value,
       distinct: true,
       order_by: [asc: t.value],
-      limit: 10
+      limit: 20
     )
-    |> Repo.all()
+    
+    # If query is provided, filter by it
+    filtered_query = if query && String.trim(query) != "" do
+      search_pattern = "%#{query}%"
+      from(t in base_query, where: ilike(t.value, ^search_pattern))
+    else
+      base_query
+    end
+    
+    Repo.all(filtered_query)
   end
 
   @doc """

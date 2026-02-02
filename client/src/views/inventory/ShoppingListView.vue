@@ -2,7 +2,7 @@
 import { onMounted, computed, ref, watch } from 'vue'
 import { 
   ShoppingCart, RefreshCw, Check, Package, AlertCircle, 
-  Plus, Trash2, ChevronDown, ChevronRight, Edit2, X, Filter,
+  Plus, ChevronDown, ChevronRight, X, Filter,
   PlusCircle, MinusCircle, Store
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
 import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
 import ShoppingItemForm from '@/components/shopping/ShoppingItemForm.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import type { ShoppingList, ShoppingListItem, Tag } from '@/types'
 import { useTagsStore } from '@/stores/tags'
 
@@ -432,15 +434,7 @@ const totalUnpurchased = computed(() =>
               </p>
             </div>
             <div class="flex items-center gap-1">
-               <Button 
-                variant="ghost" 
-                size="icon" 
-                class="h-8 w-8 text-muted-foreground"
-                @click.stop="openEditListModal(list)"
-                title="Edit list"
-              >
-                <Edit2 class="h-4 w-4" />
-              </Button>
+              <EditButton :adaptive="false" @click.stop="openEditListModal(list)" />
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -450,16 +444,11 @@ const totalUnpurchased = computed(() =>
               >
                 <Plus class="h-4 w-4" />
               </Button>
-              <Button 
+              <DeleteButton 
                 v-if="!list.is_auto_generated"
-                variant="ghost" 
-                size="icon" 
-                class="h-8 w-8 text-destructive"
+                :adaptive="false"
                 @click="deleteList(list.id)"
-                title="Delete list"
-              >
-                <Trash2 class="h-4 w-4" />
-              </Button>
+              />
             </div>
           </div>
         </CardHeader>
@@ -505,13 +494,10 @@ const totalUnpurchased = computed(() =>
               <!-- Actions -->
               <template #actions>
                 <div class="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    class="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-primary"
+                  <EditButton
+                    :adaptive="false"
                     @click="openEditItemModal(list.id, item)"
-                    title="Edit item"
-                  >
-                    <Edit2 class="h-3.5 w-3.5" />
-                  </button>
+                  />
                   <button
                     class="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive"
                     @click="deleteItem(list.id, item.id)"

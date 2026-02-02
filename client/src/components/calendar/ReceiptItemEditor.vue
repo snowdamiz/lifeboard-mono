@@ -196,18 +196,15 @@ onMounted(async () => {
             class="mt-1" 
           />
         </div>
-        <!-- Unit Price -->
+        <!-- Unit Price (auto-calculated: total_price / quantity) -->
         <div>
           <label class="text-sm font-medium text-muted-foreground">Unit Price</label>
-          <Input 
-            :model-value="item.unit_price ?? ''"
-            @update:model-value="(v) => emit('update', index, { unit_price: v || null })"
-            type="number" 
-            step="0.01" 
-            min="0" 
-            placeholder="0.00" 
-            class="mt-1" 
-          />
+          <div class="mt-1 h-9 px-3 flex items-center bg-muted/50 rounded-md border border-input text-sm font-mono">
+            <template v-if="item.quantity && item.quantity > 0 && item.total_price">
+              ${{ (parseFloat(item.total_price) / item.quantity).toFixed(2) }}
+            </template>
+            <span v-else class="text-muted-foreground">—</span>
+          </div>
         </div>
       </div>
 
@@ -242,7 +239,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Unit Quantity Row -->
+      <!-- Unit Quantity & Unit Quantity Price Row -->
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-sm font-medium text-muted-foreground">Unit Quantity</label>
@@ -253,35 +250,46 @@ onMounted(async () => {
             class="mt-1" 
           />
         </div>
-        <div class="flex items-end pb-1">
-          <!-- Taxable Checkbox -->
-          <div class="flex items-center gap-2">
-            <Checkbox 
-              :id="taxableId"
-              :model-value="item.taxable"
-              @update:model-value="(v: boolean | 'indeterminate') => emit('update', index, { taxable: v === true })"
-            />
-            <label 
-              v-if="!item.taxable"
-              :for="taxableId"
-              class="text-sm font-medium cursor-pointer"
-            >
-              Taxable item
-            </label>
-            <div v-else class="flex items-center gap-1.5">
-              <Input
-                :model-value="item.tax_amount ?? ''"
-                @update:model-value="(v: string | number) => emit('update', index, { tax_amount: String(v) || null })"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Tax $"
-                class="h-7 w-20 px-2 text-xs"
-                @click.stop
-              />
-              <span class="text-xs font-medium">tax</span>
-            </div>
+        <div>
+          <label class="text-sm font-medium text-muted-foreground">Unit Qty Price</label>
+          <div class="mt-1 h-9 px-3 flex items-center bg-muted/50 rounded-md border border-input text-sm font-mono">
+            <template v-if="item.unit_quantity && parseFloat(item.unit_quantity) > 0 && item.total_price">
+              ${{ (parseFloat(item.total_price) / parseFloat(item.unit_quantity)).toFixed(4) }}
+            </template>
+            <span v-else class="text-muted-foreground">—</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Taxable Row -->
+      <div class="flex items-center gap-3">
+        <Checkbox 
+          :id="taxableId"
+          :model-value="item.taxable"
+          @update:model-value="(v: boolean | 'indeterminate') => emit('update', index, { taxable: v === true })"
+        />
+        <label 
+          v-if="!item.taxable"
+          :for="taxableId"
+          class="text-sm font-medium cursor-pointer"
+        >
+          Taxable item
+        </label>
+        <div v-else class="flex items-center gap-2">
+          <label :for="taxableId" class="text-sm font-medium cursor-pointer">Tax:</label>
+          <Input
+            :model-value="item.tax_amount ?? ''"
+            @update:model-value="(v: string | number) => emit('update', index, { tax_amount: String(v) || null })"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="$0.00"
+            class="h-7 w-20 px-2 text-xs"
+            @click.stop
+          />
+          <span class="text-xs text-muted-foreground">
+            ({{ item.tax_rate ? (parseFloat(item.tax_rate) * 100).toFixed(1) + '%' : 'rate?' }})
+          </span>
         </div>
       </div>
 

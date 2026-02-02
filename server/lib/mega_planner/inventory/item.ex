@@ -7,8 +7,8 @@ defmodule MegaPlanner.Inventory.Item do
 
   schema "inventory_items" do
     field :name, :string
-    field :quantity, :integer, default: 0
-    field :min_quantity, :integer, default: 0
+    field :quantity, :decimal, default: 0
+    field :min_quantity, :decimal, default: 0
     field :is_necessity, :boolean, default: false
     field :store, :string
     field :unit_of_measure, :string

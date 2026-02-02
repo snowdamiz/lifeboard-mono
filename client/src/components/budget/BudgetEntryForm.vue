@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { X, Plus, PlusCircle, MinusCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateChooser } from '@/components/ui/date-chooser'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
@@ -206,7 +207,7 @@ const save = async () => {
         <form class="flex-1 overflow-auto p-4 space-y-4" @submit.prevent="save">
           <div>
             <label class="text-sm font-medium">Date</label>
-            <Input v-model="form.date" type="date" class="mt-1" />
+            <DateChooser v-model="form.date" class="mt-1" />
           </div>
 
           <div>

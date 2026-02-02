@@ -3,8 +3,8 @@ import { api } from '@/services/api'
 export function useTextTemplate(type: string) {
     const search = async (query: string): Promise<string[]> => {
         try {
-            if (!query.trim()) return []
-            const response = await api.suggestTemplates(type, query)
+            // Allow empty query to show all suggestions on focus
+            const response = await api.suggestTemplates(type, query.trim())
             return response.data
         } catch (e) {
             console.error(`Failed to search templates for ${type}`, e)

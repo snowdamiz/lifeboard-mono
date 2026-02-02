@@ -11,16 +11,24 @@ import { formatCurrency } from '@/lib/utils'
 import BudgetEntryForm from '@/components/budget/BudgetEntryForm.vue'
 import BudgetDayDetail from '@/components/budget/BudgetDayDetail.vue'
 import TripCard from '@/components/calendar/TripCard.vue'
+import TripDetailModal from '@/components/calendar/TripDetailModal.vue'
 import PageHeader from '@/components/shared/PageHeader.vue'
 import FilterDropdown from '@/components/shared/FilterDropdown.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import { useReceiptsStore } from '@/stores/receipts'
 import type { BudgetEntry } from '@/types'
 
 const budgetStore = useBudgetStore()
 const calendarStore = useCalendarStore()
+const receiptsStore = useReceiptsStore()
 const showEntryForm = ref(false)
 const showDayDetail = ref(false)
 const selectedDate = ref<Date | null>(null)
 const editingEntry = ref<BudgetEntry | null>(null)
+
+// Trip management state
+const selectedTripId = ref<string | null>(null)
+const showTripDetail = ref(false)
 
 // Selected day for timeline view (defaults to today)
 const selectedDay = ref(new Date())
@@ -100,11 +108,16 @@ const calendarDays = computed(() => {
   const end = endOfMonth(budgetStore.currentMonth)
   const days = eachDayOfInterval({ start, end })
   
-  // Add padding for first week
+  // Add padding for first week (before month starts)
   const startDay = getDay(start)
-  const padding = Array(startDay === 0 ? 6 : startDay - 1).fill(null)
+  const leadingPadding = Array(startDay === 0 ? 6 : startDay - 1).fill(null)
   
-  return [...padding, ...days]
+  // Always render exactly 42 cells (6 rows × 7 columns) for consistent height
+  const totalCells = 42
+  const filledCells = leadingPadding.length + days.length
+  const trailingPadding = Array(Math.max(0, totalCells - filledCells)).fill(null)
+  
+  return [...leadingPadding, ...days, ...trailingPadding]
 })
 
 // Weekly view days
@@ -175,6 +188,16 @@ const recentEntries = computed(() => {
   return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10)
 })
 
+// Get all trips for the current period (for mobile month view)
+const allTrips = computed(() => {
+  const trips = Object.values(calendarStore.tripsByDate).flat()
+  return trips.sort((a, b) => {
+    const dateA = a.trip_start ? new Date(a.trip_start).getTime() : 0
+    const dateB = b.trip_start ? new Date(b.trip_start).getTime() : 0
+    return dateB - dateA
+  })
+})
+
 const openDayDetail = (date: Date) => {
   selectedDate.value = date
   showDayDetail.value = true
@@ -207,6 +230,23 @@ const refreshData = async () => {
     budgetStore.fetchSummary(),
     calendarStore.fetchTripsForPeriod(start, end)
   ])
+}
+
+// Trip handlers
+const handleTripClick = (tripId: string) => {
+  selectedTripId.value = tripId
+  showTripDetail.value = true
+}
+
+const handleTripDelete = async (tripId: string) => {
+  await receiptsStore.deleteTrip(tripId)
+  await refreshData()
+}
+
+const handleTripDetailClose = async () => {
+  showTripDetail.value = false
+  selectedTripId.value = null
+  await refreshData() // Refresh in case purchases were changed
 }
 </script>
 
@@ -361,7 +401,7 @@ const refreshData = async () => {
           v-for="(day, index) in calendarDays"
           :key="index"
           :class="[
-            'min-h-[88px] border-t border-r border-border/60 p-2 last:border-r-0 [&:nth-child(7n)]:border-r-0 group',
+            'min-h-[88px] border-t border-r border-border p-2 last:border-r-0 [&:nth-child(7n)]:border-r-0 group',
             day && isToday(day) && 'bg-primary/[0.03]',
             !day && 'bg-secondary/20'
           ]"
@@ -392,7 +432,8 @@ const refreshData = async () => {
                 :key="trip.id"
                 :trip="trip"
                 :compact="true"
-                @click="(tripId) => { /* Handle trip click if needed */ }"
+                @click="handleTripClick"
+                @delete="handleTripDelete"
               />
             </div>
 
@@ -518,7 +559,7 @@ const refreshData = async () => {
           <Card 
             v-for="trip in selectedDayTrips" 
             :key="'trip-' + trip.id"
-            class="mb-2 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden border-l-[3px] border-l-blue-500"
+            class="group mb-2 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden border-l-[3px] border-l-blue-500"
           >
             <CardContent class="p-2">
               <!-- Trip Header -->
@@ -538,6 +579,8 @@ const refreshData = async () => {
                 <span class="text-sm font-semibold tabular-nums text-red-500">
                   -{{ formatCurrency(trip.stops?.flatMap(s => s.purchases || []).reduce((sum, p) => sum + parseFloat(p.total_price || '0'), 0) || 0) }}
                 </span>
+                <!-- Delete button -->
+                <DeleteButton @click.stop="handleTripDelete(trip.id)" />
               </div>
 
               <!-- Purchases list - indented -->
@@ -630,7 +673,7 @@ const refreshData = async () => {
           v-for="(day, index) in calendarDays"
           :key="index"
           :class="[
-            'min-h-[52px] border-t border-r border-border/60 p-1 last:border-r-0 [&:nth-child(7n)]:border-r-0 flex flex-col items-center transition-colors',
+            'min-h-[52px] border-t border-r border-border p-1 last:border-r-0 [&:nth-child(7n)]:border-r-0 flex flex-col items-center transition-colors',
             day && isToday(day) && 'bg-primary/[0.03]',
             day && (getDayTotal(day, 'income') > 0 || getDayTotal(day, 'expense') > 0) && 'active:bg-secondary/60',
             !day && 'bg-secondary/20'
@@ -732,6 +775,8 @@ const refreshData = async () => {
             <span class="text-sm font-semibold tabular-nums text-red-500">
               -{{ formatCurrency(trip.stops?.flatMap(s => s.purchases || []).reduce((sum, p) => sum + parseFloat(p.total_price || '0'), 0) || 0) }}
             </span>
+            <!-- Delete button (always visible on mobile) -->
+            <DeleteButton :adaptive="false" @click.stop="handleTripDelete(trip.id)" />
           </div>
 
           <!-- Purchases list - indented -->
@@ -803,6 +848,38 @@ const refreshData = async () => {
       </div>
     </div>
 
+    <!-- Mobile: Shopping Trips (Month View) -->
+    <div v-if="budgetStore.viewMode === 'month' && allTrips.length > 0" class="sm:hidden space-y-2">
+      <h3 class="text-sm font-medium text-muted-foreground">Shopping Trips</h3>
+      <div class="space-y-2">
+        <div 
+          v-for="trip in allTrips" 
+          :key="'mobile-month-trip-' + trip.id"
+          class="flex items-center justify-between p-3 rounded-xl bg-card border border-border/60 border-l-[3px] border-l-emerald-500"
+          @click="handleTripClick(trip.id)"
+        >
+          <div class="flex items-center gap-3">
+            <div class="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <Calendar class="h-4 w-4 text-emerald-600" />
+            </div>
+            <div>
+              <p class="text-sm font-medium">{{ trip.stops?.[0]?.store_name || 'Shopping Trip' }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ trip.trip_start ? format(new Date(trip.trip_start), 'MMM d') : 'No date' }} · 
+                {{ trip.stops?.flatMap(s => s.purchases || []).length || 0 }} items
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold tabular-nums text-red-500">
+              -{{ formatCurrency(trip.stops?.flatMap(s => s.purchases || []).reduce((sum, p) => sum + parseFloat(p.total_price || '0'), 0) || 0) }}
+            </span>
+            <DeleteButton :adaptive="false" @click.stop="handleTripDelete(trip.id)" />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Mobile: Recent Entries List -->
     <div class="sm:hidden space-y-2">
       <h3 class="text-sm font-medium text-muted-foreground">Recent entries this {{ budgetStore.viewMode === 'week' ? 'week' : 'month' }}</h3>
@@ -858,6 +935,13 @@ const refreshData = async () => {
       :entry="editingEntry"
       @close="showEntryForm = false; editingEntry = null"
       @saved="showEntryForm = false; editingEntry = null; refreshData()"
+    />
+
+    <!-- Trip Detail Modal -->
+    <TripDetailModal
+      v-if="showTripDetail && selectedTripId"
+      :trip-id="selectedTripId"
+      @close="handleTripDetailClose"
     />
   </div>
 </template>

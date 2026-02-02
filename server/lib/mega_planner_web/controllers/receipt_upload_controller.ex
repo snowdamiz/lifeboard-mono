@@ -165,8 +165,14 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   defp ensure_store(store_params, household_id) do
     attrs = %{
       "name" => store_params["name"] || "Unknown Store",
-      "address" => store_params["address"],
+      "store_id" => store_params["store_id"],
+      "street" => store_params["street"],
+      "suite" => store_params["suite"],
+      "city" => store_params["city"],
       "state" => store_params["state"],
+      "zip_code" => store_params["zip_code"],
+      "phone" => store_params["phone"],
+      "address" => store_params["address"],
       "store_code" => store_params["store_code"],
       "household_id" => household_id
     }
@@ -174,18 +180,49 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     case Receipts.create_store(attrs) do
       {:ok, store} -> store
       {:error, _} -> 
-        # Try to find existing store
-        Receipts.find_store_by_name(household_id, store_params["name"]) ||
+        # Try to find existing store by store_id first, then by name
+        find_existing_store(store_params, household_id) ||
           raise "Failed to create or find store"
     end
+  end
+
+  defp find_existing_store(store_params, household_id) do
+    store_id = store_params["store_id"]
+    if store_id && store_id != "" do
+      Receipts.find_store_by_store_id(household_id, store_id)
+    end || Receipts.find_store_by_name(household_id, store_params["name"])
   end
 
   defp ensure_stop(trip_id, store, transaction, _household_id) do
     # Parse time from transaction
     time_arrived = parse_time(transaction["time"]) || ~T[12:00:00]
     
-    # Get existing stops count for position
+    # Get existing trip and update its date if receipt has a different date
     trip = Receipts.get_trip!(trip_id)
+    
+    # Update trip_start and task date to match receipt date/time if available
+    receipt_date = parse_date(transaction["date"])
+    if receipt_date do
+      # Always update trip_start with receipt date+time (fixes midnight default issue)
+      new_trip_start = DateTime.new!(receipt_date, time_arrived, "Etc/UTC")
+      Receipts.update_trip(trip, %{trip_start: new_trip_start})
+      
+      # Also update the associated task's date to match receipt date if different
+      trip_date = if trip.trip_start, do: DateTime.to_date(trip.trip_start), else: nil
+      if trip_date != receipt_date do
+        case MegaPlanner.Calendar.get_task_by_trip_id(trip_id) do
+          nil -> :ok
+          task ->
+            task_date = task.date
+            if task_date != receipt_date do
+              require Logger
+              Logger.info("Updating task date from #{task_date} to #{receipt_date} based on receipt")
+              MegaPlanner.Calendar.update_task(task, %{"date" => Date.to_iso8601(receipt_date)})
+            end
+        end
+      end
+    end
+    
     position = length(trip.stops || []) + 1
 
     attrs = %{
@@ -204,10 +241,35 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   end
 
   defp parse_time(nil), do: nil
+  defp parse_time(""), do: nil
   defp parse_time(time_string) do
-    case Time.from_iso8601(time_string <> ":00") do
-      {:ok, time} -> time
-      _ -> nil
+    require Logger
+    # Try parsing as ISO8601 time format (HH:MM or HH:MM:SS)
+    # First, normalize the format - if it's "H:MM", pad to "HH:MM"
+    normalized = cond do
+      # Already has seconds
+      String.match?(time_string, ~r/^\d{1,2}:\d{2}:\d{2}$/) ->
+        time_string
+      # Just HH:MM - add seconds
+      String.match?(time_string, ~r/^\d{1,2}:\d{2}$/) ->
+        time_string <> ":00"
+      true ->
+        time_string <> ":00"
+    end
+    
+    # Pad hours if needed (e.g., "9:30:00" -> "09:30:00")
+    normalized = case String.split(normalized, ":") do
+      [h, m, s] when byte_size(h) == 1 -> "0" <> h <> ":" <> m <> ":" <> s
+      _ -> normalized
+    end
+    
+    case Time.from_iso8601(normalized) do
+      {:ok, time} -> 
+        Logger.debug("Parsed time '#{time_string}' -> #{time}")
+        time
+      {:error, reason} -> 
+        Logger.warning("Failed to parse time '#{time_string}' (normalized: '#{normalized}'): #{inspect(reason)}")
+        nil
     end
   end
 
@@ -217,14 +279,10 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     
     date = parse_date(transaction["date"]) || Date.utc_today()
 
-    Enum.map(items, fn item ->
-      # Ensure brand exists
-      brand = ensure_brand(item["brand"], household_id)
-      
-      # Ensure unit exists
-      unit = if item["unit"], do: ensure_unit(item["unit"], household_id), else: nil
-
-      # Save format correction if user edited this item
+    # First pass: create all purchases with raw brand/unit names
+    # Don't create brand/unit entities yet - wait until purchase succeeds
+    purchases = Enum.map(items, fn item ->
+      # Save format correction to learn from user edits
       save_format_correction_if_edited(item, household_id)
 
       # Create budget entry first
@@ -236,15 +294,22 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
         household_id
       )
 
-      # Create purchase directly (not using Receipts.create_purchase which creates its own budget entry)
+      # Get raw brand/unit names - will create entities after purchase succeeds
+      brand_name = normalize_brand_name(item["brand"])
+      unit_name = item["unit"]
+
+      # Create purchase with the raw brand/unit name strings
+      # Note: All decimal fields must be converted to string for proper Ecto casting
+      # (Ecto's :decimal type can't cast float numbers like 5.3 directly)
+      
       purchase_attrs = %{
-        "brand" => brand.name,
+        "brand" => brand_name,
         "item" => item["item"] || item["raw_text"] || "",
-        "unit_measurement" => unit && unit.name,
-        "count" => item["quantity"] || 1,
-        "units" => item["unit_quantity"],
-        "price_per_unit" => item["unit_price"],
-        "total_price" => item["total_price"] || "0",
+        "unit_measurement" => unit_name,
+        "count" => decimal_to_string(item["quantity"]) || "1",
+        "units" => decimal_to_string(item["unit_quantity"]),
+        "price_per_unit" => decimal_to_string(item["unit_price"]),
+        "total_price" => decimal_to_string(item["total_price"]) || "0",
         "taxable" => item["taxable"] || false,
         "store_code" => item["store_code"],
         "item_name" => item["raw_text"],
@@ -256,7 +321,16 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       changeset = Purchase.changeset(%Purchase{}, purchase_attrs)
       
       case Repo.insert(changeset) do
-        {:ok, purchase} -> purchase
+        {:ok, purchase} -> 
+          # Only NOW create brand/unit entities since purchase succeeded
+          # This ensures we only create entities for user-confirmed items
+          ensure_brand_for_confirmed_purchase(brand_name, household_id)
+          if unit_name, do: ensure_unit_for_confirmed_purchase(unit_name, household_id)
+          
+          # Create the corresponding inventory item in the Purchases sheet
+          MegaPlanner.Inventory.create_item_from_purchase(purchase)
+          
+          purchase
         {:error, changeset} ->
           require Logger
           Logger.error("Failed to create purchase: #{inspect(changeset)}")
@@ -264,13 +338,28 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       end
     end)
     |> Enum.reject(&is_nil/1)
+
+    # Log what was learned for debugging
+    require Logger
+    Logger.info("Receipt confirm: created #{length(purchases)} purchases, saved format corrections for learning")
+    
+    purchases
   end
 
+  # Normalize brand name - use "Generic" for empty/nil
+  defp normalize_brand_name(nil), do: "Generic"
+  defp normalize_brand_name(""), do: "Generic"
+  defp normalize_brand_name(name), do: String.trim(name)
+
   # Store format correction when user makes edits to learn from their preferences
+  # Enhanced to also learn unit and quantity preferences
   defp save_format_correction_if_edited(item, household_id) do
     raw_text = item["raw_text"]
     brand = item["brand"]
     item_name = item["item"]
+    unit = item["unit"]
+    quantity = item["quantity"]
+    unit_quantity = item["unit_quantity"]
     
     # Skip if no raw_text to learn from
     if is_nil(raw_text) or raw_text == "" do
@@ -279,18 +368,46 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       # Check if user made meaningful edits (not just AI-generated values)
       brand_edited = brand && brand != "" && !similar_text?(raw_text, brand)
       item_edited = item_name && item_name != "" && !similar_text?(raw_text, item_name)
+      unit_edited = unit && unit != ""
+      quantity_edited = quantity && is_integer(quantity) && quantity != 1
       
-      if brand_edited or item_edited do
-        Receipts.upsert_format_correction(%{
+      # unit_quantity can be string "16" or number 16 - check for any meaningful value
+      unit_quantity_value = parse_unit_quantity(unit_quantity)
+      unit_quantity_has_value = unit_quantity_value != nil
+      
+      require Logger
+      Logger.info("Learning check for raw_text: #{raw_text}")
+      Logger.info("  unit_quantity raw: #{inspect(unit_quantity)}, parsed: #{inspect(unit_quantity_value)}, has_value: #{unit_quantity_has_value}")
+      
+      if brand_edited or item_edited or unit_edited or quantity_edited or unit_quantity_has_value do
+        result = Receipts.upsert_format_correction(%{
           "household_id" => household_id,
           "raw_text" => raw_text,
           "corrected_brand" => if(brand_edited, do: brand, else: nil),
           "corrected_item" => if(item_edited, do: item_name, else: nil),
+          "corrected_unit" => if(unit_edited, do: unit, else: nil),
+          "corrected_quantity" => if(quantity_edited, do: quantity, else: nil),
+          "corrected_unit_quantity" => unit_quantity_value,
           "match_type" => "exact"
         })
+        Logger.info("  Upsert result: #{inspect(result)}")
+        result
       end
     end
   end
+
+
+  defp parse_unit_quantity(nil), do: nil
+  defp parse_unit_quantity(""), do: nil
+  defp parse_unit_quantity(value) when is_binary(value) do
+    case Decimal.parse(String.trim(value)) do
+      {decimal, _} -> decimal
+      :error -> nil
+    end
+  end
+  defp parse_unit_quantity(value) when is_integer(value), do: Decimal.new(value)
+  defp parse_unit_quantity(value) when is_float(value), do: Decimal.from_float(value)
+  defp parse_unit_quantity(_), do: nil
 
   # Check if two strings are similar (one contains most of the other)
   defp similar_text?(text1, text2) do
@@ -300,32 +417,37 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     String.contains?(t1, t2) or String.contains?(t2, t1)
   end
 
+  # Convert any value to string for Decimal field casting
+  # Ecto's :decimal type can cast strings but not raw floats from JSON
+  defp decimal_to_string(nil), do: nil
+  defp decimal_to_string(""), do: nil
+  defp decimal_to_string(value) when is_number(value), do: to_string(value)
+  defp decimal_to_string(value) when is_binary(value), do: value
+  defp decimal_to_string(_), do: nil
 
-  defp ensure_brand(nil, household_id), do: ensure_brand("Generic", household_id)
-  defp ensure_brand("", household_id), do: ensure_brand("Generic", household_id)
-  defp ensure_brand(brand_name, household_id) do
+  # Create brand entity only after purchase is confirmed
+  defp ensure_brand_for_confirmed_purchase(brand_name, household_id) do
     case Receipts.get_brand_by_name(household_id, brand_name) do
       nil ->
-        {:ok, brand} = Receipts.create_brand(%{
+        Receipts.create_brand(%{
           "name" => brand_name,
           "household_id" => household_id
         })
-        brand
-      brand -> brand
+      _brand -> :ok
     end
   end
 
-  defp ensure_unit(nil, _household_id), do: nil
-  defp ensure_unit("", _household_id), do: nil
-  defp ensure_unit(unit_name, household_id) do
+  # Create unit entity only after purchase is confirmed
+  defp ensure_unit_for_confirmed_purchase(nil, _household_id), do: :ok
+  defp ensure_unit_for_confirmed_purchase("", _household_id), do: :ok
+  defp ensure_unit_for_confirmed_purchase(unit_name, household_id) do
     case Receipts.get_unit_by_name(household_id, unit_name) do
       nil ->
-        {:ok, unit} = Receipts.create_unit(%{
+        Receipts.create_unit(%{
           "name" => unit_name,
           "household_id" => household_id
         })
-        unit
-      unit -> unit
+      _unit -> :ok
     end
   end
 
@@ -339,7 +461,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
 
     Budget.create_entry(%{
       "date" => Date.to_iso8601(date),
-      "amount" => item["total_price"] || "0",
+      "amount" => decimal_to_string(item["total_price"]) || "0",
       "type" => "expense",
       "notes" => item["raw_text"],
       "source_id" => source && source.id,

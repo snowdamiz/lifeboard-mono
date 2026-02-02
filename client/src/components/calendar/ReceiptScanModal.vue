@@ -4,6 +4,7 @@ import { X, Camera, Upload, Loader2, Check, AlertTriangle, Plus, Trash } from 'l
 import type { ReceiptScanResult, ReceiptScanItem, Store, Purchase } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateChooser } from '@/components/ui/date-chooser'
 import { useReceiptsStore } from '@/stores/receipts'
 import ReceiptItemEditor from './ReceiptItemEditor.vue'
 
@@ -146,7 +147,9 @@ const addItem = () => {
     unit_price: null,
     total_price: '0.00',
     taxable: false,
+    tax_indicator: null,
     tax_amount: null,
+    tax_rate: null,
     store_code: null
   })
 }
@@ -234,7 +237,7 @@ const totalAmount = computed(() => {
                   New Store
                 </span>
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-3 gap-3">
                 <div>
                   <label class="text-xs font-medium text-muted-foreground">Store Name</label>
                   <Input 
@@ -253,6 +256,15 @@ const totalAmount = computed(() => {
                     placeholder="Address"
                   />
                 </div>
+                <div>
+                  <label class="text-xs font-medium text-muted-foreground">Store Code</label>
+                  <Input 
+                    :model-value="scanResult.store.store_code ?? ''"
+                    @update:model-value="(v) => scanResult!.store.store_code = v || null"
+                    class="mt-1"
+                    placeholder="e.g. 02010"
+                  />
+                </div>
               </div>
             </div>
 
@@ -262,10 +274,9 @@ const totalAmount = computed(() => {
               <div class="grid grid-cols-3 gap-3">
                 <div>
                   <label class="text-xs font-medium text-muted-foreground">Date</label>
-                  <Input 
+                  <DateChooser 
                     :model-value="scanResult.transaction.date ?? ''"
                     @update:model-value="(v) => scanResult!.transaction.date = v || null"
-                    type="date"
                     class="mt-1"
                   />
                 </div>

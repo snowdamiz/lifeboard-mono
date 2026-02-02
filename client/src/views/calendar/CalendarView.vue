@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
-import { format, isToday, isSameDay, isSameMonth } from 'date-fns'
-import { ChevronLeft, ChevronRight, Plus, Calendar, CalendarDays, X } from 'lucide-vue-next'
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
+import { format, isToday, isSameDay, isSameMonth, addDays } from 'date-fns'
+import { ChevronLeft, ChevronRight, Plus, Calendar, CalendarDays, X, Sun, ListChecks, ShoppingCart, Clock } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useCalendarStore } from '@/stores/calendar'
+import { useReceiptsStore } from '@/stores/receipts'
 import TaskCard from '@/components/calendar/TaskCard.vue'
 import TripCard from '@/components/calendar/TripCard.vue'
 import TaskForm from '@/components/calendar/TaskForm.vue'
@@ -12,11 +13,14 @@ import { cn } from '@/lib/utils'
 import type { Task } from '@/types'
 
 const calendarStore = useCalendarStore()
+const receiptsStore = useReceiptsStore()
 const showTaskForm = ref(false)
 const selectedDate = ref<Date | null>(null)
 const selectedTask = ref<Task | null>(null)
 const mobileSelectedDay = ref<Date>(new Date())
 const expandedDay = ref<string | null>(null) // Stores ISO string of expanded day in month view
+const showExpandedDayView = ref(false) // Full-screen expanded day view triggered by Today button
+const expandedDayDate = ref<Date>(new Date()) // The date for expanded day view
 
 // Inline popout editing state for weekly view
 const editingTask = ref<Task | null>(null)
@@ -35,6 +39,12 @@ const closeEditPopout = () => {
 // Trip detail inline state (shown in the week grid like edit popout)
 const showInlineTripDetail = ref(false)
 const selectedTripId = ref<string | null>(null)
+
+// Mobile detection for fallback modal
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768 // md breakpoint
+}
 
 // Filtering Logic
 const showFilterDropdown = ref(false)
@@ -86,11 +96,89 @@ const toggleViewMode = () => {
 
 // Header text based on view mode
 const headerText = computed(() => {
+  if (showExpandedDayView.value) {
+    return format(expandedDayDate.value, 'EEEE, MMMM d, yyyy')
+  }
   if (calendarStore.viewMode === 'month') {
     return format(calendarStore.currentDate, 'MMMM yyyy')
   }
   return `${format(calendarStore.weekStart, 'MMMM d')} – ${format(calendarStore.weekEnd, 'MMMM d, yyyy')}`
 })
+
+// Expanded day view computed properties
+const expandedDayKey = computed(() => format(expandedDayDate.value, 'yyyy-MM-dd'))
+const expandedDayTasks = computed(() => calendarStore.tasksByDate[expandedDayKey.value] || [])
+const expandedDayTrips = computed(() => calendarStore.tripsByDate[expandedDayKey.value] || [])
+
+// Cache for trips fetched by ID (for tasks with trip_id that reference trips not in current day)
+const tripCache = ref<Record<string, any>>({})
+const fetchingTripIds = ref<Set<string>>(new Set())
+
+// Helper to get trip for a task by trip_id - checks both expandedDayTrips and cache
+const getTripForTask = (tripId: string) => {
+  // First check expandedDayTrips (trips for the current day)
+  const dayTrip = expandedDayTrips.value.find((trip: any) => trip.id === tripId)
+  if (dayTrip) return dayTrip
+  
+  // Otherwise check the cache
+  return tripCache.value[tripId]
+}
+
+// Helper to get trip for a task from tripsByDate (for week/month views)
+const getTripByIdFromDate = (tripId: string, dateKey: string) => {
+  const trips = calendarStore.tripsByDate[dateKey] || []
+  return trips.find((trip: any) => trip.id === tripId)
+}
+
+// Fetch trips for tasks with trip_id when expanded day tasks change
+watch(expandedDayTasks, async (tasks) => {
+  for (const task of tasks) {
+    if (task.trip_id && !getTripForTask(task.trip_id) && !fetchingTripIds.value.has(task.trip_id)) {
+      fetchingTripIds.value.add(task.trip_id)
+      try {
+        const trip = await receiptsStore.fetchTrip(task.trip_id)
+        if (trip) {
+          tripCache.value[task.trip_id] = trip
+        }
+      } catch (error) {
+        console.error('Failed to fetch trip:', task.trip_id, error)
+      } finally {
+        fetchingTripIds.value.delete(task.trip_id)
+      }
+    }
+  }
+}, { immediate: true })
+
+
+
+// Handle Today button click - toggle expanded day view
+const handleTodayClick = () => {
+  const today = new Date()
+  expandedDayDate.value = today
+  showExpandedDayView.value = true
+  // Also set the calendar date so data is fetched
+  calendarStore.goToToday()
+  calendarStore.fetchCurrentViewTasks()
+}
+
+// Navigate to previous/next day in expanded view
+const goToPrevDay = () => {
+  expandedDayDate.value = addDays(expandedDayDate.value, -1)
+  // Refresh data if needed (change week/month if date is outside current range)
+  calendarStore.setCurrentDate(expandedDayDate.value)
+  calendarStore.fetchCurrentViewTasks()
+}
+
+const goToNextDay = () => {
+  expandedDayDate.value = addDays(expandedDayDate.value, 1)
+  calendarStore.setCurrentDate(expandedDayDate.value)
+  calendarStore.fetchCurrentViewTasks()
+}
+
+// Close expanded day view and return to week view
+const closeExpandedDayView = () => {
+  showExpandedDayView.value = false
+}
 
 const mobileSelectedDayTasks = computed(() => {
   const dateKey = format(mobileSelectedDay.value, 'yyyy-MM-dd')
@@ -157,6 +245,12 @@ const closeTripDetailModal = () => {
   selectedTripId.value = null
 }
 
+const handleDeleteTrip = async (tripId: string) => {
+  if (!tripId) return
+  await receiptsStore.deleteTrip(tripId)
+  calendarStore.fetchCurrentViewTasks()
+}
+
 import TagManager from '@/components/shared/TagManager.vue'
 import TripDetailModal from '@/components/calendar/TripDetailModal.vue'
 import { Filter } from 'lucide-vue-next'
@@ -185,6 +279,16 @@ const toggleExpandedDay = (day: Date) => {
 }
 
 const activeFilterCount = computed(() => calendarStore.filterTags.length)
+
+// Initialize mobile detection on mount
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 </script>
 
 <template>
@@ -203,7 +307,13 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
 
       <div class="flex items-center gap-2 sm:gap-3">
         <!-- Today Button -->
-        <Button variant="outline" size="sm" class="h-9 px-3 text-[13px]" @click="calendarStore.goToToday">
+        <Button 
+          :variant="showExpandedDayView && isToday(expandedDayDate) ? 'default' : 'outline'" 
+          size="sm" 
+          class="h-9 px-3 text-[13px] gap-1.5" 
+          @click="handleTodayClick"
+        >
+          <Sun class="h-4 w-4" />
           Today
         </Button>
 
@@ -214,20 +324,20 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           </Button>
           <div class="w-px h-5 bg-border" />
           <Button 
-            :variant="calendarStore.viewMode === 'week' ? 'default' : 'ghost'" 
+            :variant="calendarStore.viewMode === 'week' && !showExpandedDayView ? 'default' : 'ghost'" 
             size="sm" 
             class="rounded-none h-9 px-3 gap-1.5"
-            @click="calendarStore.viewMode !== 'week' && toggleViewMode()"
+            @click="showExpandedDayView = false; calendarStore.viewMode !== 'week' && toggleViewMode()"
           >
             <Calendar class="h-4 w-4" />
             <span class="hidden sm:inline text-[13px]">Week</span>
           </Button>
           <div class="w-px h-5 bg-border" />
           <Button 
-            :variant="calendarStore.viewMode === 'month' ? 'default' : 'ghost'" 
+            :variant="calendarStore.viewMode === 'month' && !showExpandedDayView ? 'default' : 'ghost'" 
             size="sm" 
             class="rounded-none h-9 px-3 gap-1.5"
-            @click="calendarStore.viewMode !== 'month' && toggleViewMode()"
+            @click="showExpandedDayView = false; calendarStore.viewMode !== 'month' && toggleViewMode()"
           >
             <CalendarDays class="h-4 w-4" />
             <span class="hidden sm:inline text-[13px]">Month</span>
@@ -299,12 +409,12 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
 
     <!-- Mobile Day Picker - Week View -->
     <div v-if="calendarStore.viewMode === 'week'" class="md:hidden mb-4">
-      <div class="flex gap-1 overflow-x-auto pb-2 scrollbar-thin -mx-2 px-2">
+      <div class="flex gap-1">
         <button
           v-for="day in calendarStore.weekDays"
           :key="day.toISOString()"
           :class="cn(
-            'relative flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-xl transition-all',
+            'relative flex-1 flex flex-col items-center justify-center min-w-0 h-14 rounded-xl transition-all',
             isSameDay(day, mobileSelectedDay)
               ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25'
               : isToday(day)
@@ -389,6 +499,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           v-for="task in mobileSelectedDayTasks"
           :key="task.id"
           :task="task"
+          :trip="task.trip_id ? getTripByIdFromDate(task.trip_id, format(mobileSelectedDay, 'yyyy-MM-dd')) : null"
           class="!p-3"
           @manage-trip="handleOpenTripDetail"
         />
@@ -397,9 +508,6 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           v-if="mobileSelectedDayTasks.length === 0" 
           class="flex flex-col items-center justify-center py-12 text-center"
         >
-          <div class="h-12 w-12 rounded-full bg-secondary flex items-center justify-center mb-3">
-            <Plus class="h-6 w-6 text-muted-foreground" />
-          </div>
           <p class="text-sm text-muted-foreground mb-3">No tasks for this day</p>
           <Button size="sm" variant="outline" @click="openNewTask(mobileSelectedDay)">
             <Plus class="h-4 w-4" />
@@ -418,15 +526,226 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
       </div>
     </div>
 
+    <!-- Expanded Day View (Full-width detailed view) -->
+    <div v-if="showExpandedDayView" class="hidden md:flex flex-1 min-h-0 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
+      <!-- Day Header -->
+      <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-border">
+        <div class="flex items-center gap-4">
+          <Button variant="ghost" size="icon" class="h-9 w-9" @click="goToPrevDay">
+            <ChevronLeft class="h-5 w-5" />
+          </Button>
+          <div class="text-center">
+            <h2 class="text-2xl font-bold tracking-tight">
+              {{ format(expandedDayDate, 'EEEE') }}
+            </h2>
+            <p class="text-sm text-muted-foreground mt-0.5">
+              {{ format(expandedDayDate, 'MMMM d, yyyy') }}
+              <span v-if="isToday(expandedDayDate)" class="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
+                Today
+              </span>
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" class="h-9 w-9" @click="goToNextDay">
+            <ChevronRight class="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Button variant="outline" size="sm" @click="openNewTask(expandedDayDate)">
+            <Plus class="h-4 w-4 mr-1.5" />
+            Add Task
+          </Button>
+          <Button variant="ghost" size="icon" @click="closeExpandedDayView">
+            <X class="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <!-- Day Content - Single Column Layout with Trip Details Under Tasks -->
+      <div class="flex-1 overflow-auto p-6">
+        <div class="max-w-4xl mx-auto space-y-4">
+          <h3 class="text-lg font-semibold flex items-center gap-2">
+            <ListChecks class="h-5 w-5 text-primary" />
+            Tasks ({{ expandedDayTasks.length }})
+          </h3>
+          
+          <div v-if="expandedDayTasks.length === 0" class="text-center py-12 text-muted-foreground">
+            <p class="text-sm">No tasks scheduled for this day</p>
+            <Button variant="outline" size="sm" class="mt-3" @click="openNewTask(expandedDayDate)">
+              <Plus class="h-4 w-4 mr-1.5" />
+              Add Task
+            </Button>
+          </div>
+          
+          <div v-else class="space-y-4">
+            <div 
+              v-for="task in expandedDayTasks" 
+              :key="task.id"
+              class="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden"
+            >
+              <!-- Task Header -->
+              <div 
+                class="p-4 hover:bg-white/[0.04] transition-all cursor-pointer"
+                @click="handleEditTask(task, 0)"
+              >
+                <div class="flex items-start gap-3">
+                  <div :class="[
+                    'h-3 w-3 rounded-full mt-1.5 shrink-0',
+                    task.status === 'completed' ? 'bg-emerald-500' : 
+                    task.status === 'in_progress' ? 'bg-amber-500' : 
+                    task.priority === 1 ? 'bg-rose-500' :
+                    task.priority === 2 ? 'bg-orange-400' : 'bg-primary'
+                  ]" />
+                  <div class="flex-1 min-w-0">
+                    <h4 :class="[
+                      'font-medium',
+                      task.status === 'completed' ? 'line-through text-muted-foreground' : ''
+                    ]">{{ task.title }}</h4>
+                    <p v-if="task.description" class="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {{ task.description }}
+                    </p>
+                    <div class="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                      <span v-if="task.start_time" class="flex items-center gap-1">
+                        <Clock class="h-3.5 w-3.5" />
+                        {{ task.start_time?.slice(0, 5) }}
+                      </span>
+                      <span v-if="task.duration_minutes">{{ task.duration_minutes }}min</span>
+                      <span v-if="task.task_type === 'trip'" class="px-2 py-0.5 bg-emerald-500/20 text-emerald-500 rounded-full">
+                        Trip
+                      </span>
+                    </div>
+                    <!-- Task Steps -->
+                    <div v-if="task.steps?.length > 0" class="mt-3 space-y-1">
+                      <div 
+                        v-for="step in task.steps" 
+                        :key="step.id"
+                        class="flex items-center gap-2 text-sm"
+                      >
+                        <div :class="[
+                          'h-4 w-4 rounded border flex items-center justify-center text-xs',
+                          step.completed ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'
+                        ]">
+                          <span v-if="step.completed">✓</span>
+                        </div>
+                        <span :class="step.completed ? 'line-through text-muted-foreground' : ''">
+                          {{ step.content }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Trip Details (Indented under task if task has a trip) -->
+              <template v-if="task.trip_id && getTripForTask(task.trip_id)">
+                <div class="border-t border-emerald-500/20 ml-6 bg-gradient-to-r from-emerald-500/5 to-transparent">
+                  <!-- Trip Header -->
+                  <div 
+                    class="p-4 flex items-center justify-between cursor-pointer hover:bg-emerald-500/10 transition-all"
+                    @click.stop="handleOpenTripDetail(task.trip_id!)"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                        <ShoppingCart class="h-5 w-5 text-emerald-500" />
+                      </div>
+                      <div>
+                        <h4 class="font-medium">
+                          {{ getTripForTask(task.trip_id)!.stops.length > 0 ? (getTripForTask(task.trip_id)!.stops[0].store_name || 'Shopping Trip') : 'Shopping Trip' }}
+                          <span v-if="getTripForTask(task.trip_id)!.stops.length > 1" class="text-muted-foreground"> +{{ getTripForTask(task.trip_id)!.stops.length - 1 }}</span>
+                        </h4>
+                        <p class="text-sm text-muted-foreground flex items-center gap-2">
+                          <span>{{ getTripForTask(task.trip_id)!.stops.reduce((n: number, s: any) => n + (s.purchases?.length || 0), 0) }} items</span>
+                          <span class="text-emerald-500 font-medium">
+                            ${{ getTripForTask(task.trip_id)!.stops.reduce((t: number, s: any) => t + (s.purchases || []).reduce((pt: number, p: any) => pt + parseFloat(p.total_price || '0'), 0), 0).toFixed(2) }}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" @click.stop="handleOpenTripDetail(task.trip_id!)">
+                      Manage
+                    </Button>
+                  </div>
+                  
+                  <!-- Purchases List (Expanded) -->
+                  <div v-if="getTripForTask(task.trip_id)!.stops.some((s: any) => (s.purchases?.length ?? 0) > 0)" class="border-t border-emerald-500/10 px-4 py-3 bg-black/20">
+                    <div v-for="stop in getTripForTask(task.trip_id)!.stops" :key="stop.id">
+                      <div v-if="(stop.purchases?.length ?? 0) > 0" class="space-y-2">
+                        <p v-if="getTripForTask(task.trip_id)!.stops.length > 1" class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          {{ stop.store_name }}
+                        </p>
+                        <div 
+                          v-for="purchase in stop.purchases" 
+                          :key="purchase.id"
+                          class="flex items-center justify-between py-2 border-b border-white/[0.05] last:border-0"
+                        >
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium truncate">
+                              <span class="text-muted-foreground">{{ purchase.brand }}</span>
+                              {{ purchase.item }}
+                            </p>
+                            <p class="text-xs text-muted-foreground">
+                              {{ purchase.count || 1 }}x
+                              <span v-if="purchase.units && purchase.unit_measurement">
+                                · {{ purchase.units }} {{ purchase.unit_measurement }}
+                              </span>
+                            </p>
+                          </div>
+                          <div class="text-right shrink-0 ml-3">
+                            <p class="text-sm font-medium text-emerald-500">
+                              ${{ parseFloat(purchase.total_price || '0').toFixed(2) }}
+                            </p>
+                            <p v-if="purchase.taxable" class="text-xs text-muted-foreground">
+                              Tax
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inline editing overlays (same as week view) -->
+      <div 
+        v-if="editingTask && !showInlineTripDetail"
+        class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+      >
+        <TaskDetailPopout
+          :task="editingTask"
+          :day-index="0"
+          class="h-full"
+          @close="closeEditPopout"
+          @saved="closeEditPopout"
+          @manage-trip="handleOpenTripDetail"
+        />
+      </div>
+
+      <div 
+        v-if="showInlineTripDetail && selectedTripId"
+        class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+      >
+        <TripDetailModal
+          :trip-id="selectedTripId"
+          :inline-mode="true"
+          class="h-full"
+          @close="closeTripDetailModal"
+        />
+      </div>
+    </div>
+
     <!-- Desktop Week Calendar Grid -->
-    <div v-if="calendarStore.viewMode === 'week'" class="hidden md:flex flex-1 min-h-0 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
+    <div v-if="calendarStore.viewMode === 'week' && !showExpandedDayView" class="hidden md:flex flex-1 min-h-0 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
       <!-- Day of week headers -->
-      <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-white/[0.06]">
+      <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-border">
         <div 
           v-for="(day, index) in calendarStore.weekDays" 
           :key="'header-' + day.toISOString()" 
           :class="[
-            'py-2.5 text-center border-r border-white/[0.04] last:border-r-0',
+            'py-2.5 text-center border-r border-border last:border-r-0',
             index >= 5 ? 'text-muted-foreground/60' : ''
           ]"
         >
@@ -436,10 +755,8 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           <div class="mt-1 flex items-center justify-center">
             <span 
               :class="[
-                'inline-flex items-center justify-center text-lg font-semibold transition-all',
-                isToday(day) 
-                  ? 'h-8 w-8 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
-                  : 'text-foreground/90'
+                'inline-flex items-center justify-center text-lg font-semibold text-foreground/90',
+                isToday(day) && 'h-8 w-8 rounded-full ring-2 ring-primary'
               ]"
             >
               {{ format(day, 'd') }}
@@ -449,7 +766,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
       </div>
 
       <!-- Week grid content -->
-      <div class="flex-1 flex gap-px bg-white/[0.03] relative">
+      <div class="flex-1 grid grid-cols-7 relative">
         <!-- Full-width popout overlay when editing -->
         <div 
           v-if="editingTask && !showInlineTripDetail"
@@ -483,30 +800,22 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           v-for="(day, dayIndex) in calendarStore.weekDays"
           :key="day.toISOString()"
           :class="[
-            'group relative flex flex-col flex-1 w-full transition-all duration-200',
-            'border-r border-white/[0.04] last:border-r-0',
-            isToday(day) 
-              ? 'bg-primary/[0.06] ring-1 ring-inset ring-primary/20' 
-              : dayIndex >= 5 
-                ? 'bg-white/[0.01]' 
-                : 'bg-card',
+            'group relative flex flex-col transition-all duration-200 min-w-0',
+            'border-r border-border last:border-r-0',
+            dayIndex >= 5 
+              ? 'bg-white/[0.01]' 
+              : 'bg-card',
             'hover:bg-white/[0.03] hover:z-[1]'
           ]"
         >
           <!-- Day Content -->
           <div class="flex-1 px-1.5 py-2 space-y-1 overflow-auto scrollbar-thin relative">
-            <!-- Trips list -->
-            <TripCard
-              v-for="trip in calendarStore.tripsByDate[format(day, 'yyyy-MM-dd')] || []"
-              :key="trip.id"
-              :trip="trip"
-              @click="handleOpenTripDetail"
-            />
-            <!-- Task list -->
+            <!-- Task list (with trip info displayed inline) -->
             <TaskCard
               v-for="task in calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []"
               :key="task.id"
               :task="task"
+              :trip="task.trip_id ? getTripByIdFromDate(task.trip_id, format(day, 'yyyy-MM-dd')) : null"
               :day-index="dayIndex"
               @manage-trip="handleOpenTripDetail"
               @edit="(task) => handleEditTask(task, dayIndex)"
@@ -530,9 +839,9 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
     </div>
 
     <!-- Desktop Month Calendar Grid -->
-    <div v-if="calendarStore.viewMode === 'month'" class="hidden md:flex flex-1 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
+    <div v-if="calendarStore.viewMode === 'month' && !showExpandedDayView" class="hidden md:flex flex-1 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
       <!-- Day of week headers -->
-      <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-white/[0.06]">
+      <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-border">
         <div 
           v-for="(dayName, index) in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']" 
           :key="dayName" 
@@ -552,7 +861,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
           :key="day.toISOString()"
           :class="[
             'group relative flex flex-col min-h-[110px] transition-all duration-200',
-            'border-r border-b border-white/[0.04]',
+            'border-r border-b border-border',
             isToday(day) 
               ? 'bg-primary/[0.06] ring-1 ring-inset ring-primary/20' 
               : !isSameMonth(day, calendarStore.currentDate)
@@ -602,19 +911,12 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
 
           <!-- Day Content -->
           <div class="flex-1 px-1.5 py-1 space-y-0.5 overflow-hidden relative">
-            <!-- Trips list with compact cards -->
-            <TripCard
-              v-for="trip in (calendarStore.tripsByDate[format(day, 'yyyy-MM-dd')] || []).slice(0, 2)"
-              :key="trip.id"
-              :trip="trip"
-              :compact="true"
-              @click="handleOpenTripDetail"
-            />
-            <!-- Task list with compact cards -->
+            <!-- Task list with compact cards (trip info displayed inline) -->
             <TaskCard
               v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || []).slice(0, 4)"
               :key="task.id"
               :task="task"
+              :trip="task.trip_id ? getTripByIdFromDate(task.trip_id, format(day, 'yyyy-MM-dd')) : null"
               :compact="true"
               @manage-trip="handleOpenTripDetail"
             />
@@ -673,6 +975,7 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
                   v-for="task in (calendarStore.tasksByDate[format(day, 'yyyy-MM-dd')] || [])"
                   :key="task.id"
                   :task="task"
+                  :trip="task.trip_id ? getTripByIdFromDate(task.trip_id, format(day, 'yyyy-MM-dd')) : null"
                   @manage-trip="handleOpenTripDetail"
                 />
               </div>
@@ -720,9 +1023,9 @@ const activeFilterCount = computed(() => calendarStore.filterTags.length)
       @manage-trip="handleOpenTripDetail"
     />
 
-    <!-- Keep TripDetailModal for month view/mobile -->
+    <!-- Keep TripDetailModal for month view/mobile/when TaskForm modal is open -->
     <TripDetailModal
-      v-if="showInlineTripDetail && selectedTripId && calendarStore.viewMode !== 'week'"
+      v-if="showInlineTripDetail && selectedTripId && (calendarStore.viewMode !== 'week' || isMobile || showTaskForm)"
       :trip-id="selectedTripId"
       @close="closeTripDetailModal"
     />

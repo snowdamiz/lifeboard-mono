@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Settings, Trash2, Users, Mail, UserPlus, LogOut, X, Check, Edit2, Inbox } from 'lucide-vue-next'
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
+import { ref, onMounted, computed, watch, provide } from 'vue'
+import { Settings, Trash2, Users, Mail, UserPlus, LogOut, X, Check, Inbox } from 'lucide-vue-next'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import EditButton from '@/components/shared/EditButton.vue'
+import PageHeader from '@/components/shared/PageHeader.vue'
 import { useHouseholdStore } from '@/stores/household'
 import { useAuthStore } from '@/stores/auth'
 
@@ -216,15 +219,11 @@ function getInitials(name: string | null, email: string) {
                       <X class="h-4 w-4" />
                     </Button>
                   </div>
-                  <Button
+                  <EditButton
                     v-if="!editingName"
-                    size="icon"
-                    variant="ghost"
-                    class="h-7 w-7"
+                    :adaptive="false"
                     @click="startEditingName"
-                  >
-                    <Edit2 class="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
+                  />
                 </div>
                 <CardDescription class="text-xs">
                   {{ householdStore.memberCount }} member{{ householdStore.memberCount !== 1 ? 's' : '' }}

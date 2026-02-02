@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { format } from 'date-fns'
-import { X, Plus, TrendingUp, TrendingDown, Trash2, Edit2, ChevronDown, ChevronRight, Eye, Clock, MapPin, User } from 'lucide-vue-next'
+import { X, Plus, TrendingUp, TrendingDown, ChevronDown, ChevronRight, Eye, Clock, MapPin, User } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
 import { useReceiptsStore } from '@/stores/receipts'
 import { formatCurrency } from '@/lib/utils'
 import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import type { BudgetEntry, Purchase, Stop } from '@/types'
 
 interface Props {
@@ -215,22 +217,8 @@ const deletePurchase = async (purchase: Purchase) => {
                     <span class="text-sm font-semibold text-emerald-600 tabular-nums">
                       +{{ formatCurrency(entry.amount) }}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                      @click="emit('editEntry', entry)"
-                    >
-                      <Edit2 class="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
-                      @click="deleteEntry(entry)"
-                    >
-                      <Trash2 class="h-3.5 w-3.5" />
-                    </Button>
+                    <EditButton @click="emit('editEntry', entry)" />
+                    <DeleteButton @click="deleteEntry(entry)" />
                   </div>
                 </div>
               </div>
@@ -296,15 +284,7 @@ const deletePurchase = async (purchase: Purchase) => {
                       <span class="text-sm font-semibold text-red-500 tabular-nums">
                         -{{ formatCurrency(entry.amount) }}
                       </span>
-                      <Button
-                        v-if="!entry.is_trip"
-                        variant="ghost"
-                        size="icon"
-                        class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                        @click="emit('editEntry', entry)"
-                      >
-                        <Edit2 class="h-3.5 w-3.5" />
-                      </Button>
+                      <EditButton v-if="!entry.is_trip" @click="emit('editEntry', entry)" />
                       <Button
                         v-if="entry.is_trip"
                         variant="ghost"
@@ -315,16 +295,10 @@ const deletePurchase = async (purchase: Purchase) => {
                       >
                         <Eye class="h-3.5 w-3.5" />
                       </Button>
-                      <Button
+                      <DeleteButton
                         v-else
-                        variant="ghost"
-                        size="icon"
-                        class="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
                         @click="deleteEntry(entry)"
-                        title="Delete"
-                      >
-                        <Trash2 class="h-3.5 w-3.5" />
-                      </Button>
+                      />
                     </div>
                   </div>
 
@@ -399,14 +373,7 @@ const deletePurchase = async (purchase: Purchase) => {
                         
                         <!-- Actions -->
                         <template #actions>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
-                            @click="deletePurchase(purchase)"
-                          >
-                            <Trash2 class="h-3 w-3" />
-                          </Button>
+                          <DeleteButton @click="deletePurchase(purchase)" />
                         </template>
                       </BaseItemEntry>
                     </div>

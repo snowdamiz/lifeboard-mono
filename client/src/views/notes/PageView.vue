@@ -18,7 +18,8 @@ import {
   Heading2,
   Heading3,
   Minus,
-  Tag as TagIcon
+  Tag as TagIcon,
+  Table2
 } from 'lucide-vue-next'
 import { marked } from 'marked'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ import { debounce } from '@/lib/utils'
 import TagManager from '@/components/shared/TagManager.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
 import { useTextTemplate } from '@/composables/useTextTemplate'
+import NoteSpreadsheet from '@/components/notes/NoteSpreadsheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,6 +46,13 @@ const title = ref('')
 const content = ref('')
 const tagIds = ref<Set<string>>(new Set())
 const isTagsOpen = ref(false)
+
+// Spreadsheets embedded in the note
+interface Spreadsheet {
+  id: string
+  data: string
+}
+const spreadsheets = ref<Spreadsheet[]>([])
 
 const pageId = () => route.params.id as string
 
@@ -67,6 +76,13 @@ onMounted(async () => {
     title.value = notesStore.currentPage.title
     content.value = notesStore.currentPage.content || ''
     tagIds.value = new Set(notesStore.currentPage.tags.map(t => t.id))
+    // Load spreadsheets from page metadata if present
+    try {
+      const metadata = notesStore.currentPage.metadata ? JSON.parse(notesStore.currentPage.metadata) : {}
+      spreadsheets.value = metadata.spreadsheets || []
+    } catch {
+      spreadsheets.value = []
+    }
   }
   // Mark as initialized after loading to enable auto-save
   initialized.value = true
@@ -81,10 +97,13 @@ const debouncedSave = debounce(async () => {
 
   saving.value = true
   try {
+    // Package spreadsheets into metadata
+    const metadata = JSON.stringify({ spreadsheets: spreadsheets.value })
     await notesStore.updatePage(id, {
       title: title.value,
       content: content.value,
-      tag_ids: Array.from(tagIds.value)
+      tag_ids: Array.from(tagIds.value),
+      metadata
     })
     lastSaved.value = new Date()
   } finally {
@@ -95,7 +114,7 @@ const debouncedSave = debounce(async () => {
 // Only start watching after mount (when page data is loaded)
 const initialized = ref(false)
 
-watch([title, content, tagIds], () => {
+watch([title, content, tagIds, spreadsheets], () => {
   if (initialized.value) {
     debouncedSave()
   }
@@ -108,7 +127,7 @@ const autoResizeTextarea = () => {
   // Reset height to allow shrinking
   textarea.style.height = 'auto'
   // Set height to scrollHeight to fit content
-  textarea.style.height = `${Math.max(textarea.scrollHeight, 300)}px`
+  textarea.style.height = `${Math.max(textarea.scrollHeight, 500)}px`
 }
 
 watch(content, () => {
@@ -171,7 +190,29 @@ const toolbarActions = [
   { icon: Link2, label: 'Link', action: () => insertMarkdown('[', '](url)', 'link text') },
   { icon: Image, label: 'Image', action: () => insertMarkdown('![', '](url)', 'alt text') },
   { icon: Minus, label: 'Horizontal Rule', action: () => insertMarkdown('\n---\n', '', '') },
+  { divider: true },
+  { icon: Table2, label: 'Insert Spreadsheet', action: () => addSpreadsheet() },
 ]
+
+// Spreadsheet management
+const addSpreadsheet = () => {
+  const newSheet: Spreadsheet = {
+    id: `sheet-${Date.now()}`,
+    data: ''
+  }
+  spreadsheets.value.push(newSheet)
+}
+
+const updateSpreadsheet = (id: string, data: string) => {
+  const sheet = spreadsheets.value.find(s => s.id === id)
+  if (sheet) {
+    sheet.data = data
+  }
+}
+
+const removeSpreadsheet = (id: string) => {
+  spreadsheets.value = spreadsheets.value.filter(s => s.id !== id)
+}
 </script>
 
 <template>
@@ -290,7 +331,7 @@ const toolbarActions = [
         v-if="viewMode === 'edit'"
         ref="textareaRef"
         v-model="content"
-        class="w-full p-6 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed min-h-[300px]"
+        class="w-full p-6 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed min-h-[500px]"
         placeholder="Start writing in markdown...
 
 # Heading 1
@@ -328,6 +369,17 @@ Use the toolbar above for quick formatting!"
                prose-li:text-foreground
                prose-hr:border-border"
         v-html="renderedContent"
+      />
+    </div>
+
+    <!-- Embedded Spreadsheets -->
+    <div v-if="spreadsheets.length > 0" class="space-y-4 mt-4">
+      <NoteSpreadsheet
+        v-for="sheet in spreadsheets"
+        :key="sheet.id"
+        :model-value="sheet.data"
+        @update:model-value="updateSpreadsheet(sheet.id, $event)"
+        @remove="removeSpreadsheet(sheet.id)"
       />
     </div>
 

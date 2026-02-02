@@ -13,7 +13,7 @@ defmodule MegaPlanner.Receipts.Trip do
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :driver, MegaPlanner.Receipts.Driver, foreign_key: :driver_id
-    has_many :stops, MegaPlanner.Receipts.Stop
+    has_many :stops, MegaPlanner.Receipts.Stop, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)
   end

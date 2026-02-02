@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ChevronDown, ChevronRight, Store, Calendar, Package, ArrowRightLeft, Trash } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,14 +9,19 @@ import type { TripReceipt, InventoryItem } from '@/types'
 
 const props = defineProps<{
   receipts: TripReceipt[]
+  expandedIds?: Set<string>
 }>()
 
 const emit = defineEmits<{
   (e: 'transfer', item: InventoryItem): void
   (e: 'delete', item: InventoryItem): void
+  (e: 'deleteTrip', tripId: string): void
+  (e: 'update:expandedIds', ids: Set<string>): void
 }>()
 
-const expandedReceipts = ref<Set<string>>(new Set())
+// Use prop if provided, otherwise local state
+const localExpanded = ref<Set<string>>(new Set())
+const expandedReceipts = computed(() => props.expandedIds ?? localExpanded.value)
 
 const toggleExpand = (receiptId: string) => {
   const newSet = new Set(expandedReceipts.value)
@@ -25,7 +30,11 @@ const toggleExpand = (receiptId: string) => {
   } else {
     newSet.add(receiptId)
   }
-  expandedReceipts.value = newSet
+  if (props.expandedIds !== undefined) {
+    emit('update:expandedIds', newSet)
+  } else {
+    localExpanded.value = newSet
+  }
 }
 
 const formatDate = (dateStr: string | null) => {
@@ -40,9 +49,7 @@ const formatDate = (dateStr: string | null) => {
   }).format(date)
 }
 
-const getTotalItems = (receipt: TripReceipt) => {
-  return receipt.items.reduce((sum, item) => sum + item.quantity, 0)
-}
+
 </script>
 
 <template>
@@ -80,8 +87,17 @@ const getTotalItems = (receipt: TripReceipt) => {
             </div>
           </div>
           <Badge variant="secondary" class="shrink-0">
-            {{ receipt.items.length }} items ({{ getTotalItems(receipt) }} total)
+            {{ receipt.items.length }} ITEMS
           </Badge>
+          <Button
+            v-if="receipt.trip_id"
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+            @click.stop="emit('deleteTrip', receipt.trip_id!)"
+          >
+            <Trash class="h-4 w-4" />
+          </Button>
         </div>
       </CardHeader>
 
@@ -95,35 +111,36 @@ const getTotalItems = (receipt: TripReceipt) => {
           :unit="item.unit_of_measure"
           :store="item.store"
           :store-code="item.store_code"
+          :price="item.price_per_unit"
+          :total="item.total_price"
+          :taxable="item.taxable ?? false"
           :tags="item.tags"
         >
-          <!-- Right value: Quantity badge -->
+          <!-- Right value: Quantity badge (compact) -->
           <template #right-value>
-            <Badge variant="outline" class="font-mono">
-              {{ item.quantity }} {{ item.unit_of_measure || '' }}
+            <Badge variant="outline" class="font-mono text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
+              {{ item.quantity }}{{ item.unit_of_measure ? ' ' + item.unit_of_measure : '' }}
             </Badge>
           </template>
 
-          <!-- Actions -->
+          <!-- Actions (icon-only on mobile) -->
           <template #actions>
-            <div class="flex items-center gap-1 flex-shrink-0">
+            <div class="flex items-center gap-0.5 flex-shrink-0">
               <Button
                 variant="ghost"
-                size="sm"
-                class="h-7 gap-1.5"
+                size="icon"
+                class="h-6 w-6"
                 @click.stop="emit('transfer', item)"
               >
-                <ArrowRightLeft class="h-3.5 w-3.5" />
-                <span class="hidden sm:inline text-xs">Transfer</span>
+                <ArrowRightLeft class="h-3 w-3" />
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
-                class="h-7 gap-1.5 text-destructive hover:text-destructive"
+                size="icon"
+                class="h-6 w-6 text-destructive hover:text-destructive"
                 @click.stop="emit('delete', item)"
               >
-                <Trash class="h-3.5 w-3.5" />
-                <span class="hidden sm:inline text-xs">Delete</span>
+                <Trash class="h-3 w-3" />
               </Button>
             </div>
           </template>

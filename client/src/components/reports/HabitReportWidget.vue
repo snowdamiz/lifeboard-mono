@@ -6,6 +6,7 @@ import { X, Settings, ChevronDown, Flame, TrendingUp, PieChart, BarChart3, Activ
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { DateChooser } from '@/components/ui/date-chooser'
 import { useHabitsStore } from '@/stores/habits'
 import type { HabitAnalytics, HabitInventory, Tag } from '@/types'
 
@@ -502,29 +503,17 @@ const summaryStats = computed(() => {
         <div v-if="dateRangeMode === 'from_date'" class="grid gap-3">
           <div>
             <label class="text-xs text-muted-foreground mb-1 block">Start Date (report from this day → today)</label>
-            <input
-              v-model="customStartDate"
-              type="date"
-              class="w-full h-8 px-2 text-sm rounded-md border border-input bg-background"
-            />
+            <DateChooser v-model="customStartDate" />
           </div>
         </div>
         <div v-if="dateRangeMode === 'custom'" class="grid gap-3 sm:grid-cols-2">
           <div>
             <label class="text-xs text-muted-foreground mb-1 block">Start Date</label>
-            <input
-              v-model="customStartDate"
-              type="date"
-              class="w-full h-8 px-2 text-sm rounded-md border border-input bg-background"
-            />
+            <DateChooser v-model="customStartDate" />
           </div>
           <div>
             <label class="text-xs text-muted-foreground mb-1 block">End Date</label>
-            <input
-              v-model="customEndDate"
-              type="date"
-              class="w-full h-8 px-2 text-sm rounded-md border border-input bg-background"
-            />
+            <DateChooser v-model="customEndDate" />
           </div>
         </div>
       </div>

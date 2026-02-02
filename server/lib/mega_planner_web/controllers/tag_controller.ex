@@ -226,9 +226,13 @@ defmodule MegaPlannerWeb.TagController do
     %{
       id: item.id,
       name: item.name,
-      quantity: item.quantity
+      quantity: decimal_to_string(item.quantity)
     }
   end
+
+  defp decimal_to_string(%Decimal{} = d), do: Decimal.to_string(d)
+  defp decimal_to_string(nil), do: nil
+  defp decimal_to_string(val), do: to_string(val)
 
   defp budget_source_to_json(source) do
     %{

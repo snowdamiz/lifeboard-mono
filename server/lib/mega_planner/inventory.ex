@@ -436,7 +436,7 @@ defmodule MegaPlanner.Inventory do
       # Update inventory quantity if linked to an inventory item
       if shopping_item.inventory_item_id do
         item = get_item(shopping_item.inventory_item_id)
-        new_quantity = item.quantity + shopping_item.quantity_needed
+        new_quantity = Decimal.add(item.quantity, shopping_item.quantity_needed)
 
         case update_item(item, %{quantity: new_quantity}) do
           {:ok, _} -> :ok
@@ -463,11 +463,12 @@ defmodule MegaPlanner.Inventory do
     household_id = purchase.household_id
     
     # Determine quantity to add (default to 1 if units is nil or 0)
+    # Preserve full decimal precision - no rounding
     quantity_to_add = 
-      if purchase.units && Decimal.gt?(purchase.units, 0) do
-        Decimal.to_integer(purchase.units)
+      if purchase.units && Decimal.gt?(purchase.units, Decimal.new(0)) do
+        purchase.units
       else
-        1
+        Decimal.new(1)
       end
 
     IO.puts("[create_item_from_purchase] Quantity to add: #{quantity_to_add}")
@@ -476,9 +477,8 @@ defmodule MegaPlanner.Inventory do
     search_brand = String.trim(purchase.brand || "")
     search_item = String.trim(purchase.item || "")
 
-    # Determine purchase store name for matching
-    store_name = if purchase.stop && purchase.stop.store, do: String.trim(purchase.stop.store.name), else: nil
-
+    # Determine purchase store name for matching (kept for potential future use)
+    _store_name = if purchase.stop && purchase.stop.store, do: String.trim(purchase.stop.store.name), else: nil
 
     # 1. Identify/Create the staging sheet
     user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
@@ -518,7 +518,7 @@ defmodule MegaPlanner.Inventory do
           item ->
             IO.puts("[create_item_from_purchase] Updating existing inventory item")
             # Update existing item quantity in Purchases sheet
-            update_item(item, %{quantity: item.quantity + quantity_to_add})
+            update_item(item, %{quantity: Decimal.add(item.quantity, quantity_to_add)})
         end
 
         IO.puts("[create_item_from_purchase] Result: #{inspect(result)}")
@@ -604,15 +604,44 @@ defmodule MegaPlanner.Inventory do
         |> Enum.map(fn {_stop_id, items} ->
           first_item = List.first(items)
           stop = first_item.stop
+          
+          # Build the correct display datetime using trip date + stop's time_arrived
+          # This preserves the local receipt time (e.g., 14:26) without timezone issues
+          trip_start = compute_trip_display_time(stop)
+          
           %{
             id: stop.id,
+            trip_id: stop.trip && stop.trip.id,
             store_name: (stop.store && stop.store.name) || stop.stop_name,
-            trip_start: stop.trip && stop.trip.trip_start,
+            trip_start: trip_start,
             date: first_item.purchase_date,
             items: items
           }
         end)
         |> Enum.sort_by(& &1.date, {:desc, DateTime})
+    end
+  end
+  
+  # Compute the correct display time for a trip by combining trip date with stop's time_arrived
+  # Returns an ISO-formatted string without timezone suffix so frontend interprets as local time
+  defp compute_trip_display_time(stop) do
+    cond do
+      # Use stop's time_arrived with trip's date (preferred - this is the actual receipt time)
+      stop.time_arrived && stop.trip && stop.trip.trip_start ->
+        trip_date = DateTime.to_date(stop.trip.trip_start)
+        # Format as ISO string WITHOUT timezone suffix (e.g., "2026-01-18T14:26:00")
+        # Frontend will interpret this as local time
+        date_str = Date.to_iso8601(trip_date)
+        time_str = Time.to_iso8601(stop.time_arrived)
+        "#{date_str}T#{time_str}"
+        
+      # Fall back to trip_start if no stop time
+      stop.trip && stop.trip.trip_start ->
+        DateTime.to_iso8601(stop.trip.trip_start)
+        
+      # No trip info available
+      true ->
+        nil
     end
   end
 
@@ -647,7 +676,7 @@ defmodule MegaPlanner.Inventory do
         Repo.rollback(:item_not_found)
       end
       
-      if source.quantity < quantity do
+      if Decimal.lt?(source.quantity, quantity) do
         Repo.rollback(:insufficient_quantity)
       end
       
@@ -675,14 +704,14 @@ defmodule MegaPlanner.Inventory do
           })
         item ->
           # Add to existing item
-          {:ok, _} = update_item(item, %{quantity: item.quantity + quantity})
+          {:ok, _} = update_item(item, %{quantity: Decimal.add(item.quantity, quantity)})
       end
       
       # Reduce source or delete if empty
-      new_quantity = source.quantity - quantity
+      new_quantity = Decimal.sub(source.quantity, quantity)
       Logger.info("Transfer: Source ID #{source.id}, Qty #{source.quantity}, Transfer #{quantity}, New #{new_quantity}")
 
-      if new_quantity <= 0 do
+      if Decimal.compare(new_quantity, 0) != :gt do
         Logger.info("Transfer: Deleting source item #{source.id}")
         
         # Unlink from shopping lists before deletion to prevent FK violation

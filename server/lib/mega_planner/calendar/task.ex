@@ -24,7 +24,7 @@ defmodule MegaPlanner.Calendar.Task do
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :parent_task, __MODULE__
     belongs_to :trip, MegaPlanner.Receipts.Trip
-    has_many :steps, MegaPlanner.Calendar.TaskStep, on_replace: :delete
+    has_many :steps, MegaPlanner.Calendar.TaskStep, on_replace: :delete, on_delete: :delete_all
     many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "tasks_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -45,5 +45,8 @@ defmodule MegaPlanner.Calendar.Task do
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:household_id)
     |> foreign_key_constraint(:parent_task_id)
+    |> unique_constraint([:title, :date, :household_id],
+       name: :tasks_title_date_household_unique,
+       message: "A task with this title already exists on this date")
   end
 end

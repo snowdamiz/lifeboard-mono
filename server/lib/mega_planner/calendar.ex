@@ -76,6 +76,15 @@ defmodule MegaPlanner.Calendar do
   end
 
   @doc """
+  Gets a task by its associated trip_id.
+  """
+  def get_task_by_trip_id(trip_id) do
+    Task
+    |> Repo.get_by(trip_id: trip_id)
+    |> Repo.preload(@task_preloads)
+  end
+
+  @doc """
   Creates a task.
   """
   def create_task(attrs \\ %{}) do

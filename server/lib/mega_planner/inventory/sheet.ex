@@ -11,7 +11,7 @@ defmodule MegaPlanner.Inventory.Sheet do
 
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
-    has_many :items, MegaPlanner.Inventory.Item
+    has_many :items, MegaPlanner.Inventory.Item, on_delete: :delete_all
     many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "inventory_sheets_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)

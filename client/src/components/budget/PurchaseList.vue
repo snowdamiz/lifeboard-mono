@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ShoppingCart, Trash2, Edit } from 'lucide-vue-next'
+import { ShoppingCart } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import type { Purchase } from '@/types'
 
 interface Props {
@@ -67,12 +69,8 @@ const getUnitPrice = (p: Purchase) => {
     >
       <template #actions v-if="showActions">
         <div class="flex gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity self-center pl-1">
-          <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-primary" @click="emit('edit', purchase)">
-            <Edit class="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-destructive" @click="emit('delete', purchase.id)">
-            <Trash2 class="h-3.5 w-3.5" />
-          </Button>
+          <EditButton :adaptive="false" @click="emit('edit', purchase)" />
+          <DeleteButton :adaptive="false" @click="emit('delete', purchase.id)" />
         </div>
       </template>
     </BaseItemEntry>

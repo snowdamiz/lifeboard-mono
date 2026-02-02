@@ -44,6 +44,9 @@ defmodule MegaPlanner.Receipts.Purchase do
     |> foreign_key_constraint(:household_id)
     |> foreign_key_constraint(:stop_id)
     |> foreign_key_constraint(:budget_entry_id)
+    |> unique_constraint([:stop_id, :brand, :item],
+       name: :purchases_stop_brand_item_unique,
+       message: "This item already exists in this stop")
   end
 
   def tags_changeset(purchase, tags) do

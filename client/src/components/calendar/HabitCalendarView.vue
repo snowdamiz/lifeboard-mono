@@ -5,11 +5,12 @@ import {
   startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, 
   addWeeks, subWeeks, addDays, subDays, parseISO, startOfDay
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Ban, Calendar as CalendarIcon, Edit2, CheckSquare, Square, Pin } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Ban, Calendar as CalendarIcon, CheckSquare, Square, Pin } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useHabitsStore } from '@/stores/habits'
+import EditButton from '@/components/shared/EditButton.vue'
 import type { HabitWithStatus } from '@/stores/habits'
 
 const emit = defineEmits<{
@@ -402,13 +403,13 @@ onMounted(() => {
         </div>
 
         <!-- Calendar days -->
-        <div class="grid grid-cols-7 gap-2">
+        <div class="grid grid-cols-7">
           <div
             v-for="day in calendarDays"
             :key="day.toISOString()"
             :class="[
-              'min-h-24 p-2 rounded-lg border transition-colors group/day',
-              isToday(day) ? 'bg-primary/5 border-primary/50' : 'border-border hover:bg-accent',
+              'min-h-24 p-2 border-r border-b border-border transition-colors group/day last:border-r-0 [&:nth-child(7n)]:border-r-0',
+              isToday(day) ? 'bg-primary/5' : 'hover:bg-accent',
               !isSameMonth(day, monthStart) && 'opacity-40'
             ]"
           >
@@ -541,15 +542,12 @@ onMounted(() => {
             </div>
 
             <!-- Edit button (only for today, shows on hover) -->
-            <Button 
+            <EditButton 
               v-if="isToday(day) && !selectionMode"
-              variant="ghost" 
-              size="icon" 
-              class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              :adaptive="false"
+              class="opacity-0 group-hover:opacity-100"
               @click="emit('edit', habit)"
-            >
-              <Edit2 class="h-3 w-3" />
-            </Button>
+            />
           </div>
 
           <div 

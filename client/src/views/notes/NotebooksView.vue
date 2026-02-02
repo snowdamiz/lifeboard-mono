@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, BookOpen, Trash, Edit, FileText, ChevronDown, ChevronRight, Filter, X } from 'lucide-vue-next'
+import { Plus, BookOpen, FileText, ChevronDown, ChevronRight, Filter, X } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useNotesStore } from '@/stores/notes'
 import TagManager from '@/components/shared/TagManager.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import type { Notebook } from '@/types'
 
 const router = useRouter()
@@ -282,24 +284,8 @@ const deletePage = async (notebookId: string, pageId: string, event: Event) => {
             <Button variant="ghost" size="icon" class="h-8 w-8 sm:hidden" @click="createPage(notebook.id)">
               <Plus class="h-4 w-4" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              class="h-8 w-8 text-muted-foreground hover:text-primary"
-              @click="openEditModal(notebook)"
-              title="Rename/Edit notebook"
-            >
-              <Edit class="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              class="h-8 w-8 text-muted-foreground hover:text-destructive"
-              @click="deleteNotebook(notebook.id)"
-              title="Delete notebook"
-            >
-              <Trash class="h-4 w-4" />
-            </Button>
+            <EditButton size="lg" :adaptive="false" @click="openEditModal(notebook)" />
+            <DeleteButton size="lg" :adaptive="false" @click="deleteNotebook(notebook.id)" />
 
             <component 
               :is="expandedNotebook === notebook.id ? ChevronDown : ChevronRight" 
@@ -333,15 +319,7 @@ const deletePage = async (notebookId: string, pageId: string, event: Event) => {
                   </Badge>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7 text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                @click="deletePage(notebook.id, page.id, $event)"
-                title="Delete page"
-              >
-                <Trash class="h-3.5 w-3.5" />
-              </Button>
+              <DeleteButton size="sm" @click="deletePage(notebook.id, page.id, $event)" />
             </div>
             <div v-if="notesStore.pages.length === 0" class="text-sm text-muted-foreground text-center py-6">
               No pages yet. Create one to get started.

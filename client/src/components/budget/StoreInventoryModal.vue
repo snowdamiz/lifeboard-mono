@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { useReceiptsStore } from '@/stores/receipts'
 import type { Store } from '@/types'
-import { Loader2, Search, ShoppingBag, ClipboardList, Edit2 } from 'lucide-vue-next'
+import { Loader2, Search, ShoppingBag, ClipboardList } from 'lucide-vue-next'
+import EditButton from '@/components/shared/EditButton.vue'
 import StoreItemEditModal from './StoreItemEditModal.vue'
 
 const props = defineProps<{
@@ -162,9 +163,7 @@ const handleSaved = async () => {
                 <td class="p-3 text-right text-muted-foreground text-xs group relative">
                    <div class="group-hover:hidden">{{ formatDate(item.date) }}</div>
                    <div class="hidden group-hover:block absolute right-2 top-1/2 -translate-y-1/2">
-                      <Button variant="ghost" size="icon" class="h-6 w-6" @click.stop="openEdit(item)">
-                        <Edit2 class="h-3 w-3" />
-                      </Button>
+                      <EditButton :adaptive="false" @click.stop="openEdit(item)" />
                    </div>
                 </td>
               </tr>

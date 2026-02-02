@@ -132,12 +132,15 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     
     {
       "store": {
-        "name": "Store name from receipt header",
-        "address": "Full address if visible",
-        "city": "City name",
-        "state": "State abbreviation (e.g., TX, CA)",
-        "store_code": "Store number if present (e.g., #1234)",
-        "phone": "Phone number if visible"
+        "name": "Store name from receipt header (e.g., 'Walmart', 'Costco')",
+        "store_id": "Store number/ID if present (just the number, e.g., '1234' from 'Store #1234' or 'STR1234')",
+        "street": "Street address (e.g., '2107 S 11th St')",
+        "suite": "Suite, unit, or building number if present (e.g., 'Suite 100', 'Unit B')",
+        "city": "City name (e.g., 'Niles')",
+        "state": "State abbreviation (e.g., 'MI', 'TX', 'CA')",
+        "zip_code": "ZIP code (e.g., '49120', '49120-1234')",
+        "phone": "Phone number if visible",
+        "store_code": "Store code/number found near transaction details. Look for patterns like 'ST# 02010', 'ST 02010', 'Store# 1234'. Extract just the number (e.g., '02010'). This is distinct from store_id and identifies the specific store location."
       },
       "transaction": {
         "date": "YYYY-MM-DD format",
@@ -145,6 +148,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
         "subtotal": "Subtotal amount as string (e.g., '25.99')",
         "tax": "Tax amount as string",
         "total": "Total amount as string",
+        "tax_rate": "Tax rate as decimal if shown on receipt (e.g., '0.06' for 6%)",
         "payment_method": "Cash, Credit, Debit, etc. if visible"
       },
       "items": [
@@ -158,8 +162,10 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
           "unit_price": "Price per unit if shown",
           "total_price": "Line item total as string",
           "taxable": true,
-          "tax_amount": "Tax amount for this specific item if shown separately, otherwise null",
-          "store_code": "Item SKU/code if visible"
+          "tax_indicator": "Tax indicator code if present (e.g., 'N', 'X', 'T', 'A', 'F')",
+          "tax_amount": "Calculated tax for this item: total_price × tax_rate. For non-taxed items use null",
+          "tax_rate": "Tax rate applied to this item as decimal (e.g., '0.06' for 6%), null if not taxed",
+          "store_code": "Item SKU, UPC barcode, or store item number (e.g., '812049005200', '759176034500')"
         }
       ]
     }
@@ -168,14 +174,25 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     - Extract as much information as possible from the receipt
     - For items without clear brands, leave brand empty or use store brand name
     - Parse prices as strings to preserve decimal precision
-    - Set taxable to true if item has a tax indicator (T, TAX, *)
+    - TAX INDICATOR RULES (check for letters next to price):
+      * "N" = Non-taxable (food, groceries) - set taxable=false, tax_rate=null, tax_amount=null
+      * "X" or "T" = Taxable at state rate - set taxable=true, tax_rate from receipt (e.g., "0.06"), calculate tax_amount
+      * "A" = Taxable (Costco uses this) - set taxable=true, calculate tax_amount
+      * "F" = Food stamp eligible, usually non-taxable - set taxable=false
+      * No indicator = Check if item appears to be food (non-taxable) or general merchandise (taxable)
+    - Look for the tax rate on the receipt (often shown as "TAX 6.00%" or "TAX1 6.0000%")
+    - For EACH taxable item, calculate: tax_amount = total_price × tax_rate (round to 2 decimals)
     - If a field is not visible on the receipt, use null
     - Keep the raw_text for each item as it appears on the receipt
     - IMPORTANT: Convert ALL CAPS text to Proper Title Case for brand and item fields
       - Example: "CHICKEN BREAST" should become "Chicken Breast"
       - Example: "GV WHOLE MILK" should become "Gv Whole Milk" (brand) or "Great Value" if recognizable
       - Keep acronyms like "TV", "DVD", "USB" in uppercase
-    - If tax_amount is shown per-item on the receipt, extract it; otherwise use null
+    - STORE CODE EXTRACTION (for store object):
+      * Walmart: Look for "ST# XXXXX" pattern (e.g., "ST# 02010") near transaction details. Extract the 5-digit number as store_code.
+      * Costco: Look for store number in header or "STORE#" pattern.
+      * Target: Look for store number in header.
+      * The store_code field identifies the specific store location, distinct from item SKU codes.
     """
   end
 
@@ -316,14 +333,46 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
   end
 
   defp normalize_store(store) do
+    # Use store_code if present, otherwise fall back to store_id
+    # The AI typically puts the store number in store_id, and store_code is often nil
+    store_code = case store["store_code"] do
+      nil -> store["store_id"]
+      "" -> store["store_id"]
+      code -> code
+    end
+    
     %{
       name: store["name"],
-      address: store["address"],
+      store_id: store["store_id"],
+      street: store["street"],
+      suite: store["suite"],
       city: store["city"],
       state: store["state"],
-      store_code: store["store_code"],
-      phone: store["phone"]
+      zip_code: store["zip_code"],
+      phone: store["phone"],
+      store_code: store_code,
+      # Build full address from components for backwards compatibility
+      address: build_store_address(store)
     }
+  end
+
+  defp build_store_address(store) do
+    street = store["street"]
+    suite = store["suite"]
+    city = store["city"]
+    state = store["state"]
+    zip = store["zip_code"]
+    
+    if street do
+      street_part = if suite && suite != "", do: "#{street} #{suite}", else: street
+      
+      # Build address as: Street, City, State, ZIP (all comma-separated)
+      [street_part, city, state, zip]
+      |> Enum.reject(&(is_nil(&1) || &1 == ""))
+      |> Enum.join(", ")
+    else
+      nil
+    end
   end
 
   defp normalize_transaction(txn) do
@@ -333,6 +382,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
       subtotal: txn["subtotal"],
       tax: txn["tax"],
       total: txn["total"],
+      tax_rate: txn["tax_rate"],
       payment_method: txn["payment_method"]
     }
   end
@@ -348,7 +398,9 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
       unit_price: item["unit_price"],
       total_price: item["total_price"],
       taxable: item["taxable"] || false,
+      tax_indicator: item["tax_indicator"],
       tax_amount: item["tax_amount"],
+      tax_rate: item["tax_rate"],
       store_code: item["store_code"]
     }
   end
@@ -389,10 +441,14 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
   Enriches parsed data with matches from existing database records.
   Marks stores and brands as new or existing.
   Also applies any stored format corrections from user's previous edits.
+  Also applies learned tax indicator meanings for the store.
   """
   def enrich_with_matches(parsed_data, household_id) do
+    alias MegaPlanner.Receipts
+    
     # Try to match store
     store_match = find_matching_store(parsed_data.store, household_id)
+    store_name = parsed_data.store[:name] || ""
     
     # Try to match brands in items and apply format corrections
     enriched_items = Enum.map(parsed_data.items, fn item ->
@@ -401,6 +457,9 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
       
       # Apply any stored format corrections based on raw_text
       corrected_item = apply_format_correction(item, household_id)
+      
+      # Apply learned tax indicator meanings for this store
+      corrected_item = Receipts.apply_tax_indicator_meaning(corrected_item, household_id, store_name)
       
       corrected_item
       |> Map.put(:brand_is_new, is_nil(brand_match))
@@ -428,8 +487,29 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
         item
         |> maybe_apply_correction(:brand, correction.corrected_brand)
         |> maybe_apply_correction(:item, correction.corrected_item)
+        |> maybe_apply_correction(:unit, correction.corrected_unit)
+        |> maybe_apply_quantity_correction(correction.corrected_quantity)
+        |> maybe_apply_unit_quantity_correction(correction.corrected_unit_quantity)
     end
   end
+
+  defp maybe_apply_quantity_correction(item, nil), do: item
+  defp maybe_apply_quantity_correction(item, quantity) when is_integer(quantity) and quantity > 0 do
+    Map.put(item, :quantity, quantity)
+  end
+  defp maybe_apply_quantity_correction(item, _), do: item
+
+  defp maybe_apply_unit_quantity_correction(item, nil), do: item
+  defp maybe_apply_unit_quantity_correction(item, %Decimal{} = unit_quantity) do
+    Map.put(item, :unit_quantity, Decimal.to_string(unit_quantity))
+  end
+  defp maybe_apply_unit_quantity_correction(item, unit_quantity) when is_number(unit_quantity) do
+    Map.put(item, :unit_quantity, to_string(unit_quantity))
+  end
+  defp maybe_apply_unit_quantity_correction(item, unit_quantity) when is_binary(unit_quantity) do
+    Map.put(item, :unit_quantity, unit_quantity)
+  end
+  defp maybe_apply_unit_quantity_correction(item, _), do: item
 
   defp maybe_apply_correction(item, _field, nil), do: item
   defp maybe_apply_correction(item, _field, ""), do: item
@@ -458,21 +538,60 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     alias MegaPlanner.Receipts.Store
     alias MegaPlanner.Repo
 
-    # First try exact name match
-    query = from s in Store,
+    # Priority 1: Match by store_id (most reliable)
+    store_id = store_data[:store_id]
+    if store_id && store_id != "" do
+      case Repo.one(from s in Store, where: s.household_id == ^household_id and s.store_id == ^store_id, limit: 1) do
+        nil -> find_store_by_name_and_address(store_name, store_data, household_id)
+        store -> store
+      end
+    else
+      find_store_by_name_and_address(store_name, store_data, household_id)
+    end
+  end
+
+  defp find_store_by_name_and_address(store_name, store_data, household_id) do
+    import Ecto.Query
+    alias MegaPlanner.Receipts.Store
+    alias MegaPlanner.Repo
+
+    # Priority 2: Match by name + street + city
+    street = store_data[:street]
+    city = store_data[:city]
+    
+    if street && street != "" && city && city != "" do
+      case Repo.one(from s in Store, 
+        where: s.household_id == ^household_id,
+        where: fragment("LOWER(?) = LOWER(?)", s.name, ^store_name),
+        where: fragment("LOWER(?) = LOWER(?)", s.street, ^street),
+        where: fragment("LOWER(?) = LOWER(?)", s.city, ^city),
+        limit: 1) do
+        nil -> find_store_by_name_only(store_name, store_data, household_id)
+        store -> store
+      end
+    else
+      find_store_by_name_only(store_name, store_data, household_id)
+    end
+  end
+
+  defp find_store_by_name_only(store_name, store_data, household_id) do
+    import Ecto.Query
+    alias MegaPlanner.Receipts.Store
+    alias MegaPlanner.Repo
+
+    # Priority 3: Match by name only
+    case Repo.one(from s in Store, 
       where: s.household_id == ^household_id,
       where: fragment("LOWER(?) = LOWER(?)", s.name, ^store_name),
-      limit: 1
-
-    case Repo.one(query) do
+      limit: 1) do
       nil ->
-        # Try partial match on store code if available
-        if store_data[:store_code] do
-          code_query = from s in Store,
+        # Final fallback: Try store_code if available
+        store_code = store_data[:store_code]
+        if store_code && store_code != "" do
+          Repo.one(from s in Store,
             where: s.household_id == ^household_id,
-            where: s.store_code == ^store_data[:store_code],
-            limit: 1
-          Repo.one(code_query)
+            where: s.store_code == ^store_code,
+            limit: 1)
         else
           nil
         end

@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ShoppingCart, MapPin } from 'lucide-vue-next'
+import { ShoppingCart } from 'lucide-vue-next'
 import type { Trip } from '@/types'
 import { cn } from '@/lib/utils'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
 
 interface Props {
   trip: Trip
   compact?: boolean
+  showDelete?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  compact: false
+  compact: false,
+  showDelete: true
 })
 
 const emit = defineEmits<{
   click: [tripId: string]
+  delete: [tripId: string]
 }>()
 
 // Compute trip summary data
@@ -33,13 +37,17 @@ const totalSpent = computed(() => {
 })
 
 const storeName = computed(() => {
-  if (props.trip.stops.length === 0) return 'Trip'
-  if (props.trip.stops.length === 1) return props.trip.stops[0].store_name || 'Unknown Store'
+  if (props.trip.stops.length === 0) return 'Shopping Trip'
+  if (props.trip.stops.length === 1) return props.trip.stops[0].store_name || 'Shopping Trip'
   return `${props.trip.stops[0].store_name || 'Trip'} +${props.trip.stops.length - 1}`
 })
 
 const handleClick = () => {
   emit('click', props.trip.id)
+}
+
+const handleDelete = () => {
+  emit('delete', props.trip.id)
 }
 </script>
 
@@ -79,8 +87,17 @@ const handleClick = () => {
 
       <!-- Compact price -->
       <span v-if="compact" class="text-[10px] text-emerald-500 font-medium shrink-0">
-        ${{ totalSpent }}
+        -${{ totalSpent }}
       </span>
+
+      <!-- Delete button -->
+      <DeleteButton
+        v-if="showDelete"
+        :size="compact ? 'sm' : 'sm'"
+        class="-mr-1"
+        @click.stop="handleDelete"
+      />
     </div>
   </div>
 </template>
+

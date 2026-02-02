@@ -3,18 +3,21 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { format } from 'date-fns'
 import { 
   Target, Plus, ChevronRight, Calendar, CheckCircle2, Circle, 
-  Trash2, Edit2, Trophy, Flag, Settings2, Tags, 
+  Trophy, Flag, Settings2, Tags, 
   Filter, ArrowUpDown, X, PlusCircle, MinusCircle
 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { DateChooser } from '@/components/ui/date-chooser'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import TagManager from '@/components/shared/TagManager.vue'
 import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import { useGoalsStore } from '@/stores/goals'
 import { useTagsStore } from '@/stores/tags'
 import type { Goal, Tag } from '@/types'
@@ -508,22 +511,8 @@ const openEditModal = (goal: Goal) => {
             </div>
 
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                class="h-8 w-8 text-muted-foreground"
-                @click.stop="openEditModal(goal)"
-              >
-                <Edit2 class="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                class="h-8 w-8 text-destructive"
-                @click.stop="handleDeleteGoal(goal.id)"
-              >
-                <Trash2 class="h-4 w-4" />
-              </Button>
+              <EditButton size="lg" @click.stop="openEditModal(goal)" />
+              <DeleteButton size="lg" :adaptive="false" @click.stop="handleDeleteGoal(goal.id)" />
             </div>
           </div>
         </CardContent>
@@ -567,7 +556,7 @@ const openEditModal = (goal: Goal) => {
                 </div>
                 <div>
                   <label class="text-sm font-medium mb-1.5 block">Target Date</label>
-                  <Input v-model="newGoal.target_date" type="date" />
+                  <DateChooser v-model="newGoal.target_date" />
                 </div>
               </div>
               <div>
@@ -593,9 +582,7 @@ const openEditModal = (goal: Goal) => {
                     >
                       <Checkbox v-model="milestone.completed" class="shrink-0" />
                       <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
-                      <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="removeMilestone(index, false)">
-                        <Trash2 class="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <DeleteButton size="sm" :adaptive="false" @click="removeMilestone(index, false)" />
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -674,7 +661,7 @@ const openEditModal = (goal: Goal) => {
               <div class="grid grid-cols-2 gap-4">
                 <div class="col-span-2">
                   <label class="text-sm font-medium mb-1.5 block">Target Date</label>
-                  <Input :model-value="editingGoal.target_date ?? ''" @update:model-value="editingGoal.target_date = String($event) || null" type="date" />
+                  <DateChooser :model-value="editingGoal.target_date ?? ''" @update:model-value="editingGoal.target_date = String($event) || null" />
                 </div>
               </div>
 
@@ -689,9 +676,7 @@ const openEditModal = (goal: Goal) => {
                   >
                     <Checkbox v-model="milestone.completed" class="shrink-0" />
                     <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
-                    <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="removeMilestone(index, true)">
-                      <Trash2 class="h-3.5 w-3.5 text-destructive" />
-                    </Button>
+                    <DeleteButton size="sm" :adaptive="false" @click="removeMilestone(index, true)" />
                   </div>
 
                   <div class="flex items-center gap-2">

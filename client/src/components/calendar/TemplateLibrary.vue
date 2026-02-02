@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { format } from 'date-fns'
 import { 
-  LayoutTemplate, Plus, X, Trash2, Edit2, Play, Clock, 
+  LayoutTemplate, Plus, X, Play, Clock, 
   ListChecks, ChevronDown
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { api } from '@/services/api'
 import { useCalendarStore } from '@/stores/calendar'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import type { TaskTemplate } from '@/types'
 
 const emit = defineEmits<{
@@ -222,22 +224,8 @@ function openEditModal(template: TaskTemplate) {
                   </div>
                 </div>
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    class="h-7 w-7"
-                    @click.stop="openEditModal(template)"
-                  >
-                    <Edit2 class="h-3.5 w-3.5" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    class="h-7 w-7 text-destructive"
-                    @click.stop="handleDeleteTemplate(template.id)"
-                  >
-                    <Trash2 class="h-3.5 w-3.5" />
-                  </Button>
+                  <EditButton :adaptive="false" @click.stop="openEditModal(template)" />
+                  <DeleteButton :adaptive="false" @click.stop="handleDeleteTemplate(template.id)" />
                   <Button 
                     size="sm"
                     class="h-7"

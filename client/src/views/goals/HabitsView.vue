@@ -2,8 +2,8 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { format, subDays, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from 'date-fns'
 import { 
-  Flame, Plus, CheckCircle2, Circle, Trash2, Edit2, Trophy, Zap, Calendar, Filter,
-  PlusCircle, MinusCircle, X, Ban, ChevronLeft, ChevronRight
+  Flame, Plus, CheckCircle2, Circle, Trophy, Zap, Calendar, Filter,
+  PlusCircle, MinusCircle, X, Ban, ChevronLeft, ChevronRight, Trash2
 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import TagManager from '@/components/shared/TagManager.vue'
 import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
 import HabitCalendarView from '@/components/calendar/HabitCalendarView.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
+import DeleteButton from '@/components/shared/DeleteButton.vue'
+import EditButton from '@/components/shared/EditButton.vue'
 import { useHabitsStore, type HabitWithStatus } from '@/stores/habits'
 import { useTagsStore } from '@/stores/tags'
 import { useTextTemplate } from '@/composables/useTextTemplate'
@@ -1289,15 +1291,11 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
               <Badge variant="secondary" class="text-xs">Whole Day</Badge>
               <span class="text-xs text-muted-foreground">({{ group.wholeDay.habits.length }})</span>
               <span class="text-xs text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} / {{ formatDuration(group.wholeDay.timeAvailable) }}</span>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                class="h-6 w-6 opacity-0 group-hover/header:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+              <DeleteButton
+                :adaptive="false"
+                class="opacity-0 group-hover/header:opacity-100"
                 @click.stop="handleDeleteInventory(group.wholeDay.id)"
-                title="Delete habit sheet"
-              >
-                <Trash2 class="h-3.5 w-3.5" />
-              </Button>
+              />
               <Button 
                 v-if="group.wholeDay.habits.length > 0"
                 :variant="allInventoryHabitsCompleted(group.wholeDay.id) ? 'default' : 'outline'" 
@@ -1400,14 +1398,10 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                         >
                           <Ban class="h-2 w-2" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          class="h-4 w-4 text-destructive"
+                        <DeleteButton
+                          :adaptive="false"
                           @click.stop="handleDeleteHabit(habit.id)"
-                        >
-                          <Trash2 class="h-2 w-2" />
-                        </Button>
+                        />
                       </div>
                     </div>
                   </CardContent>
@@ -1428,15 +1422,11 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                 <h3 class="font-semibold">{{ partial.name }}</h3>
                 <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
                 <span class="text-xs text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} / {{ formatDuration(partial.timeAvailable) }}</span>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              class="h-6 w-6 opacity-0 group-hover/partialheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+            <DeleteButton
+              :adaptive="false"
+              class="opacity-0 group-hover/partialheader:opacity-100"
               @click.stop="handleDeleteInventory(partial.id)"
-              title="Delete habit sheet"
-            >
-              <Trash2 class="h-3.5 w-3.5" />
-            </Button>
+            />
             <Button 
               v-if="partial.habits.length > 0"
               :variant="allInventoryHabitsCompleted(partial.id) ? 'default' : 'outline'" 
@@ -1539,14 +1529,10 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                       >
                         <Ban class="h-2 w-2" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        class="h-4 w-4 text-destructive"
+                      <DeleteButton
+                        :adaptive="false"
                         @click.stop="handleDeleteHabit(habit.id)"
-                      >
-                        <Trash2 class="h-2 w-2" />
-                      </Button>
+                      />
                     </div>
                   </div>
                 </CardContent>
@@ -1571,15 +1557,11 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
           <div class="w-3 h-3 rounded-full shrink-0" :style="{ backgroundColor: inv.color || '#10b981' }" />
           <h3 class="font-semibold text-sm">{{ inv.name }}</h3>
           <span class="text-xs text-muted-foreground">({{ inv.habits.length }})</span>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            class="h-5 w-5 opacity-0 group-hover/standaloneheader:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+          <DeleteButton
+            :adaptive="false"
+            class="opacity-0 group-hover/standaloneheader:opacity-100"
             @click.stop="handleDeleteInventory(inv.id)"
-            title="Delete habit sheet"
-          >
-            <Trash2 class="h-3 w-3" />
-          </Button>
+          />
           <!-- Time metrics -->
           <Badge v-if="inv.totalPlanned > 0" variant="secondary" class="text-[10px] h-4 px-1.5">
             {{ formatDuration(inv.totalPlanned) }}
@@ -1663,14 +1645,10 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                     >
                       <Ban class="h-2 w-2" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      class="h-4 w-4 text-destructive"
+                    <DeleteButton
+                      :adaptive="false"
                       @click.stop="handleDeleteHabit(habit.id)"
-                    >
-                      <Trash2 class="h-2 w-2" />
-                    </Button>
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -1750,14 +1728,7 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                 </div>
 
                 <div class="flex flex-col items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    class="h-6 w-6 text-muted-foreground"
-                    @click.stop="openEditModal(habit)"
-                  >
-                    <Edit2 class="h-3 w-3" />
-                  </Button>
+                  <EditButton :adaptive="false" @click.stop="openEditModal(habit)" />
                   <Button 
                     v-if="!habit.completed_today"
                     variant="ghost" 
@@ -1768,14 +1739,7 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                   >
                     <Ban class="h-3 w-3" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    class="h-6 w-6 text-destructive"
-                    @click.stop="handleDeleteHabit(habit.id)"
-                  >
-                    <Trash2 class="h-3 w-3" />
-                  </Button>
+                  <DeleteButton :adaptive="false" @click.stop="handleDeleteHabit(habit.id)" />
                 </div>
               </div>
             </CardContent>
@@ -2230,12 +2194,10 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                         {{ inv.coverage_mode === 'whole_day' ? 'Whole Day' : 'Partial Day' }}
                       </Badge>
                     </div>
-                    <button 
+                    <DeleteButton
+                      :adaptive="false"
                       @click="habitsStore.deleteHabitInventory(inv.id)"
-                      class="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
-                    >
-                      <Trash2 class="h-4 w-4" />
-                    </button>
+                    />
                   </div>
 
                   <!-- Coverage Mode Settings -->

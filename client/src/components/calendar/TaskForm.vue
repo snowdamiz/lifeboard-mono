@@ -5,6 +5,7 @@ import { X, Plus, Trash, GripVertical, MapPin } from 'lucide-vue-next'
 import type { Task, TaskStep, Tag, Stop, Purchase } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateChooser } from '@/components/ui/date-chooser'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 import { useCalendarStore } from '@/stores/calendar'
@@ -140,18 +141,11 @@ const onManageTripClick = async () => {
       const trip = await receiptsStore.createTrip({
         driver: null,
         driver_id: null,
-        trip_start: form.value.date ? `${form.value.date}T00:00:00` : null,
+        trip_start: form.value.date ? `${form.value.date}T12:00:00Z` : new Date().toISOString(),
         trip_end: null,
         notes: null
       })
       tripId.value = trip.id
-      
-      // Create first stop with default times
-      await receiptsStore.createStop(trip.id, {
-        position: 0,
-        time_arrived: '00:00',
-        time_left: '00:00'
-      })
       
       // Update the task with the trip_id
       if (props.task) {
@@ -195,17 +189,20 @@ const save = async () => {
     // If task type is trip and we don't have a trip yet, create one
     if (form.value.task_type === 'trip' && !tripId.value) {
       // Always set trip_start to task's date (at midnight local if no time specified)
-      let tripStart = null
+      let tripStart: string
       if (form.value.date) {
         if (form.value.start_time) {
-          tripStart = `${form.value.date}T${form.value.start_time}:00`
+          tripStart = `${form.value.date}T${form.value.start_time}:00Z`
         } else {
           // Create midnight local time, adjusted for timezone offset
-          const date = new Date(`${form.value.date}T00:00:00`)
+          const date = new Date(`${form.value.date}T12:00:00`)
           const userTimezoneOffset = date.getTimezoneOffset() * 60000
           const adjustedDate = new Date(date.getTime() + userTimezoneOffset)
           tripStart = adjustedDate.toISOString()
         }
+      } else {
+        // No date set, use current time
+        tripStart = new Date().toISOString()
       }
       
       const trip = await receiptsStore.createTrip({
@@ -217,13 +214,6 @@ const save = async () => {
       })
       createdTripId = trip.id
       tripId.value = trip.id
-      
-      // Create first stop for the trip with default times
-      await receiptsStore.createStop(trip.id, { 
-        position: 0,
-        time_arrived: '00:00:00',
-        time_left: '00:00:00'
-      })
     }
     
     // Prepare steps with positions
@@ -310,7 +300,7 @@ const save = async () => {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-sm font-medium">Date</label>
-              <Input v-model="form.date" type="date" class="mt-1.5" />
+              <DateChooser v-model="form.date" class="mt-1.5" />
             </div>
             <div>
               <label class="text-sm font-medium">Type</label>
@@ -340,21 +330,16 @@ const save = async () => {
           </div>
 
           <!-- Trip-specific fields -->
-          <div v-if="form.task_type === 'trip'" class="space-y-3">
-            <div v-if="!isEditing" class="text-xs text-muted-foreground p-3 bg-secondary/30 border border-border rounded-lg">
-              💡 After saving this trip, you can reopen it to manage driver, stops, and purchases.
-            </div>
-            <div v-if="isEditing" class="pt-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  class="w-full" 
-                  @click="onManageTripClick"
-                >
-                    <MapPin class="h-4 w-4 mr-2" />
-                    Manage Trip Details
-                </Button>
-            </div>
+          <div v-if="form.task_type === 'trip'" class="pt-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              class="w-full" 
+              @click="onManageTripClick"
+            >
+              <MapPin class="h-4 w-4 mr-2" />
+              Manage Trip Details
+            </Button>
           </div>
 
           <!-- Steps and Tags in 2 columns -->

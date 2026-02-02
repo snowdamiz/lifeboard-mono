@@ -10,7 +10,7 @@ defmodule MegaPlanner.Notes.Notebook do
 
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
-    has_many :pages, MegaPlanner.Notes.Page
+    has_many :pages, MegaPlanner.Notes.Page, on_delete: :delete_all
     many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "notebooks_tags", on_replace: :delete
 
     timestamps(type: :utc_datetime)

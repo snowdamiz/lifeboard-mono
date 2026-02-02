@@ -84,14 +84,26 @@ defmodule MegaPlannerWeb.InventorySheetController do
     %{
       id: item.id,
       name: item.name,
-      quantity: item.quantity,
-      min_quantity: item.min_quantity,
+      quantity: decimal_to_string(item.quantity),
+      min_quantity: decimal_to_string(item.min_quantity),
       is_necessity: item.is_necessity,
       store: item.store,
       unit_of_measure: item.unit_of_measure,
       brand: item.brand,
       tags: Enum.map(item.tags || [], &tag_to_json/1),
-      custom_fields: item.custom_fields
+      custom_fields: item.custom_fields,
+      # Purchase/Trip/Store data for full data parity
+      count: item.count,
+      price_per_count: item.price_per_count,
+      price_per_unit: item.price_per_unit,
+      taxable: item.taxable,
+      total_price: item.total_price,
+      store_code: item.store_code,
+      item_name: item.item_name,
+      purchase_date: item.purchase_date,
+      trip_id: item.trip_id,
+      stop_id: item.stop_id,
+      purchase_id: item.purchase_id
     }
   end
 
@@ -102,6 +114,10 @@ defmodule MegaPlannerWeb.InventorySheetController do
       color: tag.color
     }
   end
+
+  defp decimal_to_string(%Decimal{} = d), do: Decimal.to_string(d)
+  defp decimal_to_string(nil), do: nil
+  defp decimal_to_string(val), do: to_string(val)
 
   # Trip Receipts
 
@@ -114,6 +130,7 @@ defmodule MegaPlannerWeb.InventorySheetController do
   defp trip_receipt_to_json(receipt) do
     %{
       id: receipt.id,
+      trip_id: receipt.trip_id,
       store_name: receipt.store_name,
       trip_start: receipt.trip_start,
       date: receipt.date,

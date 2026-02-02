@@ -52,8 +52,8 @@ defmodule MegaPlannerWeb.InventoryItemController do
     %{
       id: item.id,
       name: item.name,
-      quantity: item.quantity,
-      min_quantity: item.min_quantity,
+      quantity: decimal_to_string(item.quantity),
+      min_quantity: decimal_to_string(item.min_quantity),
       is_necessity: item.is_necessity,
       store: item.store,
       unit_of_measure: item.unit_of_measure,
@@ -73,6 +73,10 @@ defmodule MegaPlannerWeb.InventoryItemController do
       color: tag.color
     }
   end
+
+  defp decimal_to_string(%Decimal{} = d), do: Decimal.to_string(d)
+  defp decimal_to_string(nil), do: nil
+  defp decimal_to_string(val), do: to_string(val)
 
   # Find matching items across sheets
 
@@ -96,7 +100,7 @@ defmodule MegaPlannerWeb.InventoryItemController do
   # Transfer item between sheets
 
   def transfer(conn, %{"source_id" => source_id, "target_sheet_id" => target_sheet_id, "quantity" => quantity}) do
-    quantity = if is_binary(quantity), do: String.to_integer(quantity), else: quantity
+    quantity = if is_binary(quantity), do: Decimal.new(quantity), else: Decimal.new(quantity)
     
     case Inventory.transfer_item(source_id, target_sheet_id, quantity) do
       {:ok, :ok} -> json(conn, %{success: true})

@@ -32,6 +32,9 @@ defmodule MegaPlanner.Budget.Entry do
     |> foreign_key_constraint(:source_id)
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:household_id)
+    |> unique_constraint(:purchase_id,
+       name: :budget_entries_purchase_unique,
+       message: "A budget entry already exists for this purchase")
   end
 
   def tags_changeset(entry, tags) do

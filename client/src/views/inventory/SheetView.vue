@@ -32,6 +32,7 @@ const tripReceipts = ref<TripReceipt[]>([])
 const isLoadingReceipts = ref(false)
 const transferItem = ref<InventoryItem | null>(null)
 const showTransferModal = ref(false)
+const expandedReceiptIds = ref<Set<string>>(new Set())
 
 const sheetId = computed(() => route.params.id as string)
 
@@ -115,15 +116,13 @@ watch(() => route.fullPath, () => {
   }
 })
 
-const refreshKey = ref(0)
-
 const fetchTripReceipts = async () => {
   isLoadingReceipts.value = true
   try {
     const res = await api.listTripReceipts()
     console.log(`[DEBUG] Fetched ${res.data.length} trips. First trip has ${res.data[0]?.items?.length} items.`)
     tripReceipts.value = res.data
-    refreshKey.value++ // Force re-render
+    // Note: No longer increment refreshKey to avoid remounting and losing expanded state
   } catch (err) {
     console.error('Failed to fetch trip receipts:', err)
   } finally {
@@ -156,9 +155,32 @@ const onTransferComplete = async () => {
 const handleDeleteClick = async (item: InventoryItem) => {
   await inventoryStore.deleteItem(item.id)
   
-  // Refresh views
-  fetchTripReceipts()
-  inventoryStore.fetchSheet(sheetId.value)
+  // Refresh views - expanded state is managed externally so it persists
+  await fetchTripReceipts()
+  await inventoryStore.fetchSheet(sheetId.value)
+}
+
+const handleDeleteTrip = async (tripId: string) => {
+  console.log('handleDeleteTrip called with tripId:', tripId)
+  
+  if (!tripId) {
+    console.warn('Cannot delete trip: no trip_id provided')
+    return
+  }
+  
+  try {
+    console.log('Starting trip deletion...')
+    const { useReceiptsStore } = await import('@/stores/receipts')
+    const receiptsStore = useReceiptsStore()
+    
+    await receiptsStore.deleteTrip(tripId)
+    console.log('Trip deleted, refreshing data...')
+    
+    await fetchTripReceipts()
+    await inventoryStore.fetchSheet(sheetId.value)
+  } catch (error) {
+    console.error('Error deleting trip:', error)
+  }
 }
 
 const updateQuantity = async (item: GroupedInventoryItem, delta: number) => {
@@ -271,10 +293,11 @@ const onItemSaved = () => {
         <!-- TripReceiptList -->
         <TripReceiptList 
           v-else
-          :key="refreshKey"
           :receipts="tripReceipts" 
+          v-model:expandedIds="expandedReceiptIds"
           @transfer="handleTransferClick" 
           @delete="handleDeleteClick"
+          @deleteTrip="handleDeleteTrip"
         />
         
         <!-- Transfer Modal -->
@@ -362,7 +385,11 @@ const onItemSaved = () => {
         :name="item.name"
         :brand="item.brand"
         :store="item.store"
+        :store-code="item.store_code"
         :unit="item.unit_of_measure"
+        :price="item.price_per_unit"
+        :total="item.total_price"
+        :taxable="item.taxable ?? false"
         :tags="item.tags"
         :highlighted="item.quantity < item.min_quantity"
         highlight-class="border-destructive/30 bg-destructive/5"

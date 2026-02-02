@@ -230,6 +230,42 @@ Used in week view, expanded dropdowns, and detail panels.
 </button>
 ```
 
+### ClickableCard Pattern
+
+When placing action buttons inside clickable cards, use one of these approaches to prevent event propagation issues:
+
+#### Option 1: Use `ClickableCard` Component (Recommended)
+```html
+<ClickableCard @click="navigateToDetail(item.id)">
+  <!-- Card content -->
+  <template #actions>
+    <EditButton @click="edit(item)" />
+    <DeleteButton @click="delete(item.id)" />
+  </template>
+</ClickableCard>
+```
+
+#### Option 2: Wrapper with `@click.stop`
+```html
+<Card class="cursor-pointer" @click="navigate">
+  <div class="flex items-center gap-3">
+    <div class="flex-1">Content</div>
+    <div class="flex gap-1" @click.stop>
+      <EditButton @click="edit" />
+      <DeleteButton @click="delete" />
+    </div>
+  </div>
+</Card>
+```
+
+#### Option 3: Individual `.stop` modifiers
+```html
+<EditButton @click.stop="edit" />
+<DeleteButton @click.stop="delete" />
+```
+
+> ⚠️ **Never** place buttons inside a clickable parent without stopping propagation. This causes clicks on buttons to also trigger the parent's click handler.
+
 ---
 
 ## Layout & Spacing
@@ -433,6 +469,7 @@ When creating new UI components, verify:
 - [ ] Shadows use the defined hierarchy
 - [ ] Animations use 150ms (fast) or 200ms (standard) duration
 - [ ] Badges use rounded-full for counts, rounded for meta info
+- [ ] **Buttons inside clickable cards use `.stop` or `ClickableCard` component**
 
 ---
 

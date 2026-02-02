@@ -18,7 +18,7 @@ defmodule MegaPlanner.Budget.Source do
 
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
-    has_many :entries, MegaPlanner.Budget.Entry
+    has_many :entries, MegaPlanner.Budget.Entry, on_delete: :delete_all
     many_to_many :tag_objects, MegaPlanner.Tags.Tag,
       join_through: "budget_sources_tags",
       join_keys: [budget_source_id: :id, tag_id: :id],
