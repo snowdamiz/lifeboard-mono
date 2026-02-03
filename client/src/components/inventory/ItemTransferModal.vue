@@ -50,7 +50,7 @@ const sheetOptions = computed(() =>
 
 watch(() => props.item, async (newItem) => {
   if (newItem) {
-    transferQuantity.value = Math.min(1, newItem.quantity)
+    transferQuantity.value = Math.min(1, Number(newItem.quantity))
     targetSheetId.value = ''
     errorMessage.value = ''
     // Fetch matching items across sheets
@@ -109,7 +109,7 @@ const handleTransfer = async () => {
 
 const handleTransferAll = () => {
   if (props.item) {
-    transferQuantity.value = props.item.quantity
+    transferQuantity.value = Number(props.item.quantity)
   }
 }
 </script>

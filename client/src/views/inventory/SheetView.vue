@@ -69,7 +69,7 @@ const groupedItems = computed<GroupedInventoryItem[]>(() => {
     
     if (groups.has(key)) {
       const group = groups.get(key)!
-      group.quantity += item.quantity
+      group.quantity = Number(group.quantity) + Number(item.quantity)
       group.original_ids.push(item.id)
     } else {
       groups.set(key, {
@@ -185,7 +185,7 @@ const handleDeleteTrip = async (tripId: string) => {
 
 const updateQuantity = async (item: GroupedInventoryItem, delta: number) => {
   // Consolidate duplicates on update
-  const newQuantity = Math.max(0, item.quantity + delta)
+  const newQuantity = Math.max(0, Number(item.quantity) + delta)
   
   // Update the representative item
   await inventoryStore.updateItem(item.id, { quantity: newQuantity })
