@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, provide } from 'vue'
-import { Settings, Trash2, Users, Mail, UserPlus, LogOut, X, Check, Inbox } from 'lucide-vue-next'
+import { Settings, Trash2, Users, Mail, UserPlus, LogOut, X, Check, Inbox, Edit2 } from 'lucide-vue-next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import PageHeader from '@/components/shared/PageHeader.vue'
 import { useHouseholdStore } from '@/stores/household'
 import { useAuthStore } from '@/stores/auth'
@@ -219,8 +219,9 @@ function getInitials(name: string | null, email: string) {
                       <X class="h-4 w-4" />
                     </Button>
                   </div>
-                  <EditButton
+                  <BaseIconButton
                     v-if="!editingName"
+                    :icon="Edit2"
                     :adaptive="false"
                     @click="startEditingName"
                   />

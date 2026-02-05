@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, BookOpen, FileText, ChevronDown, ChevronRight, Filter, X } from 'lucide-vue-next'
+import { Plus, BookOpen, FileText, ChevronDown, ChevronRight, Filter, X, Edit2, Trash2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useNotesStore } from '@/stores/notes'
 import TagManager from '@/components/shared/TagManager.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import type { Notebook } from '@/types'
 
 const router = useRouter()
@@ -284,8 +283,8 @@ const deletePage = async (notebookId: string, pageId: string, event: Event) => {
             <Button variant="ghost" size="icon" class="h-8 w-8 sm:hidden" @click="createPage(notebook.id)">
               <Plus class="h-4 w-4" />
             </Button>
-            <EditButton size="lg" :adaptive="false" @click="openEditModal(notebook)" />
-            <DeleteButton size="lg" :adaptive="false" @click="deleteNotebook(notebook.id)" />
+            <BaseIconButton :icon="Edit2" :adaptive="false" @click="openEditModal(notebook)" />
+            <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click="deleteNotebook(notebook.id)" />
 
             <component 
               :is="expandedNotebook === notebook.id ? ChevronDown : ChevronRight" 
@@ -319,7 +318,7 @@ const deletePage = async (notebookId: string, pageId: string, event: Event) => {
                   </Badge>
                 </div>
               </div>
-              <DeleteButton size="sm" @click="deletePage(notebook.id, page.id, $event)" />
+              <BaseIconButton :icon="Trash2" variant="destructive" @click="deletePage(notebook.id, page.id, $event)" />
             </div>
             <div v-if="notesStore.pages.length === 0" class="text-sm text-muted-foreground text-center py-6">
               No pages yet. Create one to get started.

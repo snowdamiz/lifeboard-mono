@@ -125,16 +125,58 @@ const getInitialPrice = () => {
   return props.purchase.total_price
 }
 
+// Helper to compute price per count if not stored
+const getInitialPricePerCount = () => {
+  // If explicitly stored, use it
+  if (props.purchase?.price_per_count) {
+    return props.purchase.price_per_count
+  }
+  // Derive from total_price and count if available
+  const preTaxTotal = parseFloat(getInitialPrice()) || 0
+  const count = parseFloat(props.purchase?.count as any) || 0
+  if (preTaxTotal > 0 && count > 0) {
+    return (preTaxTotal / count).toFixed(2)
+  }
+  return ''
+}
+
+// Helper to compute price per unit if not stored
+const getInitialPricePerUnit = () => {
+  // If explicitly stored, use it
+  if (props.purchase?.price_per_unit) {
+    return props.purchase.price_per_unit
+  }
+  // Derive from total_price and units if available
+  const preTaxTotal = parseFloat(getInitialPrice()) || 0
+  const units = parseFloat(props.purchase?.units as any) || 0
+  if (preTaxTotal > 0 && units > 0) {
+    return (preTaxTotal / units).toFixed(2)
+  }
+  return ''
+}
+
+// Helper to compute tax rate as percentage
+const getInitialTaxRate = () => {
+  if (!props.purchase?.tax_rate) return ''
+  const rate = parseFloat(props.purchase.tax_rate as any)
+  // Tax rate could be stored as decimal (0.0825) or percentage (8.25)
+  // If it's less than 1, assume it's a decimal and convert to percentage
+  if (rate > 0 && rate < 1) {
+    return (rate * 100).toFixed(2)
+  }
+  return props.purchase.tax_rate
+}
+
 const form = ref({
   brand: props.purchase?.brand || '',
   item: props.purchase?.item || '',
   unit_measurement: props.purchase?.unit_measurement || '',
   count: props.purchase?.count || '',
-  price_per_count: props.purchase?.price_per_count || '',
+  price_per_count: getInitialPricePerCount(),
   units: props.purchase?.units || '',
-  price_per_unit: props.purchase?.price_per_unit || '',
+  price_per_unit: getInitialPricePerUnit(),
   taxable: props.purchase?.taxable ?? true,
-  tax_rate: props.purchase?.tax_rate || '',
+  tax_rate: getInitialTaxRate(),
   total_price: getInitialPrice(),
   store_code: props.purchase?.store_code || '',
   item_name: props.purchase?.item_name || '',

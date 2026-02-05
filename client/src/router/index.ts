@@ -123,7 +123,15 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
+  // Allow public routes
   if (to.meta.public) {
+    next()
+    return
+  }
+
+  // TEST_MODE bypass for Playwright tests - skip auth check
+  // @ts-ignore - VITE_TEST_MODE may not be in env types
+  if (import.meta.env.VITE_TEST_MODE === 'true') {
     next()
     return
   }

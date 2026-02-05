@@ -221,7 +221,15 @@ const openNewTask = (date?: Date) => {
   showTaskForm.value = true
 }
 
-const openEditTask = (task: Task, date: Date) => {
+const openEditTask = (task: Task, date: Date, dayIndex?: number) => {
+  // In week view on desktop, use inline full-width popout
+  if (calendarStore.viewMode === 'week' && !isMobile.value) {
+    editingTask.value = task
+    editingDayIndex.value = dayIndex ?? 0
+    return
+  }
+  
+  // Otherwise use modal (mobile, month view, etc.)
   selectedTask.value = task
   selectedDate.value = date
   showTaskForm.value = true
@@ -400,7 +408,7 @@ onUnmounted(() => {
           <div v-if="showFilterDropdown" class="fixed inset-0 z-40 bg-transparent" @click="showFilterDropdown = false" />
         </div>
         
-        <Button @click="openNewTask()" class="shrink-0">
+        <Button @click="openNewTask()" class="shrink-0" data-testid="add-button">
           <Plus class="h-4 w-4" />
           <span class="hidden sm:inline">New Task</span>
         </Button>

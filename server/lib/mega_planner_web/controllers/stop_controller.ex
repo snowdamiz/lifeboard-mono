@@ -74,6 +74,7 @@ defmodule MegaPlannerWeb.StopController do
       units: purchase.units,
       price_per_unit: purchase.price_per_unit,
       taxable: purchase.taxable,
+      tax_rate: purchase.tax_rate,
       total_price: purchase.total_price,
       store_code: purchase.store_code,
       item_name: purchase.item_name,

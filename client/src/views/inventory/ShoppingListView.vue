@@ -3,7 +3,7 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { 
   ShoppingCart, RefreshCw, Check, Package, AlertCircle, 
   Plus, ChevronDown, ChevronRight, X, Filter,
-  PlusCircle, MinusCircle, Store
+  PlusCircle, MinusCircle, Store, Edit2, Trash2
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -13,8 +13,7 @@ import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
 import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
 import ShoppingItemForm from '@/components/shopping/ShoppingItemForm.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import type { ShoppingList, ShoppingListItem, Tag } from '@/types'
 import { useTagsStore } from '@/stores/tags'
 
@@ -434,7 +433,7 @@ const totalUnpurchased = computed(() =>
               </p>
             </div>
             <div class="flex items-center gap-1">
-              <EditButton :adaptive="false" @click.stop="openEditListModal(list)" />
+              <BaseIconButton :icon="Edit2" :adaptive="false" @click.stop="openEditListModal(list)" />
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -444,8 +443,10 @@ const totalUnpurchased = computed(() =>
               >
                 <Plus class="h-4 w-4" />
               </Button>
-              <DeleteButton 
+              <BaseIconButton 
                 v-if="!list.is_auto_generated"
+                :icon="Trash2"
+                variant="destructive"
                 :adaptive="false"
                 @click="deleteList(list.id)"
               />
@@ -494,7 +495,8 @@ const totalUnpurchased = computed(() =>
               <!-- Actions -->
               <template #actions>
                 <div class="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <EditButton
+                  <BaseIconButton
+                    :icon="Edit2"
                     :adaptive="false"
                     @click="openEditItemModal(list.id, item)"
                   />

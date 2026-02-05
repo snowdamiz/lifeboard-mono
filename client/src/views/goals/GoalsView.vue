@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import { 
   Target, Plus, ChevronRight, Calendar, CheckCircle2, Circle, 
   Trophy, Flag, Settings2, Tags, 
-  Filter, ArrowUpDown, X, PlusCircle, MinusCircle
+  Filter, ArrowUpDown, X, PlusCircle, MinusCircle, Edit2, Trash2
 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,10 +16,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import TagManager from '@/components/shared/TagManager.vue'
 import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import { useGoalsStore } from '@/stores/goals'
 import { useTagsStore } from '@/stores/tags'
+import { useListSorting } from '@/composables/useListSorting'
+import { useTabs } from '@/composables/useTabs'
 import type { Goal, Tag } from '@/types'
 
 const goalsStore = useGoalsStore()
@@ -95,9 +96,16 @@ const removeMilestone = (index: number, isEditing: boolean) => {
   }
 }
 
-const activeTab = ref<'active' | 'completed'>('active')
+// Tabs using composable
+const { activeTab, setTab, isActive: isTabActive } = useTabs<'active' | 'completed'>({
+  tabs: [
+    { key: 'active', label: 'Active' },
+    { key: 'completed', label: 'Completed' }
+  ],
+  defaultTab: 'active'
+})
 
-// Filtering and sorting
+// Filtering state
 const isFilterOpen = ref(false)
 const filterCheckedTagIds = ref<Set<string>>(new Set())
 
@@ -107,8 +115,48 @@ watch(() => goalsStore.filterTags, (newTags) => {
 }, { immediate: true })
 
 const activeFilterCount = computed(() => goalsStore.filterTags.length)
-const sortBy = ref<'date' | 'progress' | 'title' | 'category'>('date')
-const sortOrder = ref<'asc' | 'desc'>('asc')
+
+// Sorting using composable
+const statusPriority: Record<string, number> = {
+  'completed': 3,
+  'in_progress': 2,
+  'not_started': 1,
+  'abandoned': 0
+}
+
+const { sortBy, sortOrder, sortOptions, toggleOrder, sortItems } = useListSorting<Goal>({
+  fields: [
+    { 
+      key: 'date', 
+      label: 'Sort by Date', 
+      compare: (a, b) => {
+        const dateA = a.target_date ? new Date(a.target_date).getTime() : Infinity
+        const dateB = b.target_date ? new Date(b.target_date).getTime() : Infinity
+        return dateA - dateB
+      }
+    },
+    { 
+      key: 'progress', 
+      label: 'Sort by Progress', 
+      compare: (a, b) => {
+        let comparison = (a.progress || 0) - (b.progress || 0)
+        if (comparison === 0) {
+          const statusA = statusPriority[a.status] || 0
+          const statusB = statusPriority[b.status] || 0
+          comparison = statusA - statusB
+        }
+        return comparison
+      }
+    },
+    { 
+      key: 'title', 
+      label: 'Sort by Title', 
+      compare: (a, b) => a.title.localeCompare(b.title) 
+    }
+  ],
+  defaultField: 'date',
+  defaultOrder: 'asc'
+})
 
 const toggleFilterTag = (tagId: string) => {
   const index = goalsStore.filterTags.indexOf(tagId)
@@ -133,41 +181,8 @@ const clearFilters = () => {
 
 const displayedGoals = computed(() => {
   // Goals are already filtered by backend (fetchGoals called on mount and filter apply)
-  let goals = activeTab.value === 'active' ? goalsStore.activeGoals : goalsStore.completedGoals
-  
-  // Sort
-  goals = [...goals].sort((a, b) => {
-    let comparison = 0
-    
-    switch (sortBy.value) {
-      case 'date':
-        const dateA = a.target_date ? new Date(a.target_date).getTime() : Infinity
-        const dateB = b.target_date ? new Date(b.target_date).getTime() : Infinity
-        comparison = dateA - dateB
-        break
-      case 'progress':
-        comparison = (a.progress || 0) - (b.progress || 0)
-        if (comparison === 0) {
-          const statusPriority: Record<string, number> = {
-            'completed': 3,
-            'in_progress': 2,
-            'not_started': 1,
-            'abandoned': 0
-          }
-          const statusA = statusPriority[a.status] || 0
-          const statusB = statusPriority[b.status] || 0
-          comparison = statusA - statusB
-        }
-        break
-      case 'title':
-        comparison = a.title.localeCompare(b.title)
-        break
-    }
-    
-    return sortOrder.value === 'desc' ? -comparison : comparison
-  })
-  
-  return goals
+  const goals = activeTab.value === 'active' ? goalsStore.activeGoals : goalsStore.completedGoals
+  return sortItems(goals)
 })
 
 onMounted(async () => {
@@ -332,11 +347,7 @@ const openEditModal = (goal: Goal) => {
         <!-- Sort -->
         <Select 
           v-model="sortBy"
-          :options="[
-            { value: 'date', label: 'Sort by Date' },
-            { value: 'progress', label: 'Sort by Progress' },
-            { value: 'title', label: 'Sort by Title' }
-          ]"
+          :options="sortOptions"
           class="w-[160px] text-xs"
         />
         
@@ -344,7 +355,7 @@ const openEditModal = (goal: Goal) => {
           variant="ghost" 
           size="icon" 
           class="h-8 w-8"
-          @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
+          @click="toggleOrder"
           :title="sortOrder === 'asc' ? 'Ascending' : 'Descending'"
         >
           <ArrowUpDown class="h-4 w-4" :class="sortOrder === 'desc' && 'rotate-180'" />
@@ -511,8 +522,8 @@ const openEditModal = (goal: Goal) => {
             </div>
 
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <EditButton size="lg" @click.stop="openEditModal(goal)" />
-              <DeleteButton size="lg" :adaptive="false" @click.stop="handleDeleteGoal(goal.id)" />
+              <BaseIconButton :icon="Edit2" @click.stop="openEditModal(goal)" />
+              <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click.stop="handleDeleteGoal(goal.id)" />
             </div>
           </div>
         </CardContent>
@@ -582,7 +593,7 @@ const openEditModal = (goal: Goal) => {
                     >
                       <Checkbox v-model="milestone.completed" class="shrink-0" />
                       <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
-                      <DeleteButton size="sm" :adaptive="false" @click="removeMilestone(index, false)" />
+                      <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click="removeMilestone(index, false)" />
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -676,7 +687,7 @@ const openEditModal = (goal: Goal) => {
                   >
                     <Checkbox v-model="milestone.completed" class="shrink-0" />
                     <Input v-model="milestone.title" class="flex-1 h-8 bg-transparent border-0 focus-visible:ring-0 px-1" />
-                    <DeleteButton size="sm" :adaptive="false" @click="removeMilestone(index, true)" />
+                    <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click="removeMilestone(index, true)" />
                   </div>
 
                   <div class="flex items-center gap-2">

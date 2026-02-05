@@ -5,27 +5,21 @@ defmodule MegaPlannerWeb.TemplateController do
 
   action_fallback MegaPlannerWeb.FallbackController
 
-  def suggest(conn, %{"type" => type, "query" => query}) do
-    try do
-      user = Guardian.Plug.current_resource(conn)
-      
-      if is_nil(user) or is_nil(user.household_id) do
+  def suggest(conn, %{"query" => query} = params) do
+    case Guardian.Plug.current_resource(conn) do
+      nil ->
         conn
         |> put_status(:unauthorized)
-        |> json(%{error: "User not authenticated or household not set"})
-      else
-        templates = Templates.suggest_templates(user.household_id, type, query)
-        json(conn, %{data: templates})
-      end
-    rescue
-      e ->
-        IO.inspect(e, label: "Template Suggest Error")
-        IO.inspect(__STACKTRACE__, label: "Stacktrace")
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{error: Map.get(e, :message, inspect(e))})
+        |> json(%{error: "Unauthorized"})
+      user ->
+        field_type = Map.get(params, "field_type", "title")
+        templates = Templates.suggest_templates(user.household_id, field_type, query)
+        json(conn, %{data: Enum.map(templates, &template_to_json/1)})
     end
   end
+
+  defp template_to_json(value) when is_binary(value), do: %{value: value}
+  defp template_to_json(%{value: value}), do: %{value: value}
 
   def create_text_template(conn, %{"type" => type, "value" => value}) do
     user = Guardian.Plug.current_resource(conn)

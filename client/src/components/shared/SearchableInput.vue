@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Plus, X } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
+import { debounce } from '@/lib/utils'
 
 interface Props {
   modelValue: string
@@ -82,11 +83,16 @@ const handleDelete = async (item: any, event: Event) => {
   }
 }
 
+  // Debounced search function to prevent excessive API calls
+  const debouncedSearch = debounce(async (query: string) => {
+    await performSearch(query)
+  }, 300)
+
   // Watch model value to trigger search
-  watch(() => props.modelValue, async (newValue) => {
+  watch(() => props.modelValue, (newValue) => {
     // console.log('DEBUG: modelValue changed', { newValue, inputFocused: inputFocused.value })
     if (!inputFocused.value) return // Don't search if not typing (e.g. programmatic update or initial load)
-    await performSearch(newValue)
+    debouncedSearch(newValue)
   })
 
   const performSearch = async (query: string) => {

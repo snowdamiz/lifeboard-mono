@@ -14,11 +14,10 @@ import TagManager from '@/components/shared/TagManager.vue'
 import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
 import HabitCalendarView from '@/components/calendar/HabitCalendarView.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
 import { useHabitsStore, type HabitWithStatus } from '@/stores/habits'
 import { useTagsStore } from '@/stores/tags'
 import { useTextTemplate } from '@/composables/useTextTemplate'
+import { useTabs } from '@/composables/useTabs'
 import type { Habit, Tag } from '@/types'
 
 const habitsStore = useHabitsStore()
@@ -49,23 +48,18 @@ const skippingHabit = ref<HabitWithStatus | null>(null)
 const skipReason = ref('')
 
 
-// LocalStorage key for settings persistence
+// Tab navigation using composable with persistence
+const { activeTab, setTab } = useTabs<'inventory' | 'calendar'>({
+  tabs: [
+    { key: 'inventory', label: 'Inventory' },
+    { key: 'calendar', label: 'Calendar' }
+  ],
+  defaultTab: 'inventory',
+  persistKey: 'lifeboard_habits_timeline_settings'
+})
+
+// LocalStorage key for additional settings persistence (scale, collapsed, showScheduledOnly)
 const HABITS_STORAGE_KEY = 'lifeboard_habits_timeline_settings'
-
-// Helper to get initial activeTab from localStorage
-const getInitialActiveTab = (): 'inventory' | 'calendar' => {
-  try {
-    const saved = localStorage.getItem(HABITS_STORAGE_KEY)
-    if (saved) {
-      const settings = JSON.parse(saved)
-      return settings.activeTab === 'calendar' ? 'calendar' : 'inventory'
-    }
-  } catch { /* ignore */ }
-  return 'inventory'
-}
-
-// Tab navigation
-const activeTab = ref<'inventory' | 'calendar'>(getInitialActiveTab())
 
 const newHabit = ref({
   name: '',

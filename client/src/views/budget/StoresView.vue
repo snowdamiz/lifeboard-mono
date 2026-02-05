@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Store, Plus, MapPin, Receipt, ShoppingBag } from 'lucide-vue-next'
+import { Store, Plus, MapPin, Receipt, ShoppingBag, Edit2, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { useReceiptsStore } from '@/stores/receipts'
 import type { Store as StoreType } from '@/types'
 import StoreFormModal from '@/components/budget/StoreFormModal.vue'
 import StoreInventoryModal from '@/components/budget/StoreInventoryModal.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 
 import { useRoute, useRouter } from 'vue-router'
 
@@ -152,8 +151,8 @@ const handleDelete = async (id: string, event?: Event) => {
             </div>
             
             <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-background/80 backdrop-blur-sm rounded-md p-1 shadow-sm border">
-               <EditButton :adaptive="false" @click.stop="(e: any) => openEditStore(store, e)" />
-               <DeleteButton :adaptive="false" @click.stop="(e: any) => handleDelete(store.id, e)" />
+               <BaseIconButton :icon="Edit2" :adaptive="false" @click.stop="(e: any) => openEditStore(store, e)" />
+               <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click.stop="(e: any) => handleDelete(store.id, e)" />
             </div>
           </div>
         </CardHeader>

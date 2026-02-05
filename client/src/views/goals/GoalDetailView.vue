@@ -4,14 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { format } from 'date-fns'
 import { 
   Target, ArrowLeft, Plus, Calendar, CheckCircle2, Circle, 
-  Flag, GripVertical, History
+  Flag, GripVertical, History, Trash2
 } from 'lucide-vue-next'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { useGoalsStore } from '@/stores/goals'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -194,7 +194,9 @@ const getProgressColor = (progress: number) => {
               <span v-if="milestone.completed && milestone.completed_at" class="text-xs text-muted-foreground">
                 {{ format(new Date(milestone.completed_at), 'MMM d') }}
               </span>
-              <DeleteButton 
+              <BaseIconButton 
+                :icon="Trash2" 
+                variant="destructive"
                 @click="handleDeleteMilestone(milestone.id)"
               />
             </div>

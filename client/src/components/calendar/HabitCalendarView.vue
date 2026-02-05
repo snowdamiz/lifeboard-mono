@@ -5,12 +5,12 @@ import {
   startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, 
   addWeeks, subWeeks, addDays, subDays, parseISO, startOfDay
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Ban, Calendar as CalendarIcon, CheckSquare, Square, Pin } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Ban, Calendar as CalendarIcon, CheckSquare, Square, Pin, Edit2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useHabitsStore } from '@/stores/habits'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import type { HabitWithStatus } from '@/stores/habits'
 
 const emit = defineEmits<{
@@ -542,8 +542,9 @@ onMounted(() => {
             </div>
 
             <!-- Edit button (only for today, shows on hover) -->
-            <EditButton 
+            <BaseIconButton 
               v-if="isToday(day) && !selectionMode"
+              :icon="Edit2"
               :adaptive="false"
               class="opacity-0 group-hover:opacity-100"
               @click="emit('edit', habit)"

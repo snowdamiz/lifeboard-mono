@@ -193,6 +193,13 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
+"@playwright/test@^1.58.1":
+  version "1.58.1"
+  resolved "https://registry.npmjs.org/@playwright/test/-/test-1.58.1.tgz"
+  integrity sha512-6LdVIUERWxQMmUSSQi0I53GgCBYgM2RpGngCPY7hSeju+VrKjq3lvs7HpJoPbDiY5QM5EYRtRX5fvrinnMAz3w==
+  dependencies:
+    playwright "1.58.1"
+
 "@rollup/rollup-win32-x64-gnu@4.54.0":
   version "4.54.0"
   resolved "https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.54.0.tgz"
@@ -242,10 +249,10 @@
   resolved "https://registry.npmjs.org/@types/json-schema/-/json-schema-7.0.15.tgz"
   integrity sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==
 
-"@types/node@^18.0.0 || >=20.0.0", "@types/node@^20.11.10":
-  version "20.19.27"
-  resolved "https://registry.npmjs.org/@types/node/-/node-20.19.27.tgz"
-  integrity sha512-N2clP5pJhB2YnZJ3PIHFk5RkygRX5WO/5f0WC08tp0wd+sv0rsJk3MqWn3CbNmT2J505a5336jaQj4ph1AdMug==
+"@types/node@^18.0.0 || >=20.0.0", "@types/node@^20.19.31":
+  version "20.19.31"
+  resolved "https://registry.npmjs.org/@types/node/-/node-20.19.31.tgz"
+  integrity sha512-5jsi0wpncvTD33Sh1UCgacK37FFwDn+EG7wCmEvs62fCvBL+n8/76cAYDok21NF6+jaVWIqKwCZyX7Vbu8eB3A==
   dependencies:
     undici-types "~6.21.0"
 
@@ -1511,6 +1518,20 @@ pirates@^4.0.1:
   version "4.0.7"
   resolved "https://registry.npmjs.org/pirates/-/pirates-4.0.7.tgz"
   integrity sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==
+
+playwright-core@1.58.1:
+  version "1.58.1"
+  resolved "https://registry.npmjs.org/playwright-core/-/playwright-core-1.58.1.tgz"
+  integrity sha512-bcWzOaTxcW+VOOGBCQgnaKToLJ65d6AqfLVKEWvexyS3AS6rbXl+xdpYRMGSRBClPvyj44njOWoxjNdL/H9UNg==
+
+playwright@1.58.1:
+  version "1.58.1"
+  resolved "https://registry.npmjs.org/playwright/-/playwright-1.58.1.tgz"
+  integrity sha512-+2uTZHxSCcxjvGc5C891LrS1/NlxglGxzrC4seZiVjcYVQfUa87wBL6rTDqzGjuoWNjnBzRqKmF6zRYGMvQUaQ==
+  dependencies:
+    playwright-core "1.58.1"
+  optionalDependencies:
+    fsevents "2.3.2"
 
 postcss-import@^15.1.0:
   version "15.1.0"

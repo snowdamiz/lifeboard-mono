@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { format } from 'date-fns'
-import { X, Plus, TrendingUp, TrendingDown, ChevronDown, ChevronRight, Eye, Clock, MapPin, User } from 'lucide-vue-next'
+import { X, Plus, TrendingUp, TrendingDown, ChevronDown, ChevronRight, Eye, Clock, MapPin, User, Edit2, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useBudgetStore } from '@/stores/budget'
 import { useReceiptsStore } from '@/stores/receipts'
 import { formatCurrency } from '@/lib/utils'
 import BaseItemEntry from '@/components/shared/BaseItemEntry.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import type { BudgetEntry, Purchase, Stop } from '@/types'
 
 interface Props {
@@ -217,8 +216,8 @@ const deletePurchase = async (purchase: Purchase) => {
                     <span class="text-sm font-semibold text-emerald-600 tabular-nums">
                       +{{ formatCurrency(entry.amount) }}
                     </span>
-                    <EditButton @click="emit('editEntry', entry)" />
-                    <DeleteButton @click="deleteEntry(entry)" />
+                    <BaseIconButton :icon="Edit2" @click="emit('editEntry', entry)" />
+                    <BaseIconButton :icon="Trash2" variant="destructive" @click="deleteEntry(entry)" />
                   </div>
                 </div>
               </div>
@@ -284,7 +283,7 @@ const deletePurchase = async (purchase: Purchase) => {
                       <span class="text-sm font-semibold text-red-500 tabular-nums">
                         -{{ formatCurrency(entry.amount) }}
                       </span>
-                      <EditButton v-if="!entry.is_trip" @click="emit('editEntry', entry)" />
+                      <BaseIconButton :icon="Edit2" v-if="!entry.is_trip" @click="emit('editEntry', entry)" />
                       <Button
                         v-if="entry.is_trip"
                         variant="ghost"
@@ -295,8 +294,10 @@ const deletePurchase = async (purchase: Purchase) => {
                       >
                         <Eye class="h-3.5 w-3.5" />
                       </Button>
-                      <DeleteButton
-                        v-else
+                      <BaseIconButton
+                        v-if="!entry.is_trip"
+                        :icon="Trash2"
+                        variant="destructive"
                         @click="deleteEntry(entry)"
                       />
                     </div>
@@ -371,9 +372,8 @@ const deletePurchase = async (purchase: Purchase) => {
                           </span>
                         </template>
                         
-                        <!-- Actions -->
                         <template #actions>
-                          <DeleteButton @click="deletePurchase(purchase)" />
+                          <BaseIconButton :icon="Trash2" variant="destructive" @click="deletePurchase(purchase)" />
                         </template>
                       </BaseItemEntry>
                     </div>

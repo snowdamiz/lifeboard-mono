@@ -6,6 +6,7 @@ import { Plus, Clock, CheckSquare } from 'lucide-vue-next'
 import type { Task } from '@/types'
 import { Button } from '@/components/ui/button'
 import { useCalendarStore } from '@/stores/calendar'
+import { useTabs } from '@/composables/useTabs'
 import TaskCard from '@/components/calendar/TaskCard.vue'
 import TaskForm from '@/components/calendar/TaskForm.vue'
 import TripDetailModal from '@/components/calendar/TripDetailModal.vue'
@@ -33,7 +34,15 @@ const route = useRoute()
 const calendarStore = useCalendarStore()
 const showTaskForm = ref(false)
 const selectedTask = ref<Task | null>(null)
-const activeTab = ref<'schedule' | 'todos'>('schedule')
+
+// Tab state using composable
+const { activeTab, setTab } = useTabs<'schedule' | 'todos'>({
+  tabs: [
+    { key: 'schedule', label: 'Schedule' },
+    { key: 'todos', label: 'To Do' }
+  ],
+  defaultTab: 'schedule'
+})
 
 const currentDate = computed(() => {
   const dateParam = route.params.date as string

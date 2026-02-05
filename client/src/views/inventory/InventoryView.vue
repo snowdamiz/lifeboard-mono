@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Package, ChevronRight, Layers, PlusCircle, MinusCircle, X } from 'lucide-vue-next'
+import { Plus, Package, ChevronRight, Layers, PlusCircle, MinusCircle, X, Edit2, Trash2 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,8 +13,7 @@ import PageHeader from '@/components/shared/PageHeader.vue'
 import FilterDropdown from '@/components/shared/FilterDropdown.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import FormModal from '@/components/shared/FormModal.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
-import EditButton from '@/components/shared/EditButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import type { InventorySheet, Tag } from '@/types'
 
 const router = useRouter()
@@ -199,8 +198,8 @@ const deleteSheet = async (id: string) => {
           </div>
           
           <div class="flex items-center gap-1" @click.stop>
-            <EditButton size="md" @click="openEditModal(sheet)" />
-            <DeleteButton size="md" @click="deleteSheet(sheet.id)" />
+            <BaseIconButton :icon="Edit2" @click="openEditModal(sheet)" />
+            <BaseIconButton :icon="Trash2" variant="destructive" @click="deleteSheet(sheet.id)" />
             <ChevronRight class="h-4 w-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </CardHeader>

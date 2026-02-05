@@ -7,6 +7,7 @@ defmodule MegaPlannerWeb.Router do
   end
 
   pipeline :api_auth do
+    plug MegaPlannerWeb.Plugs.TestModeAuth
     plug MegaPlannerWeb.Plugs.AuthPipeline
   end
 

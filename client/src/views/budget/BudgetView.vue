@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, getDay, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns'
-import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet, Percent, Settings, Calendar, CalendarDays, CheckCircle2 } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet, Percent, Settings, Calendar, CalendarDays, CheckCircle2, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,7 @@ import TripCard from '@/components/calendar/TripCard.vue'
 import TripDetailModal from '@/components/calendar/TripDetailModal.vue'
 import PageHeader from '@/components/shared/PageHeader.vue'
 import FilterDropdown from '@/components/shared/FilterDropdown.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import { useReceiptsStore } from '@/stores/receipts'
 import type { BudgetEntry } from '@/types'
 
@@ -580,7 +580,7 @@ const handleTripDetailClose = async () => {
                   -{{ formatCurrency(trip.stops?.flatMap(s => s.purchases || []).reduce((sum, p) => sum + parseFloat(p.total_price || '0'), 0) || 0) }}
                 </span>
                 <!-- Delete button -->
-                <DeleteButton @click.stop="handleTripDelete(trip.id)" />
+                <BaseIconButton :icon="Trash2" variant="destructive" @click.stop="handleTripDelete(trip.id)" />
               </div>
 
               <!-- Purchases list - indented -->
@@ -776,7 +776,7 @@ const handleTripDetailClose = async () => {
               -{{ formatCurrency(trip.stops?.flatMap(s => s.purchases || []).reduce((sum, p) => sum + parseFloat(p.total_price || '0'), 0) || 0) }}
             </span>
             <!-- Delete button (always visible on mobile) -->
-            <DeleteButton :adaptive="false" @click.stop="handleTripDelete(trip.id)" />
+            <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click.stop="handleTripDelete(trip.id)" />
           </div>
 
           <!-- Purchases list - indented -->

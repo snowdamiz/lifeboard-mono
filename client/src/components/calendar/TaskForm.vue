@@ -157,6 +157,9 @@ const onManageTripClick = async () => {
     }
   }
   
+  // Close the task form first to avoid modal stacking
+  emit('close')
+  
   if (props.manageTripAction) {
     props.manageTripAction(tripId.value!)
   } else {
@@ -261,8 +264,8 @@ const save = async () => {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div class="w-full sm:max-w-lg bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[95vh] sm:max-h-[92vh] flex flex-col">
+    <div class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" data-testid="modal-backdrop" @click.self="emit('close')">
+      <div class="w-full sm:max-w-lg bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-slide-up max-h-[95vh] sm:max-h-[92vh] flex flex-col" role="dialog">
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-border shrink-0">
           <h2 class="text-lg font-semibold">
@@ -281,6 +284,7 @@ const save = async () => {
                 v-model="form.title" 
                 placeholder="Task title" 
                 class="mt-1.5"
+                data-testid="title-input"
                 :search-function="taskTitleTemplate.search"
                 :show-create-option="true"
                 :min-chars="0"
@@ -393,7 +397,7 @@ const save = async () => {
           <Button variant="outline" type="button" class="flex-1 sm:flex-none" @click="emit('close')">
             Cancel
           </Button>
-          <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto" :disabled="saving || !form.title.trim()" @click="save">
+          <Button type="submit" class="flex-1 sm:flex-none sm:ml-auto" :disabled="saving || !form.title.trim()" @click="save" data-testid="submit-button">
             {{ saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create') }}
           </Button>
         </div>

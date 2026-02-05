@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Clock, ListChecks, CheckCircle2, Circle, PlayCircle, ShoppingCart } from 'lucide-vue-next'
+import { Clock, ListChecks, CheckCircle2, Circle, PlayCircle, ShoppingCart, Edit2, Trash2 } from 'lucide-vue-next'
 import type { Task, Trip } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { useCalendarStore } from '@/stores/calendar'
 import TaskForm from './TaskForm.vue'
-import EditButton from '@/components/shared/EditButton.vue'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 
 interface Props {
   task: Task
@@ -68,7 +67,12 @@ const statusIcon = computed(() => {
 })
 
 const handleCardClick = () => {
-  // Always show the edit form (modal) when clicking the card
+  // In week view (when dayIndex is provided), emit to parent for inline popout
+  if (props.dayIndex !== undefined) {
+    emit('edit', props.task)
+    return
+  }
+  // Otherwise show the edit form modal
   showEditForm.value = true
 }
 
@@ -128,6 +132,7 @@ const deleteTask = async () => {
     <!-- Full version for week view and expanded views -->
     <div 
       v-else
+      data-testid="task-card"
       :class="[
         'group/task relative overflow-hidden rounded-lg transition-all duration-200 cursor-pointer',
         'border border-white/[0.06] hover:border-white/[0.12]',
@@ -224,15 +229,20 @@ const deleteTask = async () => {
         </div>
         <!-- Actions row (show on hover, below content) -->
         <div class="hidden group-hover/task:flex items-center justify-end gap-0.5 mt-1.5 -mb-0.5">
-          <EditButton 
+          <BaseIconButton 
+            :icon="Edit2"
             :adaptive="true" 
             title="Edit task"
+            test-id="edit-button"
             @click="handleCardClick" 
           />
-          <DeleteButton 
+          <BaseIconButton 
+            :icon="Trash2"
+            variant="destructive"
             :adaptive="true"
             :loading="isDeleting"
             title="Delete task"
+            test-id="delete-button"
             @click="deleteTask" 
           />
         </div>

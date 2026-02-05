@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ShoppingCart } from 'lucide-vue-next'
+import { ShoppingCart, Trash2 } from 'lucide-vue-next'
 import type { Trip } from '@/types'
 import { cn } from '@/lib/utils'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 
 interface Props {
   trip: Trip
@@ -91,10 +91,12 @@ const handleDelete = () => {
       </span>
 
       <!-- Delete button -->
-      <DeleteButton
+      <BaseIconButton
         v-if="showDelete"
-        :size="compact ? 'sm' : 'sm'"
+        :icon="Trash2"
+        variant="destructive"
         class="-mr-1"
+        test-id="delete-button"
         @click.stop="handleDelete"
       />
     </div>

@@ -4,13 +4,13 @@ import { useRouter } from 'vue-router'
 import { formatDistanceToNow } from 'date-fns'
 import { 
   Bell, X, Check, CheckCheck, Calendar, Package, 
-  DollarSign, Flame, Settings, ChevronRight, Users, UserPlus
+  DollarSign, Flame, Settings, ChevronRight, Users, UserPlus, Trash2
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useHouseholdStore } from '@/stores/household'
 import { useAuthStore } from '@/stores/auth'
-import DeleteButton from '@/components/shared/DeleteButton.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import type { Notification } from '@/types'
 
 const router = useRouter()
@@ -359,7 +359,9 @@ const handleDeclineInvitation = async (id: string) => {
                     <p :class="['text-sm font-medium', !notification.read && 'text-foreground']">
                       {{ notification.title }}
                     </p>
-                    <DeleteButton 
+                    <BaseIconButton 
+                      :icon="Trash2"
+                      variant="destructive"
                       class="opacity-0 group-hover:opacity-100"
                       @click="handleDelete(notification.id, $event)"
                     />
