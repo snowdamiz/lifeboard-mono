@@ -349,3 +349,94 @@ test.describe('Button Round-Trip: Action → Result → Verify', () => {
         }
     })
 })
+
+// ============================================
+// GLOBAL CLICK COLLISION HAZARD TESTS
+// ============================================
+/**
+ * These tests catch the "Global Click Collision Hazard" - a bug where
+ * clicking a trigger button immediately closes the UI it was supposed to open
+ * due to the click event bubbling up to a document-level outside-click handler.
+ * 
+ * The fix is to ensure trigger buttons use @click.stop modifier.
+ * See: .agent/workflows/click-collision-hazard.md
+ */
+test.describe('Global Click Collision Hazard Prevention', () => {
+    test.beforeEach(async ({ page }) => {
+        await page.goto('/calendar')
+        await page.waitForLoadState('networkidle')
+    })
+
+    test('Calendar Create button opens popout that stays visible', async ({ page }) => {
+        const addButton = page.locator('[data-testid="add-button"]').first()
+
+        await addButton.click()
+
+        // Wait a moment - the bug would close it within 100ms
+        await page.waitForTimeout(300)
+
+        // Check for EITHER the inline popout OR a modal (depends on view mode)
+        const inlinePopout = page.locator('[data-testid="task-detail-popout"]')
+        const modal = page.locator('[role="dialog"]')
+
+        // At least one should be visible
+        const popoutVisible = await inlinePopout.isVisible().catch(() => false)
+        const modalVisible = await modal.isVisible().catch(() => false)
+
+        expect(popoutVisible || modalVisible).toBe(true)
+    })
+
+    test('Create popout remains open after 500ms (no immediate closure)', async ({ page }) => {
+        const addButton = page.locator('[data-testid="add-button"]').first()
+
+        await addButton.click()
+
+        // Critical: Wait longer than any event loop delay
+        await page.waitForTimeout(500)
+
+        // The popout should still be visible
+        const inlinePopout = page.locator('[data-testid="task-detail-popout"]')
+        const modal = page.locator('[role="dialog"]')
+
+        const popoutVisible = await inlinePopout.isVisible().catch(() => false)
+        const modalVisible = await modal.isVisible().catch(() => false)
+
+        // If neither is visible after 500ms, this is the click collision bug
+        if (!popoutVisible && !modalVisible) {
+            throw new Error(
+                'Click Collision Hazard detected! The popout/modal closed immediately. ' +
+                'Ensure the trigger button has @click.stop modifier. ' +
+                'See: .agent/workflows/click-collision-hazard.md'
+            )
+        }
+    })
+
+    test('Inline day create button opens popout without immediate close', async ({ page }) => {
+        // Hover over a day column to reveal the + button
+        const dayColumn = page.locator('.grid-cols-7 > div').first()
+
+        if (await dayColumn.count() > 0) {
+            await dayColumn.hover()
+
+            // Look for the hover-revealed + button
+            const inlinePlusButton = dayColumn.locator('button:has(.lucide-plus)').first()
+
+            if (await inlinePlusButton.isVisible()) {
+                await inlinePlusButton.click()
+
+                // Wait for potential immediate close
+                await page.waitForTimeout(300)
+
+                // Check popout is visible
+                const inlinePopout = page.locator('[data-testid="task-detail-popout"]')
+                const modal = page.locator('[role="dialog"]')
+
+                const popoutVisible = await inlinePopout.isVisible().catch(() => false)
+                const modalVisible = await modal.isVisible().catch(() => false)
+
+                expect(popoutVisible || modalVisible).toBe(true)
+            }
+        }
+    })
+})
+

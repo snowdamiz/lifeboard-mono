@@ -22,23 +22,38 @@ const expandedDay = ref<string | null>(null) // Stores ISO string of expanded da
 const showExpandedDayView = ref(false) // Full-screen expanded day view triggered by Today button
 const expandedDayDate = ref<Date>(new Date()) // The date for expanded day view
 
-// Inline popout editing state for weekly view
+// Inline popout state - unified approach
+// inlinePopoutType: 'task' | 'trip' | null
+const inlinePopoutType = ref<'task' | 'trip' | null>(null)
 const editingTask = ref<Task | null>(null)
 const editingDayIndex = ref<number | null>(null)
+const createTaskDate = ref<Date | null>(null) // For create mode - stores the date for new task
+const selectedTripId = ref<string | null>(null)
 
 const handleEditTask = (task: Task, dayIndex: number) => {
+  createTaskDate.value = null // Clear create mode
   editingTask.value = task
   editingDayIndex.value = dayIndex
+  inlinePopoutType.value = 'task'
 }
 
 const closeEditPopout = () => {
+  inlinePopoutType.value = null
   editingTask.value = null
   editingDayIndex.value = null
+  createTaskDate.value = null
 }
 
-// Trip detail inline state (shown in the week grid like edit popout)
-const showInlineTripDetail = ref(false)
-const selectedTripId = ref<string | null>(null)
+const handleOpenTripDetailInline = (tripId: string) => {
+  if (!tripId) return
+  selectedTripId.value = tripId
+  inlinePopoutType.value = 'trip'
+}
+
+const closeTripDetailInline = () => {
+  inlinePopoutType.value = null
+  selectedTripId.value = null
+}
 
 // Mobile detection for fallback modal
 const isMobile = ref(false)
@@ -215,9 +230,26 @@ const mobileMonthWeeks = computed(() => {
   return weeks
 })
 
-const openNewTask = (date?: Date) => {
+// Create new task - uses SAME inline editor as handleEditTask
+const handleCreateTask = (date: Date, dayIndex: number) => {
+  editingTask.value = null // null = create mode
+  createTaskDate.value = date
+  editingDayIndex.value = dayIndex
+  inlinePopoutType.value = 'task'
+}
+
+const openNewTask = (date?: Date, dayIndex?: number) => {
+  const targetDate = date || expandedDayDate.value || mobileSelectedDay.value || new Date()
+  
+  // On desktop, use SAME inline editor as edit (all view modes)
+  if (!isMobile.value) {
+    handleCreateTask(targetDate, dayIndex ?? 0)
+    return
+  }
+  
+  // Otherwise use modal (mobile only)
   selectedTask.value = null
-  selectedDate.value = date || mobileSelectedDay.value || new Date()
+  selectedDate.value = targetDate
   showTaskForm.value = true
 }
 
@@ -242,15 +274,11 @@ const closeTaskForm = () => {
 }
 
 const handleOpenTripDetail = (tripId: string) => {
-  if (!tripId) return
-  selectedTripId.value = tripId
-  showInlineTripDetail.value = true
-  // Keep editingTask open so user can return to edit after closing trip
+  handleOpenTripDetailInline(tripId)
 }
 
 const closeTripDetailModal = () => {
-  showInlineTripDetail.value = false
-  selectedTripId.value = null
+  closeTripDetailInline()
 }
 
 const handleDeleteTrip = async (tripId: string) => {
@@ -408,7 +436,7 @@ onUnmounted(() => {
           <div v-if="showFilterDropdown" class="fixed inset-0 z-40 bg-transparent" @click="showFilterDropdown = false" />
         </div>
         
-        <Button @click="openNewTask()" class="shrink-0" data-testid="add-button">
+        <Button @click.stop="openNewTask()" class="shrink-0" data-testid="add-button">
           <Plus class="h-4 w-4" />
           <span class="hidden sm:inline">New Task</span>
         </Button>
@@ -559,7 +587,7 @@ onUnmounted(() => {
         </div>
 
         <div class="flex items-center gap-2">
-          <Button variant="outline" size="sm" @click="openNewTask(expandedDayDate)">
+          <Button variant="outline" size="sm" @click.stop="openNewTask(expandedDayDate)">
             <Plus class="h-4 w-4 mr-1.5" />
             Add Task
           </Button>
@@ -579,7 +607,7 @@ onUnmounted(() => {
           
           <div v-if="expandedDayTasks.length === 0" class="text-center py-12 text-muted-foreground">
             <p class="text-sm">No tasks scheduled for this day</p>
-            <Button variant="outline" size="sm" class="mt-3" @click="openNewTask(expandedDayDate)">
+            <Button variant="outline" size="sm" class="mt-3" @click.stop="openNewTask(expandedDayDate)">
               <Plus class="h-4 w-4 mr-1.5" />
               Add Task
             </Button>
@@ -692,9 +720,9 @@ onUnmounted(() => {
                               {{ purchase.item }}
                             </p>
                             <p class="text-xs text-muted-foreground">
-                              {{ purchase.count || 1 }}x
+                              {{ purchase.count || 1 }}{{ purchase.count_unit ? ' ' + purchase.count_unit + (Number(purchase.count) !== 1 ? 's' : '') : 'x' }}
                               <span v-if="purchase.units && purchase.unit_measurement">
-                                · {{ purchase.units }} {{ purchase.unit_measurement }}
+                                 of {{ purchase.units }}{{ purchase.unit_measurement }}
                               </span>
                             </p>
                           </div>
@@ -719,11 +747,12 @@ onUnmounted(() => {
 
       <!-- Inline editing overlays (same as week view) -->
       <div 
-        v-if="editingTask && !showInlineTripDetail"
+        v-if="inlinePopoutType === 'task'"
         class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
       >
         <TaskDetailPopout
           :task="editingTask"
+          :initial-date="createTaskDate"
           :day-index="0"
           class="h-full"
           @close="closeEditPopout"
@@ -733,7 +762,7 @@ onUnmounted(() => {
       </div>
 
       <div 
-        v-if="showInlineTripDetail && selectedTripId"
+        v-if="inlinePopoutType === 'trip' && selectedTripId"
         class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
       >
         <TripDetailModal
@@ -746,7 +775,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Desktop Week Calendar Grid -->
-    <div v-if="calendarStore.viewMode === 'week' && !showExpandedDayView" class="hidden md:flex flex-1 min-h-0 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5">
+    <div v-if="calendarStore.viewMode === 'week' && !showExpandedDayView" class="hidden md:flex flex-1 min-h-0 flex-col rounded-xl border border-white/[0.08] bg-gradient-to-br from-card to-card/95 overflow-hidden shadow-lg shadow-black/5 relative">
       <!-- Day of week headers -->
       <div class="grid grid-cols-7 bg-gradient-to-b from-white/[0.04] to-transparent border-b border-border">
         <div 
@@ -775,35 +804,6 @@ onUnmounted(() => {
 
       <!-- Week grid content -->
       <div class="flex-1 grid grid-cols-7 relative">
-        <!-- Full-width popout overlay when editing -->
-        <div 
-          v-if="editingTask && !showInlineTripDetail"
-          class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
-        >
-          <TaskDetailPopout
-            :task="editingTask"
-            :day-index="editingDayIndex ?? 0"
-            class="h-full"
-            @close="closeEditPopout"
-            @saved="closeEditPopout"
-            @manage-trip="handleOpenTripDetail"
-          />
-        </div>
-
-        <!-- Inline Trip Detail overlay -->
-        <div 
-          v-if="showInlineTripDetail && selectedTripId"
-          class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
-        >
-          <TripDetailModal
-            :trip-id="selectedTripId"
-            :inline-mode="true"
-            class="h-full"
-            @close="closeTripDetailModal"
-          />
-        </div>
-
-        <!-- Day columns -->
         <div
           v-for="(day, dayIndex) in calendarStore.weekDays"
           :key="day.toISOString()"
@@ -832,17 +832,46 @@ onUnmounted(() => {
 
           <!-- Add task button on hover -->
           <button
-            v-if="!editingTask"
+            v-if="!inlinePopoutType"
             :class="[
               'opacity-0 group-hover:opacity-100 absolute bottom-3 right-3 h-8 w-8 rounded-full flex items-center justify-center transition-all duration-200 z-10',
               'bg-primary/20 hover:bg-primary/30 hover:scale-110',
               'shadow-lg shadow-primary/10'
             ]"
-            @click="openNewTask(day)"
+            @click.stop="openNewTask(day, dayIndex)"
           >
             <Plus class="h-4 w-4 text-primary" />
           </button>
         </div>
+      </div>
+
+      <!-- Full-width popout overlay when editing - at END of flex container for proper stacking -->
+      <div 
+        v-if="inlinePopoutType === 'task'"
+        class="absolute inset-0 z-40 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+      >
+        <TaskDetailPopout
+          :task="editingTask"
+          :initial-date="createTaskDate"
+          :day-index="editingDayIndex ?? 0"
+          class="w-full h-full"
+          @close="closeEditPopout"
+          @saved="closeEditPopout"
+          @manage-trip="handleOpenTripDetail"
+        />
+      </div>
+
+      <!-- Inline Trip Detail overlay - at END of flex container for proper stacking -->
+      <div 
+        v-if="inlinePopoutType === 'trip' && selectedTripId"
+        class="absolute inset-0 z-40 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+      >
+        <TripDetailModal
+          :trip-id="selectedTripId"
+          :inline-mode="true"
+          class="h-full"
+          @close="closeTripDetailModal"
+        />
       </div>
     </div>
 
@@ -991,7 +1020,7 @@ onUnmounted(() => {
               <!-- Add task in expanded view -->
               <button 
                 class="mt-2 pt-2 border-t border-white/[0.06] flex items-center justify-center gap-1.5 py-1.5 text-[11px] text-muted-foreground/70 hover:text-primary transition-colors"
-                @click="openNewTask(day)"
+                @click.stop="openNewTask(day)"
               >
                 <Plus class="h-3.5 w-3.5" />
                 Add task
@@ -1013,7 +1042,7 @@ onUnmounted(() => {
               'bg-primary/20 hover:bg-primary/30 hover:scale-110',
               'shadow-lg shadow-primary/10'
             ]"
-            @click="openNewTask(day)"
+            @click.stop="openNewTask(day)"
           >
             <Plus class="h-4 w-4 text-primary" />
           </button>
@@ -1033,9 +1062,25 @@ onUnmounted(() => {
 
     <!-- Keep TripDetailModal for month view/mobile/when TaskForm modal is open -->
     <TripDetailModal
-      v-if="showInlineTripDetail && selectedTripId && (calendarStore.viewMode !== 'week' || isMobile || showTaskForm)"
+      v-if="inlinePopoutType === 'trip' && selectedTripId && (calendarStore.viewMode !== 'week' || isMobile || showTaskForm)"
       :trip-id="selectedTripId"
       @close="closeTripDetailModal"
     />
+
+    <!-- Root-level IGWO overlays - for month view and all desktop views (Last Sibling Rule) -->
+    <div 
+      v-if="inlinePopoutType === 'task' && calendarStore.viewMode === 'month' && !isMobile"
+      class="absolute inset-0 z-50 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+    >
+      <TaskDetailPopout
+        :task="editingTask"
+        :initial-date="createTaskDate"
+        :day-index="editingDayIndex ?? 0"
+        class="w-full h-full"
+        @close="closeEditPopout"
+        @saved="closeEditPopout"
+        @manage-trip="handleOpenTripDetail"
+      />
+    </div>
   </div>
 </template>

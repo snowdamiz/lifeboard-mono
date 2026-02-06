@@ -11,6 +11,7 @@ import { useTagsStore } from '@/stores/tags'
 import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
+import { COUNT_UNIT_OPTIONS } from '@/utils/units'
 import type { InventoryItem, Brand, Unit } from '@/types'
 
 interface Props {
@@ -54,10 +55,17 @@ const exactUnitMatch = computed(() => {
   return receiptsStore.units.some(u => u.name.toLowerCase() === unitSearch.value.toLowerCase())
 })
 
-// Form data
+// Count Unit search function for SearchableInput
+const searchCountUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  return COUNT_UNIT_OPTIONS.filter(u => u.name.toLowerCase().includes(q))
+}
+
 const form = ref({
   brand: props.item?.brand || '',
   name: props.item?.name || '',
+  count: props.item?.count || '',
+  count_unit: props.item?.count_unit || '',
   unit_of_measure: props.item?.unit_of_measure || '',
   quantity: props.item?.quantity ?? 0,
   min_quantity: props.item?.min_quantity ?? 0,
@@ -381,6 +389,8 @@ const save = async () => {
     const itemData = {
       name: form.value.name,
       brand: form.value.brand || null,
+      count: form.value.count || null,
+      count_unit: form.value.count_unit || null,
       unit_of_measure: form.value.unit_of_measure || null,
       quantity: form.value.quantity,
       min_quantity: form.value.min_quantity,
@@ -539,6 +549,34 @@ const save = async () => {
               placeholder="Item name" 
               class="mt-1" 
             />
+          </div>
+
+          <!-- Count / Count Unit Grid -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium text-muted-foreground">Count</label>
+              <Input 
+                v-model="form.count" 
+                type="number" 
+                step="any"
+                min="0" 
+                placeholder="0" 
+                class="mt-1" 
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-muted-foreground">Count Unit</label>
+              <SearchableInput 
+                v-model="form.count_unit"
+                :search-function="searchCountUnits"
+                :display-function="(u) => u.name"
+                :value-function="(u) => u.name"
+                :show-create-option="false"
+                :min-chars="0"
+                placeholder="Select..." 
+                class="mt-1"
+              />
+            </div>
           </div>
 
           <!-- Quantity / Min Qty Grid -->

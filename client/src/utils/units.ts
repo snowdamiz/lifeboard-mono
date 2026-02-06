@@ -83,3 +83,65 @@ export const mergeUnitsWithDefaults = (customUnits: Array<{ name: string; id?: s
 
     return result
 }
+
+/**
+ * Count unit options - container types for the "count" measurement
+ * These represent how items are packaged (e.g., "1 package of 16oz")
+ */
+export const COUNT_UNIT_OPTIONS = [
+    { name: 'package', displayName: 'package(s)' },
+    { name: 'bag', displayName: 'bag(s)' },
+    { name: 'box', displayName: 'box(es)' },
+    { name: 'case', displayName: 'case(s)' },
+    { name: 'carton', displayName: 'carton(s)' },
+    { name: 'bundle', displayName: 'bundle(s)' },
+    { name: 'roll', displayName: 'roll(s)' },
+    { name: 'bottle', displayName: 'bottle(s)' },
+    { name: 'can', displayName: 'can(s)' },
+    { name: 'jar', displayName: 'jar(s)' },
+    { name: 'container', displayName: 'container(s)' },
+    { name: 'pack', displayName: 'pack(s)' },
+    { name: 'unit', displayName: 'unit(s)' },
+    { name: 'item', displayName: 'item(s)' },
+] as const
+
+export type CountUnit = typeof COUNT_UNIT_OPTIONS[number]['name']
+
+/**
+ * Format count and units for unified display
+ * e.g., "1 package of 16oz" or "2 bags of 5lb"
+ * 
+ * @param count - Number of items (e.g., 1, 2)
+ * @param countUnit - Container type (e.g., "package", "bag")
+ * @param unitMeasurement - Size per container (e.g., "16oz", "5lb")
+ * @returns Formatted string like "1 package of 16oz" or null if no valid data
+ */
+export const formatCountAndUnits = (
+    count: string | number | null | undefined,
+    countUnit: string | null | undefined,
+    unitMeasurement: string | null | undefined
+): string | null => {
+    const countNum = typeof count === 'string' ? parseFloat(count) : count
+
+    if (!countNum && countNum !== 0) {
+        // No count, just return unit measurement if available
+        return unitMeasurement || null
+    }
+
+    // Build the display string
+    let result = String(countNum)
+
+    if (countUnit) {
+        // Pluralize simple count units
+        const plural = countNum !== 1
+        const displayUnit = plural && !countUnit.endsWith('s') ? `${countUnit}s` : countUnit
+        result += ` ${displayUnit}`
+    }
+
+    if (unitMeasurement) {
+        result += ` of ${unitMeasurement}`
+    }
+
+    return result
+}
+

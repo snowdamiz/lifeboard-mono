@@ -14,6 +14,7 @@ defmodule MegaPlanner.Inventory.Item do
     field :unit_of_measure, :string
     field :brand, :string
     field :count, :decimal
+    field :count_unit, :string
     field :price_per_count, :decimal
     field :price_per_unit, :decimal
     field :taxable, :boolean, default: false
@@ -43,7 +44,7 @@ defmodule MegaPlanner.Inventory.Item do
     item
     |> cast(attrs, [
       :name, :quantity, :min_quantity, :is_necessity, :store, :unit_of_measure, :brand,
-      :count, :price_per_count, :price_per_unit, :taxable, :total_price, :store_code, :item_name,
+      :count, :count_unit, :price_per_count, :price_per_unit, :taxable, :total_price, :store_code, :item_name,
       :custom_fields, :sheet_id, :purchase_id, :trip_id, :stop_id, :purchase_date
     ])
     |> validate_required([:name, :sheet_id])

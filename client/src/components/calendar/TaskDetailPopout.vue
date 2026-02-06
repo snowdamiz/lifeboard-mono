@@ -19,8 +19,9 @@ import { useTextTemplate } from '@/composables/useTextTemplate'
 const taskTitleTemplate = useTextTemplate('task_title')
 
 interface Props {
-  task: Task
+  task?: Task | null
   dayIndex: number // 0-6, used to determine popout direction
+  initialDate?: Date | null // For creating new tasks
 }
 
 const props = defineProps<Props>()
@@ -63,21 +64,39 @@ const newStepContent = ref('')
 const tripId = ref<string | null>(null)
 const showModal = ref(true)
 
+const isEditing = computed(() => !!props.task?.id)
+
 const initForm = () => {
-  form.value = {
-    title: props.task.title || '',
-    description: props.task.description || '',
-    date: props.task.date || '',
-    start_time: props.task.start_time || '',
-    duration_minutes: props.task.duration_minutes || 30,
-    task_type: props.task.task_type || 'todo',
-    status: props.task.status || 'not_started'
-  }
-  steps.value = props.task.steps.map(s => ({ ...s }))
-  tripId.value = props.task.trip_id
-  
-  if (props.task.tags) {
-    selectedTags.value = new Set(props.task.tags.map(t => t.id))
+  if (props.task) {
+    form.value = {
+      title: props.task.title || '',
+      description: props.task.description || '',
+      date: props.task.date || '',
+      start_time: props.task.start_time || '',
+      duration_minutes: props.task.duration_minutes || 30,
+      task_type: props.task.task_type || 'todo',
+      status: props.task.status || 'not_started'
+    }
+    steps.value = props.task.steps?.map(s => ({ ...s })) || []
+    tripId.value = props.task.trip_id
+    
+    if (props.task.tags) {
+      selectedTags.value = new Set(props.task.tags.map(t => t.id))
+    }
+  } else {
+    // Create mode
+    form.value = {
+      title: '',
+      description: '',
+      date: props.initialDate ? format(props.initialDate, 'yyyy-MM-dd') : '',
+      start_time: '',
+      duration_minutes: 30,
+      task_type: 'todo',
+      status: 'not_started'
+    }
+    steps.value = []
+    tripId.value = null
+    selectedTags.value = new Set()
   }
 }
 
@@ -88,6 +107,11 @@ onMounted(() => {
   // Close on outside click
   document.addEventListener('click', handleOutsideClick)
 })
+
+// Reinitialize form when task or initialDate changes (for switching between edit/create modes)
+watch(() => [props.task, props.initialDate], () => {
+  initForm()
+}, { immediate: false })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleOutsideClick)
@@ -125,7 +149,9 @@ const onManageTripClick = async () => {
       })
       tripId.value = trip.id
       
-      await calendarStore.updateTask(props.task.id, { trip_id: trip.id })
+      if (props.task?.id) {
+        await calendarStore.updateTask(props.task.id, { trip_id: trip.id })
+      }
     } catch (e) {
       console.error('Failed to create trip', e)
       return
@@ -189,7 +215,9 @@ const save = async () => {
       trip_id: createdTripId || tripId.value || undefined
     }
 
-    const savedTask = await calendarStore.updateTask(props.task.id, taskPayload)
+    const savedTask = isEditing.value && props.task?.id
+      ? await calendarStore.updateTask(props.task.id, taskPayload)
+      : await calendarStore.createTask(taskPayload)
 
     if (form.value.task_type === 'trip' && createdTripId) {
       emit('manage-trip', createdTripId)
@@ -207,12 +235,13 @@ const save = async () => {
 <template>
   <div 
     ref="popoutRef"
+    data-testid="task-detail-popout"
     class="h-full bg-card border border-white/[0.12] rounded-xl shadow-2xl overflow-hidden flex flex-col"
     @click.stop
   >
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-gradient-to-r from-white/[0.04] to-transparent shrink-0">
-      <h3 class="text-sm font-semibold">Edit Task</h3>
+      <h3 class="text-sm font-semibold">{{ isEditing ? 'Edit Task' : 'New Task' }}</h3>
       <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('close')">
         <X class="h-4 w-4" />
       </Button>
@@ -345,7 +374,7 @@ const save = async () => {
         Cancel
       </Button>
       <Button :disabled="saving || !form.title.trim()" @click="save">
-        {{ saving ? 'Saving...' : 'Save Changes' }}
+        {{ saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Task') }}
       </Button>
     </div>
   </div>

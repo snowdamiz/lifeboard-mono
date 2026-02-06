@@ -35,12 +35,18 @@ const isEditing = computed(() => !!props.purchase)
 
 
 // Unit autocomplete helpers - shows defaults + custom units from store
-import { mergeUnitsWithDefaults } from '@/utils/units'
+import { mergeUnitsWithDefaults, COUNT_UNIT_OPTIONS } from '@/utils/units'
 
 const searchUnits = async (query: string) => {
   const q = query.toLowerCase()
   const allUnits = mergeUnitsWithDefaults(receiptsStore.units)
   return allUnits.filter(u => u.name.toLowerCase().includes(q))
+}
+
+// Count Unit search function for SearchableInput
+const searchCountUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  return COUNT_UNIT_OPTIONS.filter(u => u.name.toLowerCase().includes(q))
 }
 
 const handleUnitCreate = async (name: string) => {
@@ -172,6 +178,7 @@ const form = ref({
   item: props.purchase?.item || '',
   unit_measurement: props.purchase?.unit_measurement || '',
   count: props.purchase?.count || '',
+  count_unit: props.purchase?.count_unit || '',
   price_per_count: getInitialPricePerCount(),
   units: props.purchase?.units || '',
   price_per_unit: getInitialPricePerUnit(),
@@ -479,6 +486,7 @@ const save = async () => {
       item: form.value.item,
       unit_measurement: form.value.unit_measurement || null,
       count: form.value.count || null,
+      count_unit: form.value.count_unit || null,
       price_per_count: form.value.price_per_count || null,
       units: form.value.units || null,
       price_per_unit: form.value.price_per_unit || null,
@@ -583,84 +591,100 @@ const save = async () => {
             />
           </div>
 
-          <!-- Pricing Grid -->
-          <div class="grid grid-cols-2 gap-3">
-            <!-- Count-based pricing -->
-            <div>
-              <label class="text-sm font-medium text-muted-foreground">Count</label>
-              <Input 
-                v-model="form.count" 
-                type="number" 
-                step="any" 
-                min="0" 
-                placeholder="0" 
-                class="mt-1" 
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium text-muted-foreground">Price/Count</label>
-              <Input 
-                v-model="form.price_per_count" 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                placeholder="0.00" 
-                class="mt-1" 
-              />
+          <!-- Quantity & Unit Grid - Symmetrical 2-column layout -->
+          <div class="space-y-3">
+            <!-- Row 1: Count + Count Unit -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium text-muted-foreground">Count</label>
+                <Input 
+                  v-model="form.count" 
+                  type="number" 
+                  step="any" 
+                  min="0" 
+                  placeholder="0" 
+                  class="mt-1" 
+                />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-muted-foreground">Count Unit</label>
+                <SearchableInput 
+                  v-model="form.count_unit"
+                  :search-function="searchCountUnits"
+                  :display-function="(u) => u.name"
+                  :value-function="(u) => u.name"
+                  :show-create-option="false"
+                  :min-chars="0"
+                  placeholder="Select..." 
+                  class="mt-1"
+                />
+              </div>
             </div>
 
-            <!-- Unit-based pricing -->
-            <div>
-              <label class="text-sm font-medium text-muted-foreground">Units</label>
-              <Input 
-                v-model="form.units" 
-                type="number" 
-                step="any" 
-                min="0" 
-                placeholder="0" 
-                class="mt-1" 
-              />
+            <!-- Row 2: Units (quantity) + Unit Measurement -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium text-muted-foreground">Units</label>
+                <Input 
+                  v-model="form.units" 
+                  type="number" 
+                  step="any" 
+                  min="0" 
+                  placeholder="0" 
+                  class="mt-1" 
+                />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-muted-foreground">Unit Measurement</label>
+                <SearchableInput 
+                  v-model="form.unit_measurement"
+                  :search-function="searchUnits"
+                  :display-function="(u) => u.name"
+                  :value-function="(u) => u.name"
+                  :show-create-option="true"
+                  :min-chars="0"
+                  placeholder="oz, lb, ml..." 
+                  class="mt-1"
+                  @create="handleUnitCreate"
+                />
+              </div>
             </div>
-            <div>
-              <label class="text-sm font-medium text-muted-foreground">Price/Unit</label>
-              <Input 
-                v-model="form.price_per_unit" 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                placeholder="0.00" 
-                class="mt-1" 
-              />
-            </div>
-          </div>
 
-          <!-- Unit Measurement & Total Price -->
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="text-sm font-medium">Unit Measurement</label>
-              <SearchableInput 
-                v-model="form.unit_measurement"
-                :search-function="searchUnits"
-                :display-function="(u) => u.name"
-                :value-function="(u) => u.name"
-                :show-create-option="true"
-                :min-chars="0"
-                placeholder="Search or create unit..." 
-                class="mt-1"
-                @create="handleUnitCreate"
-              />
-
-            </div>
-            <div>
-              <label class="text-sm font-medium">Total Price *</label>
-              <Input 
-                v-model="form.total_price" 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                placeholder="0.00" 
-                class="mt-1 font-semibold" 
-              />
+            <!-- Row 3: Pricing -->
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="text-sm font-medium text-muted-foreground">Price/Count</label>
+                <Input 
+                  v-model="form.price_per_count" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  placeholder="0.00" 
+                  class="mt-1" 
+                />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-muted-foreground">Price/Unit</label>
+                <Input 
+                  v-model="form.price_per_unit" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  placeholder="0.00" 
+                  class="mt-1" 
+                />
+              </div>
+              <div>
+                <label class="text-sm font-medium">Total Price *</label>
+                <Input 
+                  v-model="form.total_price" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  placeholder="0.00" 
+                  class="mt-1 font-semibold" 
+                />
+              </div>
             </div>
           </div>
 

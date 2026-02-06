@@ -10,6 +10,7 @@ defmodule MegaPlanner.Receipts.Purchase do
     field :item, :string
     field :unit_measurement, :string
     field :count, :decimal
+    field :count_unit, :string
     field :price_per_count, :decimal
     field :units, :decimal
     field :price_per_unit, :decimal
@@ -31,7 +32,7 @@ defmodule MegaPlanner.Receipts.Purchase do
   def changeset(purchase, attrs) do
     purchase
     |> cast(attrs, [
-      :brand, :item, :unit_measurement, :count, :price_per_count,
+      :brand, :item, :unit_measurement, :count, :count_unit, :price_per_count,
       :units, :price_per_unit, :taxable, :tax_rate, :total_price, :store_code,
       :item_name, :household_id, :stop_id, :budget_entry_id
     ])

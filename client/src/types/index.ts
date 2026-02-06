@@ -106,6 +106,7 @@ export interface InventoryItem {
   unit_of_measure: string | null
   brand: string | null
   count: string | null
+  count_unit: string | null
   price_per_count: string | null
   price_per_unit: string | null
   taxable: boolean | null
@@ -264,6 +265,7 @@ export interface Purchase {
   item: string
   unit_measurement: string | null
   count: string | null
+  count_unit: string | null
   price_per_count: string | null
   units: string | null
   price_per_unit: string | null
@@ -319,6 +321,7 @@ export interface ReceiptScanItem {
   brand: string
   item: string
   quantity: number
+  count_unit: string | null
   unit: string | null
   unit_quantity: string | null
   unit_price: string | null
