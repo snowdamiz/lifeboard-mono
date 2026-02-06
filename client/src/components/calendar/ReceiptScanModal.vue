@@ -142,6 +142,7 @@ const addItem = () => {
     brand: '',
     item: '',
     quantity: 1,
+    count_unit: null,
     unit: null,
     unit_quantity: null,
     unit_price: null,
