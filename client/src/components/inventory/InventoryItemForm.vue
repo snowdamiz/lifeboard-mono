@@ -11,7 +11,7 @@ import { useTagsStore } from '@/stores/tags'
 import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
-import { COUNT_UNIT_OPTIONS } from '@/utils/units'
+import { COUNT_UNIT_OPTIONS, mergeUnitsWithDefaults } from '@/utils/units'
 import type { InventoryItem, Brand, Unit } from '@/types'
 
 interface Props {
@@ -61,6 +61,13 @@ const searchCountUnits = async (query: string) => {
   return COUNT_UNIT_OPTIONS.filter(u => u.name.toLowerCase().includes(q))
 }
 
+// Unit search function for SearchableInput (unit of measure / count unit)
+const searchUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  const allUnits = mergeUnitsWithDefaults(receiptsStore.units)
+  return allUnits.filter(u => u.name.toLowerCase().includes(q))
+}
+
 const form = ref({
   brand: props.item?.brand || '',
   name: props.item?.name || '',
@@ -72,6 +79,7 @@ const form = ref({
   store: props.item?.store || '',
   store_code: props.item?.store_code || '',
   item_name: props.item?.item_name || '',
+  usage_mode: props.item?.usage_mode || 'count',
   tag_ids: props.item?.tags?.map(t => t.id) || [] as string[]
 })
 
@@ -397,6 +405,7 @@ const save = async () => {
       store: form.value.store || null,
       store_code: form.value.store_code || null,
       item_name: form.value.item_name || null,
+      usage_mode: form.value.usage_mode,
       tag_ids: form.value.tag_ids,
       // Ensure we preserve sheet_id if passed via props, 
       // primarily validation happens in store action via active sheet
@@ -551,21 +560,21 @@ const save = async () => {
             />
           </div>
 
-          <!-- Count / Count Unit Grid -->
+          <!-- Row 1: Quantity (purchases) + Quantity Unit -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Count</label>
+              <label class="text-sm font-medium text-muted-foreground">Quantity</label>
               <Input 
                 v-model="form.count" 
                 type="number" 
                 step="any"
                 min="0" 
-                placeholder="0" 
+                placeholder="# of purchases" 
                 class="mt-1" 
               />
             </div>
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Count Unit</label>
+              <label class="text-sm font-medium text-muted-foreground">Quantity Unit</label>
               <SearchableInput 
                 v-model="form.count_unit"
                 :search-function="searchCountUnits"
@@ -573,26 +582,45 @@ const save = async () => {
                 :value-function="(u) => u.name"
                 :show-create-option="false"
                 :min-chars="0"
-                placeholder="Select..." 
+                placeholder="box, pack..." 
                 class="mt-1"
               />
             </div>
           </div>
 
-          <!-- Quantity / Min Qty Grid -->
+          <!-- Row 2: Count (components per purchase) + Count Unit -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Quantity</label>
+              <label class="text-sm font-medium text-muted-foreground">Count</label>
               <Input 
                 v-model.number="form.quantity" 
                 type="number" 
+                step="any"
                 min="0" 
-                placeholder="0" 
+                placeholder="# per purchase" 
                 class="mt-1" 
               />
             </div>
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Min Qty</label>
+              <label class="text-sm font-medium text-muted-foreground">Count Unit</label>
+              <SearchableInput 
+                v-model="form.unit_of_measure"
+                :search-function="searchUnits"
+                :display-function="(u) => u.name"
+                :value-function="(u) => u.name"
+                :show-create-option="true"
+                :min-chars="0"
+                placeholder="oz, ct, lb..." 
+                class="mt-1"
+                @create="createAndSelectUnit"
+              />
+            </div>
+          </div>
+
+          <!-- Min Qty (separate row) -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium text-muted-foreground">Min Quantity Alert</label>
               <Input 
                 v-model.number="form.min_quantity" 
                 type="number" 
@@ -601,53 +629,36 @@ const save = async () => {
                 class="mt-1" 
               />
             </div>
+            <div></div>
           </div>
 
-          <!-- Unit Measurement -->
+          <!-- Usage Mode Toggle -->
           <div>
-            <label class="text-sm font-medium">Unit Measurement</label>
-            <div class="space-y-2 mt-1">
-              <div class="flex gap-2">
-                <Input 
-                  v-model="unitSearch" 
-                  placeholder="Search or create unit..." 
-                  class="flex-1"
-                  autocomplete="off"
-                  @keydown.enter.prevent="createAndSelectUnit"
-                />
-                <Button 
-                  type="button"
-                  :disabled="!unitSearch || exactUnitMatch"
-                  @click="createAndSelectUnit"
-                  size="sm"
-                  variant="outline"
-                >
-                  <Plus class="h-4 w-4 mr-2" />
-                  New
-                </Button>
-              </div>
-              
-              <div class="border border-border rounded-lg bg-card overflow-hidden max-h-32 overflow-y-auto">
-                  <div v-if="filteredUnits.length > 0" class="divide-y divide-border">
-                      <button
-                          v-for="unit in filteredUnits"
-                          :key="unit.id"
-                          type="button"
-                          class="w-full px-3 py-2 text-left hover:bg-secondary/60 flex items-center gap-2 transition-colors text-sm"
-                          @click="selectUnit(unit)"
-                      >
-                          <div class="h-4 w-4 rounded-full border border-primary flex items-center justify-center">
-                              <div v-if="form.unit_of_measure === unit.name" class="h-2 w-2 rounded-full bg-primary" />
-                          </div>
-                          <span class="flex-1 font-medium">{{ unit.name }}</span>
-                      </button>
-                  </div>
-                  <div v-else class="px-3 py-4 text-center text-xs text-muted-foreground">
-                      {{ unitSearch ? 'No matching units found' : 'No units available' }}
-                  </div>
-              </div>
+            <label class="text-sm font-medium">Usage Mode</label>
+            <p class="text-xs text-muted-foreground mb-2">How is this item consumed from inventory?</p>
+            <div class="flex rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm font-medium transition-colors"
+                :class="form.usage_mode === 'count' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+                @click="form.usage_mode = 'count'"
+              >
+                By Count
+              </button>
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border"
+                :class="form.usage_mode === 'quantity' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+                @click="form.usage_mode = 'quantity'"
+              >
+                By Quantity
+              </button>
             </div>
+            <p class="text-xs text-muted-foreground mt-1">
+              {{ form.usage_mode === 'count' ? 'Individual pieces (1 battery, 5 lbs potato)' : 'Whole unit (entire couch, TV)' }}
+            </p>
           </div>
+
 
           <!-- Tags -->
           <div>

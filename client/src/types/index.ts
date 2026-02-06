@@ -113,6 +113,9 @@ export interface InventoryItem {
   total_price: string | null
   store_code: string | null
   item_name: string | null
+  // "count" = consumed by individual pieces/weight (batteries, potatoes)
+  // "quantity" = consumed as whole unit (couch, TV)
+  usage_mode: 'count' | 'quantity'
   tags: Tag[]
   tag_ids?: string[] // Used when creating/updating
   custom_fields: Record<string, unknown>

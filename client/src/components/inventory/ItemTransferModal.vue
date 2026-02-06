@@ -73,7 +73,9 @@ onMounted(() => {
   }
 })
 
-const maxQuantity = computed(() => props.item?.quantity || 0)
+const maxQuantity = computed(() => Number(props.item?.quantity) || 0)
+// maxCount: prioritize quantity (available stock) over count (packaging)
+const maxCount = computed(() => Number(props.item?.quantity) || Number(props.item?.count) || 1)
 
 
 
@@ -108,6 +110,11 @@ const handleTransfer = async () => {
 
 
 const handleTransferAll = () => {
+  transferQuantity.value = maxCount.value
+}
+
+
+const handleTransferAllQty = () => {
   if (props.item) {
     transferQuantity.value = Number(props.item.quantity)
   }
@@ -160,21 +167,53 @@ const handleTransferAll = () => {
           </div>
         </div>
 
-        <!-- Quantity input -->
+        <!-- Quantity input - changes based on usage_mode -->
         <div class="space-y-2">
-          <div class="text-sm font-medium">Quantity to transfer</div>
-          <div class="flex items-center gap-2">
-            <Input
-              type="number"
-              v-model.number="transferQuantity"
-              :min="1"
-              :max="maxQuantity"
-              class="w-24"
-            />
-            <Button variant="outline" size="sm" @click="handleTransferAll">
-              Transfer All ({{ maxQuantity }})
-            </Button>
-          </div>
+          <!-- By Count mode: transfer by individual pieces -->
+          <template v-if="item.usage_mode === 'count' || !item.usage_mode">
+            <div class="text-sm font-medium">{{ item.count_unit || 'count' }} to transfer</div>
+            <div class="flex items-center gap-2">
+              <Input
+                type="number"
+                v-model.number="transferQuantity"
+                :min="1"
+                :max="maxCount"
+                class="w-24"
+              />
+              <span class="text-sm text-muted-foreground">
+                {{ item.count_unit || 'units' }}
+                <span v-if="item.quantity && item.unit_of_measure">
+                  ({{ item.quantity }} {{ item.unit_of_measure }} each)
+                </span>
+              </span>
+              <Button variant="outline" size="sm" @click="handleTransferAll">
+                Transfer All ({{ maxCount }})
+              </Button>
+            </div>
+          </template>
+          
+          <!-- By Quantity mode: transfer whole units -->
+          <template v-else>
+            <div class="text-sm font-medium">quantity to transfer</div>
+            <div class="flex items-center gap-2">
+              <Input
+                type="number"
+                v-model.number="transferQuantity"
+                :min="1"
+                :max="Number(item.quantity)"
+                class="w-24"
+              />
+              <span class="text-sm text-muted-foreground">
+                {{ item.unit_of_measure || 'units' }}
+                <span v-if="item.count && item.count_unit">
+                  ({{ item.name }} - {{ item.count }} {{ item.count_unit }})
+                </span>
+              </span>
+              <Button variant="outline" size="sm" @click="handleTransferAllQty">
+                Transfer All ({{ item.quantity }})
+              </Button>
+            </div>
+          </template>
         </div>
 
         <!-- Target sheet selection -->

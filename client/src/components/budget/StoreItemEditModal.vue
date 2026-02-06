@@ -8,6 +8,7 @@ import { Plus, X } from 'lucide-vue-next'
 import type { Store, Brand, Unit, Purchase } from '@/types'
 import { useReceiptsStore } from '@/stores/receipts'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
+import { COUNT_UNIT_OPTIONS, mergeUnitsWithDefaults } from '@/utils/units'
 
 interface InventoryItem {
   id: string
@@ -42,7 +43,12 @@ const form = ref({
   unit: '',
   price: '',
   store_code: '',
-  item_name: ''
+  item_name: '',
+  quantity: '',
+  quantity_unit: '',
+  count: '',
+  count_unit: '',
+  usage_mode: 'count'
 })
 
 // Search States
@@ -62,7 +68,12 @@ watch(() => props.item, (newItem) => {
       unit: newItem.unit || '',
       price: newItem.price || '',
       store_code: newItem.store_code || '',
-      item_name: newItem.item_name || ''
+      item_name: newItem.item_name || '',
+      quantity: (newItem as any).quantity || '',
+      quantity_unit: (newItem as any).quantity_unit || '',
+      count: (newItem as any).count || '',
+      count_unit: (newItem as any).count_unit || '',
+      usage_mode: (newItem as any).usage_mode || 'count'
     }
     brandSearch.value = newItem.brand || ''
     itemSearch.value = newItem.name
@@ -74,7 +85,12 @@ watch(() => props.item, (newItem) => {
       unit: '',
       price: '',
       store_code: '',
-      item_name: ''
+      item_name: '',
+      quantity: '',
+      quantity_unit: '',
+      count: '',
+      count_unit: '',
+      usage_mode: 'count'
     }
     brandSearch.value = ''
     itemSearch.value = ''
@@ -180,7 +196,14 @@ const selectItem = (purchase: Purchase) => {
 // Unit Search Logic
 const searchUnits = async (query: string) => {
     const q = (query || '').toLowerCase()
-    return receiptsStore.units.filter(u => u.name.toLowerCase().includes(q))
+    const allUnits = mergeUnitsWithDefaults(receiptsStore.units)
+    return allUnits.filter(u => u.name.toLowerCase().includes(q))
+}
+
+// Count Unit search function for SearchableInput
+const searchCountUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  return COUNT_UNIT_OPTIONS.filter(u => u.name.toLowerCase().includes(q))
 }
 
 const selectUnit = (unit: Unit) => {
@@ -250,7 +273,8 @@ const handleSubmit = async () => {
       unit_of_measure: form.value.unit,
       price_per_unit: form.value.price,
       store_code: form.value.store_code,
-      item_name: form.value.item_name
+      item_name: form.value.item_name,
+      usage_mode: form.value.usage_mode
     }
 
     await receiptsStore.updateStoreInventoryItem(props.store.id, props.item.id, payload)
@@ -336,27 +360,94 @@ const handleSubmit = async () => {
            </div>
         </div>
 
-        <!-- Unit & Price -->
+        <!-- Row 1: Quantity (purchases) + Quantity Unit -->
         <div class="grid grid-cols-2 gap-4 relative z-40">
-           <div class="col-span-1 relative">
-            <label class="text-sm font-medium mb-1.5 block">Unit</label>
-            <SearchableInput 
-                v-model="unitSearch"
-                :search-function="searchUnits"
-                :display-function="(u) => u.name"
-                :value-function="(u) => u.name"
-                :show-create-option="true"
-                :min-chars="0"
-                placeholder="e.g. oz, gal"
-                @select="selectUnit"
-                @create="createAndSelectUnit"
+          <div class="col-span-1 relative">
+            <label class="text-sm font-medium mb-1.5 block">Quantity</label>
+            <Input 
+              v-model="form.quantity" 
+              type="number" 
+              step="any"
+              min="0" 
+              placeholder="# of purchases" 
             />
           </div>
-          
-          <div class="col-span-1">
-             <label class="text-sm font-medium mb-1.5 block">Price</label>
-             <Input v-model="form.price" type="number" step="0.01" placeholder="0.00" />
+          <div class="col-span-1 relative">
+            <label class="text-sm font-medium mb-1.5 block">Quantity Unit</label>
+            <SearchableInput 
+              v-model="form.quantity_unit"
+              :search-function="searchCountUnits"
+              :display-function="(u) => u.name"
+              :value-function="(u) => u.name"
+              :show-create-option="false"
+              :min-chars="0"
+              placeholder="box, pack..."
+            />
           </div>
+        </div>
+
+        <!-- Row 2: Count (components per purchase) + Count Unit -->
+        <div class="grid grid-cols-2 gap-4 relative z-30">
+          <div class="col-span-1 relative">
+            <label class="text-sm font-medium mb-1.5 block">Count</label>
+            <Input 
+              v-model="form.count" 
+              type="number" 
+              step="any"
+              min="0" 
+              placeholder="# per purchase" 
+            />
+          </div>
+          <div class="col-span-1 relative">
+            <label class="text-sm font-medium mb-1.5 block">Count Unit</label>
+            <SearchableInput 
+              v-model="form.count_unit"
+              :search-function="searchUnits"
+              :display-function="(u) => u.name"
+              :value-function="(u) => u.name"
+              :show-create-option="true"
+              :min-chars="0"
+              placeholder="oz, ct, lb..."
+              @select="selectUnit"
+              @create="createAndSelectUnit"
+            />
+          </div>
+        </div>
+
+        <!-- Price -->
+        <div class="grid grid-cols-2 gap-4 relative z-20">
+          <div class="col-span-1">
+            <label class="text-sm font-medium mb-1.5 block">Price</label>
+            <Input v-model="form.price" type="number" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="col-span-1"></div>
+        </div>
+
+        <!-- Usage Mode Toggle -->
+        <div class="relative z-10">
+          <label class="text-sm font-medium mb-1.5 block">Usage Mode</label>
+          <p class="text-xs text-muted-foreground mb-2">How is this item consumed?</p>
+          <div class="flex rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              class="flex-1 px-3 py-2 text-sm font-medium transition-colors"
+              :class="form.usage_mode === 'count' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+              @click="form.usage_mode = 'count'"
+            >
+              By Count
+            </button>
+            <button
+              type="button"
+              class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border"
+              :class="form.usage_mode === 'quantity' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+              @click="form.usage_mode = 'quantity'"
+            >
+              By Quantity
+            </button>
+          </div>
+          <p class="text-xs text-muted-foreground mt-1">
+            {{ form.usage_mode === 'count' ? 'Individual pieces (1 battery, 5 lbs potato)' : 'Whole unit (entire couch, TV)' }}
+          </p>
         </div>
 
         <div class="col-span-4 space-y-2 pt-2 border-t z-10">

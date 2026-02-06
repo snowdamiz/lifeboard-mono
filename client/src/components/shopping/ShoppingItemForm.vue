@@ -12,6 +12,7 @@ import { useInventoryStore } from '@/stores/inventory'
 import TagManager from '@/components/shared/TagManager.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
 import type { ShoppingListItem, Brand, Unit } from '@/types'
+import { COUNT_UNIT_OPTIONS, mergeUnitsWithDefaults } from '@/utils/units'
 
 interface Props {
   item?: ShoppingListItem | null
@@ -61,12 +62,28 @@ const form = ref({
   name: props.item?.name || props.item?.inventory_item?.name || '',
   unit_of_measure: (props.item as any)?.unit_of_measure || '',
   quantity: props.item?.quantity_needed ?? 1,
+  quantity_unit: (props.item as any)?.quantity_unit || '',
+  count: (props.item as any)?.count || '',
+  count_unit: (props.item as any)?.count_unit || '',
   min_quantity: 0, 
   store: (props.item as any)?.store || props.item?.inventory_item?.store || '',
   store_code: (props.item as any)?.store_code || '',
   item_name: (props.item as any)?.item_name || '',
   tag_ids: ((props.item as any)?.tag_ids || []) as string[]
 })
+
+// Count Unit search function for SearchableInput
+const searchCountUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  return COUNT_UNIT_OPTIONS.filter(u => u.name.toLowerCase().includes(q))
+}
+
+// Unit search function for SearchableInput
+const searchUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  const allUnits = mergeUnitsWithDefaults(receiptsStore.units)
+  return allUnits.filter(u => u.name.toLowerCase().includes(q))
+}
 
 // Initialize from existing item if possible
 if (props.item) {
@@ -501,76 +518,61 @@ const save = async () => {
             />
           </div>
 
-          <!-- Quantity / Min Qty Grid -->
+          <!-- Row 1: Quantity (purchases) + Quantity Unit -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="text-sm font-medium text-muted-foreground">Quantity Needed</label>
+              <label class="text-sm font-medium text-muted-foreground">Quantity</label>
               <Input 
                 v-model.number="form.quantity" 
                 type="number" 
-                min="1" 
-                placeholder="1" 
+                step="any"
+                min="0" 
+                placeholder="# of purchases" 
                 class="mt-1" 
               />
             </div>
-             <!-- Min Qty not really relevant for Shopping List item directly, but included for 'exactly like this gui' -->
             <div>
-              <label class="text-sm font-medium text-muted-foreground opacity-50">Min Qty (N/A)</label>
-              <Input 
-                disabled
-                type="number" 
-                placeholder="-" 
-                class="mt-1 opacity-50 cursor-not-allowed" 
+              <label class="text-sm font-medium text-muted-foreground">Quantity Unit</label>
+              <SearchableInput 
+                v-model="form.quantity_unit"
+                :search-function="searchCountUnits"
+                :display-function="(u) => u.name"
+                :value-function="(u) => u.name"
+                :show-create-option="false"
+                :min-chars="0"
+                placeholder="box, pack..." 
+                class="mt-1"
               />
             </div>
           </div>
 
-          <!-- Unit Measurement -->
-          <div>
-            <label class="text-sm font-medium">Unit Measurement</label>
-            <div class="space-y-2 mt-1">
-              <div class="flex gap-2">
-                <Input 
-                  v-model="unitSearch" 
-                  placeholder="Search or create unit..." 
-                  class="flex-1"
-                  autocomplete="off"
-                  @keydown.enter.prevent="createAndSelectUnit"
-                />
-                <Button 
-                  type="button"
-                  :disabled="!unitSearch || exactUnitMatch"
-                  @click="createAndSelectUnit"
-                  size="sm"
-                  variant="outline"
-                >
-                  <Plus class="h-4 w-4 mr-2" />
-                  New
-                </Button>
-              </div>
-              
-              <div class="border border-border rounded-lg bg-card overflow-hidden max-h-32 overflow-y-auto">
-                  <div v-if="filteredUnits.length > 0" class="divide-y divide-border">
-                      <button
-                          v-for="unit in filteredUnits"
-                          :key="unit.id"
-                          type="button"
-                          class="w-full px-3 py-2 text-left hover:bg-secondary/60 flex items-center gap-2 transition-colors text-sm"
-                          @click="selectUnit(unit)"
-                      >
-                          <div class="h-4 w-4 rounded-full border border-primary flex items-center justify-center">
-                              <div v-if="form.unit_of_measure === unit.name" class="h-2 w-2 rounded-full bg-primary" />
-                          </div>
-                          <span class="flex-1 font-medium">{{ unit.name }}</span>
-                      </button>
-                  </div>
-                  <div v-else class="px-3 py-4 text-center text-xs text-muted-foreground">
-                      {{ unitSearch ? 'No matching units found' : 'No units available' }}
-                  </div>
-              </div>
+          <!-- Row 2: Count (components per purchase) + Count Unit -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm font-medium text-muted-foreground">Count</label>
+              <Input 
+                v-model="form.count" 
+                type="number" 
+                step="any"
+                min="0" 
+                placeholder="# per purchase" 
+                class="mt-1" 
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-muted-foreground">Count Unit</label>
+              <SearchableInput 
+                v-model="form.count_unit"
+                :search-function="searchUnits"
+                :display-function="(u) => u.name"
+                :value-function="(u) => u.name"
+                :show-create-option="true"
+                :min-chars="0"
+                placeholder="oz, ct, lb..." 
+                class="mt-1"
+              />
             </div>
           </div>
-
 
 
           <!-- Tags -->

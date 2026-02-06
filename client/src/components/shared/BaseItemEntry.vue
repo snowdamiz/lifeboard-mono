@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Package } from 'lucide-vue-next'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { formatItemCell } from '@/utils/formatCountUnit'
 
 interface Tag {
   id: string
@@ -15,7 +16,13 @@ interface Props {
   name: string
   brand?: string | null
 
-  // Quantity/measurement
+  // Count/measurement (new unified format)
+  count?: string | number | null
+  countUnit?: string | null
+  units?: string | number | null
+  unitMeasurement?: string | null
+  
+  // Legacy props for backward compatibility
   quantity?: string | number | null
   unit?: string | null
   
@@ -54,8 +61,32 @@ const formatCurrency = (amount: string | number | null | undefined) => {
 const formattedPrice = computed(() => formatCurrency(props.price))
 const formattedTotal = computed(() => formatCurrency(props.total))
 
-const hasQuantityInfo = computed(() => props.quantity !== undefined && props.quantity !== null && props.quantity !== '')
-const hasPriceInfo = computed(() => props.price !== undefined && props.price !== null)
+// Use new formatItemCell to get unified display string
+// Format: "Quantity QuantityUnit of Brand Item of Count CountMeasurement"
+const formattedItemCell = computed(() => {
+  return formatItemCell(
+    props.count,
+    props.countUnit,
+    props.brand,
+    props.name,
+    props.units,
+    props.unitMeasurement
+  )
+})
+
+// Legacy fallback for old-style quantity/unit display
+const legacyQuantity = computed(() => {
+  if (props.quantity !== undefined && props.quantity !== null && props.quantity !== '') {
+    return `${props.quantity}${props.unit ? ' ' + props.unit : ''}`
+  }
+  return ''
+})
+
+// Determine which display mode to use
+const hasNewProps = computed(() => 
+  props.count !== undefined || props.countUnit || props.units !== undefined || props.unitMeasurement
+)
+
 const hasStoreCode = computed(() => !!props.storeCode)
 const hasStore = computed(() => !!props.store)
 const hasTags = computed(() => props.tags && props.tags.length > 0)
@@ -80,17 +111,22 @@ const cardClass = computed(() => {
           </div>
         </slot>
 
-        <!-- Main content: Item | Brand | Quantity on one line -->
+        <!-- Main content: Unified item cell format -->
         <div class="flex-1 min-w-0">
-          <!-- Line 1: Name, Brand, Quantity - all inline -->
+          <!-- Line 1: Unified item cell format (e.g., "2 boxes of Cheerios Cereal of 12 oz") -->
           <div class="flex items-center gap-2 min-w-0">
-            <span class="font-semibold text-sm truncate flex-shrink min-w-0" :title="name">{{ name }}</span>
-            <span v-if="brand" class="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[80px]" :title="brand">{{ brand }}</span>
-            <slot name="right-value">
-              <Badge v-if="hasQuantityInfo" variant="outline" class="font-mono text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
-                {{ quantity }}{{ unit ? ' ' + unit : '' }}
+            <span v-if="hasNewProps" class="font-semibold text-sm truncate flex-shrink min-w-0" :title="formattedItemCell">
+              {{ formattedItemCell }}
+            </span>
+            <!-- Legacy fallback: separate name, brand, quantity display -->
+            <template v-else>
+              <span class="font-semibold text-sm truncate flex-shrink min-w-0" :title="name">{{ name }}</span>
+              <span v-if="brand" class="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[80px]" :title="brand">{{ brand }}</span>
+              <Badge v-if="legacyQuantity" variant="outline" class="font-mono text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
+                {{ legacyQuantity }}
               </Badge>
-            </slot>
+            </template>
+            <slot name="right-value" />
           </div>
 
           <!-- Line 2: Details (Store, Code, Tax) - compact inline -->
@@ -122,3 +158,4 @@ const cardClass = computed(() => {
     </CardContent>
   </Card>
 </template>
+

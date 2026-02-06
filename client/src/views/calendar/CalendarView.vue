@@ -10,6 +10,7 @@ import TripCard from '@/components/calendar/TripCard.vue'
 import TaskForm from '@/components/calendar/TaskForm.vue'
 import TaskDetailPopout from '@/components/calendar/TaskDetailPopout.vue'
 import { cn } from '@/lib/utils'
+import { formatItemCell } from '@/utils/formatCountUnit'
 import type { Task } from '@/types'
 
 const calendarStore = useCalendarStore()
@@ -716,14 +717,7 @@ onUnmounted(() => {
                         >
                           <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium truncate">
-                              <span class="text-muted-foreground">{{ purchase.brand }}</span>
-                              {{ purchase.item }}
-                            </p>
-                            <p class="text-xs text-muted-foreground">
-                              {{ purchase.count || 1 }}{{ purchase.count_unit ? ' ' + purchase.count_unit + (Number(purchase.count) !== 1 ? 's' : '') : 'x' }}
-                              <span v-if="purchase.units && purchase.unit_measurement">
-                                 of {{ purchase.units }}{{ purchase.unit_measurement }}
-                              </span>
+                              {{ formatItemCell(purchase.count, purchase.count_unit, purchase.brand, purchase.item, purchase.units, purchase.unit_measurement) }}
                             </p>
                           </div>
                           <div class="text-right shrink-0 ml-3">

@@ -7,7 +7,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
 import { useReceiptsStore } from '@/stores/receipts'
 import type { ReceiptScanItem, Brand } from '@/types'
-import { DEFAULT_UNIT_MEASUREMENTS, mergeUnitsWithDefaults } from '@/utils/units'
+import { DEFAULT_UNIT_MEASUREMENTS, mergeUnitsWithDefaults, COUNT_UNIT_OPTIONS } from '@/utils/units'
+
+// Count Unit search function for SearchableInput
+const searchCountUnits = async (query: string) => {
+  const q = query.toLowerCase()
+  return COUNT_UNIT_OPTIONS.filter(u => u.name.toLowerCase().includes(q))
+}
 
 interface Props {
   item: ReceiptScanItem
@@ -181,22 +187,69 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Pricing Grid -->
+      <!-- Row 1: Quantity (purchases) + Quantity Unit -->
       <div class="grid grid-cols-2 gap-3">
-        <!-- Quantity -->
         <div>
           <label class="text-sm font-medium text-muted-foreground">Quantity</label>
           <Input 
             :model-value="item.quantity"
             @update:model-value="(v) => emit('update', index, { quantity: Number(v) || 1 })"
             type="number" 
-            step="1" 
-            min="1" 
-            placeholder="1" 
+            step="any" 
+            min="0" 
+            placeholder="# of purchases" 
             class="mt-1" 
           />
         </div>
-        <!-- Unit Price (auto-calculated: total_price / quantity) -->
+        <div>
+          <label class="text-sm font-medium text-muted-foreground">Quantity Unit</label>
+          <SearchableInput 
+            :model-value="item.count_unit ?? ''"
+            @update:model-value="(v) => emit('update', index, { count_unit: v || null })"
+            :search-function="searchCountUnits"
+            :display-function="(u) => u.name"
+            :value-function="(u) => u.name"
+            :show-create-option="false"
+            :min-chars="0"
+            placeholder="box, pack..." 
+            class="mt-1"
+          />
+        </div>
+      </div>
+
+      <!-- Row 2: Count (components per purchase) + Count Unit -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-sm font-medium text-muted-foreground">Count</label>
+          <Input 
+            :model-value="item.unit_quantity ?? ''"
+            @update:model-value="(v) => emit('update', index, { unit_quantity: v || null })"
+            type="number"
+            step="any"
+            min="0"
+            placeholder="# per purchase" 
+            class="mt-1" 
+          />
+        </div>
+        <div>
+          <label class="text-sm font-medium text-muted-foreground">Count Unit</label>
+          <SearchableInput 
+            :model-value="item.unit ?? ''"
+            @update:model-value="(v) => emit('update', index, { unit: v || null })"
+            :search-function="searchUnits"
+            :display-function="(u) => u.name"
+            :value-function="(u) => u.name"
+            :show-create-option="true"
+            :min-chars="0"
+            placeholder="oz, ct, lb..." 
+            class="mt-1"
+            @create="handleUnitCreate"
+          />
+        </div>
+      </div>
+
+      <!-- Pricing Row -->
+      <div class="grid grid-cols-3 gap-3">
         <div>
           <label class="text-sm font-medium text-muted-foreground">Unit Price</label>
           <div class="mt-1 h-9 px-3 flex items-center bg-muted/50 rounded-md border border-input text-sm font-mono">
@@ -206,24 +259,14 @@ onMounted(async () => {
             <span v-else class="text-muted-foreground">—</span>
           </div>
         </div>
-      </div>
-
-      <!-- Unit Measurement & Total Price -->
-      <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-sm font-medium">Unit Measurement</label>
-          <SearchableInput 
-            :model-value="item.unit ?? ''"
-            @update:model-value="(v) => emit('update', index, { unit: v || null })"
-            :search-function="searchUnits"
-            :display-function="(u) => u.name"
-            :value-function="(u) => u.name"
-            :show-create-option="true"
-            :min-chars="0"
-            placeholder="oz, lb, ct..." 
-            class="mt-1"
-            @create="handleUnitCreate"
-          />
+          <label class="text-sm font-medium text-muted-foreground">Count Price</label>
+          <div class="mt-1 h-9 px-3 flex items-center bg-muted/50 rounded-md border border-input text-sm font-mono">
+            <template v-if="item.unit_quantity && parseFloat(item.unit_quantity) > 0 && item.total_price">
+              ${{ (parseFloat(item.total_price) / parseFloat(item.unit_quantity)).toFixed(4) }}
+            </template>
+            <span v-else class="text-muted-foreground">—</span>
+          </div>
         </div>
         <div>
           <label class="text-sm font-medium">Total Price *</label>
@@ -236,28 +279,6 @@ onMounted(async () => {
             placeholder="0.00" 
             class="mt-1 font-semibold" 
           />
-        </div>
-      </div>
-
-      <!-- Unit Quantity & Unit Quantity Price Row -->
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-sm font-medium text-muted-foreground">Unit Quantity</label>
-          <Input 
-            :model-value="item.unit_quantity ?? ''"
-            @update:model-value="(v) => emit('update', index, { unit_quantity: v || null })"
-            placeholder="16, 2, 12..." 
-            class="mt-1" 
-          />
-        </div>
-        <div>
-          <label class="text-sm font-medium text-muted-foreground">Unit Qty Price</label>
-          <div class="mt-1 h-9 px-3 flex items-center bg-muted/50 rounded-md border border-input text-sm font-mono">
-            <template v-if="item.unit_quantity && parseFloat(item.unit_quantity) > 0 && item.total_price">
-              ${{ (parseFloat(item.total_price) / parseFloat(item.unit_quantity)).toFixed(4) }}
-            </template>
-            <span v-else class="text-muted-foreground">—</span>
-          </div>
         </div>
       </div>
 

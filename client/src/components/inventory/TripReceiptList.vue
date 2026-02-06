@@ -107,8 +107,10 @@ const formatDate = (dateStr: string | null) => {
           :key="item.id"
           :name="item.name"
           :brand="item.brand"
-          :quantity="item.quantity"
-          :unit="item.unit_of_measure"
+          :count="item.count"
+          :count-unit="item.count_unit"
+          :units="item.quantity"
+          :unit-measurement="item.unit_of_measure"
           :store="item.store"
           :store-code="item.store_code"
           :price="item.price_per_unit"
@@ -116,12 +118,8 @@ const formatDate = (dateStr: string | null) => {
           :taxable="item.taxable ?? false"
           :tags="item.tags"
         >
-          <!-- Right value: Quantity badge (compact) -->
-          <template #right-value>
-            <Badge variant="outline" class="font-mono text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
-              {{ item.quantity }}{{ item.unit_of_measure ? ' ' + item.unit_of_measure : '' }}
-            </Badge>
-          </template>
+          <!-- Right value: Quantity badge (compact) - uses BaseItemEntry default now -->
+          
 
           <!-- Actions (icon-only on mobile) -->
           <template #actions>

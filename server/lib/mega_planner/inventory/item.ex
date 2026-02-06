@@ -22,6 +22,9 @@ defmodule MegaPlanner.Inventory.Item do
     field :store_code, :string
     field :item_name, :string
     field :custom_fields, :map, default: %{}
+    # "count" = consumed by individual pieces/weight (batteries, potatoes)
+    # "quantity" = consumed as whole unit (couch, TV)
+    field :usage_mode, :string, default: "count"
 
     field :purchase_date, :utc_datetime
 
@@ -45,11 +48,13 @@ defmodule MegaPlanner.Inventory.Item do
     |> cast(attrs, [
       :name, :quantity, :min_quantity, :is_necessity, :store, :unit_of_measure, :brand,
       :count, :count_unit, :price_per_count, :price_per_unit, :taxable, :total_price, :store_code, :item_name,
-      :custom_fields, :sheet_id, :purchase_id, :trip_id, :stop_id, :purchase_date
+      :custom_fields, :sheet_id, :purchase_id, :trip_id, :stop_id, :purchase_date, :usage_mode
     ])
     |> validate_required([:name, :sheet_id])
     |> validate_number(:quantity, greater_than_or_equal_to: 0)
     |> validate_number(:min_quantity, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:usage_mode, ["count", "quantity"])
     |> foreign_key_constraint(:sheet_id)
   end
 end
+
