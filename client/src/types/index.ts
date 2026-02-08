@@ -249,6 +249,9 @@ export interface Brand {
   name: string
   default_item: string | null
   default_unit_measurement: string | null
+  default_count_unit: string | null
+  default_quantity_per_count: string | null
+  default_unit_measurement_per_count: string | null
   default_tags: string[]
   image_url: string | null
   inserted_at: string

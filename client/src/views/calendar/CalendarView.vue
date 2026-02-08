@@ -43,6 +43,8 @@ const closeEditPopout = () => {
   editingTask.value = null
   editingDayIndex.value = null
   createTaskDate.value = null
+  // Refetch to ensure newly created/updated tasks are reflected
+  calendarStore.fetchCurrentViewTasks()
 }
 
 const handleOpenTripDetailInline = (tripId: string) => {
@@ -280,6 +282,8 @@ const handleOpenTripDetail = (tripId: string) => {
 
 const closeTripDetailModal = () => {
   closeTripDetailInline()
+  // Refetch tasks — backend may have auto-created/updated tasks via ensure_task_for_trip
+  calendarStore.fetchCurrentViewTasks()
 }
 
 const handleDeleteTrip = async (tripId: string) => {

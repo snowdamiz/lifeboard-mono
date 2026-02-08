@@ -135,10 +135,8 @@ watch(content, () => {
 })
 
 const deletePage = async () => {
-  if (confirm('Are you sure you want to delete this page?')) {
-    await notesStore.deletePage(pageId())
-    router.push('/notes')
-  }
+  await notesStore.deletePage(pageId())
+  router.push('/notes')
 }
 
 const formatLastSaved = () => {

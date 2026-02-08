@@ -809,9 +809,7 @@ const handleDeleteHabit = async (id: string) => {
 }
 
 const handleDeleteInventory = async (id: string) => {
-  if (confirm('Are you sure you want to delete this habit sheet and all its habits?')) {
-    await habitsStore.deleteHabitInventory(id)
-  }
+  await habitsStore.deleteHabitInventory(id)
 }
 
 const handleToggleComplete = async (habit: HabitWithStatus) => {

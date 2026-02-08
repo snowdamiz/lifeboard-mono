@@ -344,14 +344,18 @@ defmodule MegaPlanner.Receipts do
   Returns the list of trips for a household.
   """
   def list_trips(household_id, opts \\ []) do
+    Logger.debug("[LIST_TRIPS] household=#{household_id} opts=#{inspect(opts)}")
     query = from t in Trip,
       where: t.household_id == ^household_id,
       order_by: [desc: t.trip_start],
       preload: [:driver, stops: [:store, purchases: [:tags]]]
 
-    query
+    results = query
     |> filter_trips_by_date_range(opts)
     |> Repo.all()
+    
+    Logger.debug("[LIST_TRIPS] Found #{length(results)} trips: #{inspect(Enum.map(results, fn t -> %{id: t.id, trip_start: t.trip_start, stops: length(t.stops || [])} end))}")
+    results
   end
 
   defp filter_trips_by_date_range(query, opts) do
@@ -406,12 +410,46 @@ defmodule MegaPlanner.Receipts do
   Creates a trip.
   """
   def create_trip(attrs \\ %{}) do
+    Logger.debug("[CREATE_TRIP] attrs=#{inspect(attrs)}")
     %Trip{}
     |> Trip.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, trip} -> {:ok, Repo.preload(trip, [:driver, stops: [:store, purchases: [:tags]]])}
-      error -> error
+      {:ok, trip} -> 
+        trip = Repo.preload(trip, [:driver, stops: [:store, purchases: [:tags]]])
+        Logger.debug("[CREATE_TRIP] SUCCESS id=#{trip.id} trip_start=#{inspect(trip.trip_start)}")
+        {:ok, trip}
+      error -> 
+        Logger.debug("[CREATE_TRIP] ERROR #{inspect(error)}")
+        error
+    end
+  end
+
+  @doc """
+  Finds an existing trip for the given date and household, or creates a new one.
+  Used for same-day consolidation: multiple receipts from the same day are grouped
+  into a single trip with multiple stops.
+  """
+  def find_or_create_trip_for_date(household_id, date, attrs) do
+    # Look for an existing trip on this date
+    start_of_day = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    end_of_day = DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
+
+    existing = Repo.one(
+      from t in Trip,
+      where: t.household_id == ^household_id,
+      where: t.trip_start >= ^start_of_day and t.trip_start <= ^end_of_day,
+      order_by: [asc: t.trip_start],
+      limit: 1,
+      preload: [:driver, stops: [:store, purchases: [:tags]]]
+    )
+
+    if existing do
+      Logger.debug("[FIND_OR_CREATE_TRIP] Found existing trip #{existing.id} for #{date}")
+      {:ok, existing}
+    else
+      Logger.debug("[FIND_OR_CREATE_TRIP] No existing trip for #{date}, creating new one")
+      create_trip(attrs)
     end
   end
 
@@ -443,16 +481,12 @@ defmodule MegaPlanner.Receipts do
       from(i in MegaPlanner.Inventory.Item, where: i.trip_id == ^trip.id)
       |> Repo.update_all(set: [trip_id: nil, stop_id: nil, purchase_id: nil])
 
-      # Delete all purchases and their budget entries first
+      # Delete all purchases first (their budget entries are cascade-deleted
+      # by the DB via ON DELETE CASCADE on budget_entries.purchase_id)
       Enum.each(trip.stops, fn stop ->
         Enum.each(stop.purchases || [], fn purchase ->
-          # Delete purchase (cascades to budget entry via DB constraint)
           case Repo.delete(purchase) do
-            {:ok, _} -> 
-              # Also delete the budget entry
-              if purchase.budget_entry do
-                Budget.delete_entry(purchase.budget_entry)
-              end
+            {:ok, _} -> :ok
             {:error, changeset} -> 
               Repo.rollback(changeset)
           end
@@ -575,14 +609,11 @@ defmodule MegaPlanner.Receipts do
       from(i in MegaPlanner.Inventory.Item, where: i.stop_id == ^stop.id)
       |> Repo.update_all(set: [stop_id: nil, purchase_id: nil])
 
-      # Delete all purchases and their budget entries first
+      # Delete all purchases (their budget entries are cascade-deleted
+      # by the DB via ON DELETE CASCADE on budget_entries.purchase_id)
       Enum.each(stop.purchases || [], fn purchase ->
         case Repo.delete(purchase) do
-          {:ok, _} -> 
-            # Also delete the budget entry
-            if purchase.budget_entry do
-              Budget.delete_entry(purchase.budget_entry)
-            end
+          {:ok, _} -> :ok
           {:error, changeset} -> 
             Repo.rollback(changeset)
         end
@@ -768,6 +799,7 @@ defmodule MegaPlanner.Receipts do
   Creates a purchase along with its associated budget entry.
   """
   def create_purchase(attrs \\ %{}) do
+    Logger.debug("[CREATE_PURCHASE] attrs=#{inspect(Map.drop(attrs, ["user_id", "household_id"]))}")
     {tag_ids, attrs} = Map.pop(attrs, "tag_ids", [])
     {stop_id, attrs} = Map.pop(attrs, "stop_id")
     household_id = attrs["household_id"]
@@ -780,6 +812,7 @@ defmodule MegaPlanner.Receipts do
       Logger.warning("Purchase created without date, falling back to UTC today. This may cause timezone issues.")
       Date.utc_today()
     )
+    Logger.debug("[CREATE_PURCHASE] stop_id=#{inspect(stop_id)} date=#{inspect(date)} brand=#{inspect(attrs["brand"])} item=#{inspect(attrs["item"])}")
     
     # Get store name from stop (if stop exists) and create/get expense source
     store_name = get_store_name_for_stop(stop_id)
@@ -802,40 +835,70 @@ defmodule MegaPlanner.Receipts do
       "notes" => "Purchase: #{attrs["brand"]} - #{attrs["item"]}",
       "source_id" => source_id
     }
+    Logger.debug("[CREATE_PURCHASE] budget_attrs=#{inspect(budget_attrs)}")
 
     Repo.transaction(fn ->
       with {:ok, entry} <- Budget.create_entry(budget_attrs),
+           _ <- Logger.debug("[CREATE_PURCHASE] Budget entry created: id=#{entry.id} date=#{inspect(entry.date)}"),
            purchase_attrs <- Map.put(attrs, "budget_entry_id", entry.id),
            purchase_attrs <- (if stop_id, do: Map.put(purchase_attrs, "stop_id", stop_id), else: purchase_attrs),
+           _ <- Logger.debug("[CREATE_PURCHASE] Inserting purchase with stop_id=#{inspect(stop_id)} budget_entry_id=#{entry.id}"),
            changeset <- Purchase.changeset(%Purchase{}, purchase_attrs),
            {:ok, purchase} <- Repo.insert(changeset),
+           _ <- Logger.debug("[CREATE_PURCHASE] Purchase inserted: id=#{purchase.id} stop_id=#{inspect(purchase.stop_id)} budget_entry_id=#{inspect(purchase.budget_entry_id)}"),
            purchase <- update_purchase_tags(purchase, tag_ids),
            {:ok, _entry} <- Budget.update_entry(entry, %{"purchase_id" => purchase.id}) do
         
         # Try to create inventory item, but don't fail the whole transaction if it errors
-        File.write!("purchase_debug.log", "[#{DateTime.utc_now()}] Creating inventory for purchase #{purchase.id}\n", [:append])
-        
         try do
           case MegaPlanner.Inventory.create_item_from_purchase(purchase) do
             {:ok, inv_item} ->
-              File.write!("purchase_debug.log", "  ✓ Success! Created item #{inv_item.id}\n", [:append])
+              Logger.debug("[CREATE_PURCHASE] Inventory item created: #{inv_item.id}")
             {:error, reason} ->
-              File.write!("purchase_debug.log", "  ✗ Error: #{inspect(reason)}\n", [:append])
+              Logger.debug("[CREATE_PURCHASE] Inventory item error: #{inspect(reason)}")
             other ->
-              File.write!("purchase_debug.log", "  ✗ Unexpected: #{inspect(other)}\n", [:append])
+              Logger.debug("[CREATE_PURCHASE] Inventory item unexpected: #{inspect(other)}")
           end
         rescue
           e ->
-            File.write!("purchase_debug.log", "  ✗ Exception: #{inspect(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}\n", [:append])
+            Logger.debug("[CREATE_PURCHASE] Inventory item exception: #{inspect(e)}")
         end
         
         upsert_brand_defaults(purchase)
-        Repo.preload(purchase, [:budget_entry, :stop, :tags], force: true)
+        final = Repo.preload(purchase, [:budget_entry, :stop, :tags], force: true)
+        Logger.debug("[CREATE_PURCHASE] DONE purchase.id=#{final.id} budget_entry_id=#{inspect(final.budget_entry_id)} stop_id=#{inspect(final.stop_id)} stop=#{inspect(final.stop && final.stop.trip_id)}")
+        final
       else
-        {:error, reason} -> Repo.rollback(reason)
-        error -> Repo.rollback(error)
+        {:error, reason} -> 
+          Logger.debug("[CREATE_PURCHASE] FAILED: #{inspect(reason)}")
+          Repo.rollback(reason)
+        error -> 
+          Logger.debug("[CREATE_PURCHASE] FAILED (other): #{inspect(error)}")
+          Repo.rollback(error)
       end
     end)
+    |> case do
+      {:ok, purchase} ->
+        # After transaction succeeds, ensure a task exists for the trip
+        # This is done outside the transaction to avoid complications
+        if purchase.stop && purchase.stop.trip_id do
+          Logger.debug("[CREATE_PURCHASE] Ensuring task for trip #{purchase.stop.trip_id}")
+          try do
+            MegaPlanner.Calendar.ensure_task_for_trip(
+              purchase.stop.trip_id,
+              purchase.household_id,
+              attrs["user_id"],
+              date: purchase.budget_entry && purchase.budget_entry.date
+            )
+          rescue
+            e ->
+              Logger.warning("[CREATE_PURCHASE] ensure_task_for_trip failed: #{inspect(e)}")
+          end
+        end
+        {:ok, purchase}
+      error ->
+        error
+    end
   end
 
   # Helper to get store name from a stop
@@ -922,23 +985,13 @@ defmodule MegaPlanner.Receipts do
     purchase = Repo.preload(purchase, :budget_entry)
     
     Repo.transaction(fn ->
-      # 1. Unlink from Budget Entry (to avoid FK constraint on budget_entries.purchase_id)
-      if purchase.budget_entry do
-        purchase.budget_entry
-        |> Ecto.Changeset.change(purchase_id: nil)
-        |> Repo.update!()
-      end
-
-      # 2. Unlink from Inventory Items (to avoid FK constraint on inventory_items.purchase_id)
+      # 1. Unlink from Inventory Items (to avoid FK constraint on inventory_items.purchase_id)
       from(i in MegaPlanner.Inventory.Item, where: i.purchase_id == ^purchase.id)
       |> Repo.update_all(set: [purchase_id: nil])
 
-      # 3. Delete the purchase
+      # 2. Delete the purchase. The DB has ON DELETE CASCADE on
+      # budget_entries.purchase_id, so the budget entry is automatically deleted.
       with {:ok, _purchase} <- Repo.delete(purchase) do
-        # 4. Delete the budget entry
-        if purchase.budget_entry do
-          Budget.delete_entry(purchase.budget_entry)
-        end
         :ok
       else
         error -> Repo.rollback(error)
@@ -1013,6 +1066,7 @@ defmodule MegaPlanner.Receipts do
         item: item.name,
         unit_measurement: item.unit_of_measure,
         count: item.count,
+        count_unit: item.count_unit,
         price_per_count: item.price_per_count,
         units: nil, # item doesn't strictly have units/price_per_unit separate the same way? actually it does
         price_per_unit: item.price_per_unit,
@@ -1106,6 +1160,9 @@ defmodule MegaPlanner.Receipts do
       attrs = %{
         "default_item" => purchase.item,
         "default_unit_measurement" => purchase.unit_measurement,
+        "default_count_unit" => purchase.count_unit,
+        "default_quantity_per_count" => purchase.units,
+        "default_unit_measurement_per_count" => purchase.unit_measurement,
         "default_tags" => tag_ids
       }
 

@@ -1,0 +1,11 @@
+USER_ID=7a72ea61-9578-4ae1-9a8e-75ffc5cd612f
+HOUSEHOLD_ID=78bbf206-8e9c-4424-8da8-66f85634899e
+STORE_ID=12923385-17fb-4c7f-ba9f-1ec288099844 (created: Walmart Supercenter)
+TRIP_ID=84e7f7a7-fc84-4747-a086-0a1f31309301 (2026-02-08 12:00:00Z)
+STOP_ID=67fba51a-c627-4274-87aa-1cafa4b17027
+BUDGET_SOURCE_ID="4184159f-964f-4e9d-b0fd-9e20f07494b6"
+PURCHASE_ID=0a92b16e-ae2b-4d01-a2a9-89a6a40d19eb (Great Value Whole Milk — $3.48)
+PURCHASE_ID=f0088437-1cb1-4c37-91d5-51ae9d1fbac6 (Lay's Classic Chips — $4.28)
+TASK_ID=1c538c9d-ab70-406f-b2df-81d7a207e205 ("Seed: Purchases from Walmart Supercenter" on 2026-02-08)
+
+=== SEED COMPLETE ===

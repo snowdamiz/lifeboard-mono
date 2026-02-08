@@ -1,5 +1,6 @@
 defmodule MegaPlannerWeb.PurchaseController do
   use MegaPlannerWeb, :controller
+  require Logger
 
   alias MegaPlanner.Receipts
   alias MegaPlanner.Receipts.Purchase
@@ -19,21 +20,21 @@ defmodule MegaPlannerWeb.PurchaseController do
   end
 
   def create(conn, %{"purchase" => purchase_params}) do
-    File.write("debug_output.txt", "\n[#{DateTime.utc_now()}] CREATE PURCHASE Params: #{inspect(purchase_params)}\n", [:append])
-    
     user = Guardian.Plug.current_resource(conn)
     purchase_params = purchase_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
+    Logger.debug("[PURCHASE_CTRL] CREATE params=#{inspect(Map.drop(purchase_params, ["user_id", "household_id"]))}")
+
     case Receipts.create_purchase(purchase_params) do
       {:ok, purchase} ->
-        File.write("debug_output.txt", "[#{DateTime.utc_now()}] SUCCESS: #{purchase.id}\n", [:append])
+        Logger.debug("[PURCHASE_CTRL] SUCCESS id=#{purchase.id} stop_id=#{inspect(purchase.stop_id)} budget_entry_id=#{inspect(purchase.budget_entry_id)}")
         conn
         |> put_status(:created)
         |> json(%{data: purchase_to_json(purchase)})
       {:error, reason} ->
-        File.write("debug_output.txt", "[#{DateTime.utc_now()}] ERROR: #{inspect(reason)}\n", [:append])
+        Logger.debug("[PURCHASE_CTRL] ERROR #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -157,6 +158,9 @@ defmodule MegaPlannerWeb.PurchaseController do
       name: brand.name,
       default_item: brand.default_item,
       default_unit_measurement: brand.default_unit_measurement,
+      default_count_unit: brand.default_count_unit,
+      default_quantity_per_count: brand.default_quantity_per_count,
+      default_unit_measurement_per_count: brand.default_unit_measurement_per_count,
       default_tags: brand.default_tags,
       image_url: brand.image_url
     }

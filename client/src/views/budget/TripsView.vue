@@ -45,9 +45,7 @@ const openEditPurchase = (purchase: Purchase) => {
 }
 
 const handleDeletePurchase = async (purchaseId: string) => {
-  if (confirm('Are you sure you want to delete this purchase?')) {
-    await receiptsStore.deletePurchase(purchaseId)
-  }
+  await receiptsStore.deletePurchase(purchaseId)
 }
 
 const handlePurchaseSaved = async () => {

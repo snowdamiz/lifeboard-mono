@@ -198,10 +198,41 @@ defmodule MegaPlanner.Inventory do
   defp update_item_tags(item, _), do: item
 
   @doc """
-  Deletes an item.
+  Deletes an item. If `cascade_purchase: true` is passed and the item is linked
+  to a purchase, also deletes the purchase (which cascade-deletes the associated
+  budget entry). Defaults to `false` to preserve purchase/budget records during
+  transfers.
   """
-  def delete_item(%Item{} = item) do
-    Repo.delete(item)
+  def delete_item(%Item{} = item, opts \\ []) do
+    cascade = Keyword.get(opts, :cascade_purchase, false)
+
+    if cascade && item.purchase_id do
+      Repo.transaction(fn ->
+        case Repo.get(MegaPlanner.Receipts.Purchase, item.purchase_id) do
+          nil -> :ok
+          purchase ->
+            # Unlink this item from the purchase first (avoid FK violation)
+            item
+            |> Ecto.Changeset.change(purchase_id: nil)
+            |> Repo.update!()
+
+            # Delete the purchase (cascades to budget entry via DB FK)
+            MegaPlanner.Receipts.delete_purchase(purchase)
+        end
+
+        # Re-fetch the item in case it was modified above
+        case Repo.get(Item, item.id) do
+          nil -> :ok  # Already cleaned up
+          fresh_item -> Repo.delete!(fresh_item)
+        end
+      end)
+      |> case do
+        {:ok, _} -> {:ok, item}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      Repo.delete(item)
+    end
   end
 
   # Shopping Lists
@@ -595,6 +626,7 @@ defmodule MegaPlanner.Inventory do
             quantity: quantity,
             unit_of_measure: purchase.unit_measurement,
             price_per_unit: purchase.price_per_unit,
+            price_per_count: purchase.price_per_count,
             total_price: purchase.total_price,
             purchase_id: purchase.id,
             trip_id: trip_id,
@@ -602,6 +634,7 @@ defmodule MegaPlanner.Inventory do
             purchase_date: purchase.inserted_at,
             sheet_id: sheet.id,
             count: purchase.count,
+            count_unit: purchase.count_unit,
             item_name: purchase.item_name,
             taxable: purchase.taxable,
             usage_mode: purchase.usage_mode || "count",
@@ -808,24 +841,32 @@ defmodule MegaPlanner.Inventory do
             "count_unit" => source.count_unit
           }
           
-          # For count mode, also set the count on the target
+          # Set count on the target for both modes
           target_attrs = if use_count_mode do
             Map.put(target_attrs, "count", amount)
           else
-            target_attrs
+            # Quantity mode: quantity is per-container, count tracks containers
+            Map.put(target_attrs, "count", Decimal.new(1))
           end
           
           {:ok, _} = create_item(target_attrs)
         item ->
           # Add to existing item
-          update_attrs = %{quantity: Decimal.add(item.quantity, transfer_qty)}
-          update_attrs = if use_count_mode do
+          if use_count_mode do
+            # Count mode: add both count and proportional quantity
             existing_count = item.count || Decimal.new(0)
-            Map.put(update_attrs, :count, Decimal.add(existing_count, amount))
+            update_attrs = %{
+              quantity: Decimal.add(item.quantity, transfer_qty),
+              count: Decimal.add(existing_count, amount)
+            }
+            {:ok, _} = update_item(item, update_attrs)
           else
-            update_attrs
+            # Quantity mode: quantity is per-container (stays the same),
+            # only increment count (number of containers)
+            existing_count = item.count || Decimal.new(0)
+            update_attrs = %{count: Decimal.add(existing_count, Decimal.new(1))}
+            {:ok, _} = update_item(item, update_attrs)
           end
-          {:ok, _} = update_item(item, update_attrs)
       end
       
       # Delete source if fully consumed

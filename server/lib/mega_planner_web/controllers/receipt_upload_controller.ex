@@ -112,7 +112,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   defp create_receipt_entities(params, user, household_id) do
     alias MegaPlanner.Repo
 
-    Repo.transaction(fn ->
+    result = Repo.transaction(fn ->
       # 1. Create or get store
       store = ensure_store(params["store"], household_id)
       
@@ -136,10 +136,30 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       %{
         store: serialize_store(store),
         stop_id: stop && stop.id,
+        trip_id: params["trip_id"],
         purchases: Enum.map(purchases, &serialize_purchase/1),
         created_count: length(purchases)
       }
     end)
+
+    # After transaction succeeds, ensure a calendar task exists for the trip
+    case result do
+      {:ok, data} when not is_nil(data.trip_id) ->
+        Logger.info("[RECEIPT_CONFIRM] Ensuring task for trip #{data.trip_id}")
+        task_result = MegaPlanner.Calendar.ensure_task_for_trip(
+          data.trip_id,
+          household_id,
+          user.id
+        )
+        task_data = case task_result do
+          {:ok, task} -> %{id: task.id, title: task.title, date: task.date}
+          _ -> nil
+        end
+        {:ok, Map.put(data, :task, task_data)}
+
+      other ->
+        other
+    end
   end
 
 
@@ -194,6 +214,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   end
 
   defp ensure_stop(trip_id, store, transaction, _household_id) do
+    require Logger
     # Parse time from transaction
     time_arrived = parse_time(transaction["time"]) || ~T[12:00:00]
     
@@ -215,7 +236,6 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
           task ->
             task_date = task.date
             if task_date != receipt_date do
-              require Logger
               Logger.info("Updating task date from #{task_date} to #{receipt_date} based on receipt")
               MegaPlanner.Calendar.update_task(task, %{"date" => Date.to_iso8601(receipt_date)})
             end
@@ -223,20 +243,31 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       end
     end
     
-    position = length(trip.stops || []) + 1
+    # Check if a stop already exists at this store on this trip (same-store stacking)
+    existing_stop = Enum.find(trip.stops || [], fn s -> s.store_id == store.id end)
+    if existing_stop do
+      Logger.debug("[ENSURE_STOP] Reusing existing stop #{existing_stop.id} for store #{store.name}")
+      existing_stop
+    else
+      position = length(trip.stops || []) + 1
 
-    attrs = %{
-      "trip_id" => trip_id,
-      "store_id" => store.id,
-      "store_name" => store.name,
-      "position" => position,
-      "time_arrived" => time_arrived,
-      "time_left" => time_arrived
-    }
+      attrs = %{
+        "trip_id" => trip_id,
+        "store_id" => store.id,
+        "store_name" => store.name,
+        "position" => position,
+        "time_arrived" => time_arrived,
+        "time_left" => time_arrived
+      }
 
-    case Receipts.create_stop(trip_id, attrs) do
-      {:ok, stop} -> stop
-      {:error, _} -> nil
+      case Receipts.create_stop(trip_id, attrs) do
+        {:ok, stop} -> 
+          Logger.debug("[ENSURE_STOP] Created new stop #{stop.id} for store #{store.name}")
+          stop
+        {:error, reason} -> 
+          Logger.warning("[ENSURE_STOP] Failed to create stop: #{inspect(reason)}")
+          nil
+      end
     end
   end
 

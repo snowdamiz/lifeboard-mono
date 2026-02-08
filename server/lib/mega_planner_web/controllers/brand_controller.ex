@@ -61,6 +61,7 @@ defmodule MegaPlannerWeb.BrandController do
       name: brand.name,
       default_item: brand.default_item,
       default_unit_measurement: brand.default_unit_measurement,
+      default_count_unit: brand.default_count_unit,
       default_tags: brand.default_tags,
       image_url: brand.image_url,
       inserted_at: brand.inserted_at,

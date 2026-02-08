@@ -98,9 +98,7 @@ const saveNotebook = async () => {
 }
 
 const deleteNotebook = async (id: string) => {
-  if (confirm('Are you sure you want to delete this notebook? All pages within it will be deleted.')) {
-    await notesStore.deleteNotebook(id)
-  }
+  await notesStore.deleteNotebook(id)
 }
 
 const toggleExpand = async (notebookId: string) => {
@@ -119,9 +117,7 @@ const createPage = async (notebookId: string) => {
 
 const deletePage = async (notebookId: string, pageId: string, event: Event) => {
   event.stopPropagation()
-  if (confirm('Delete this page?')) {
-    await notesStore.deletePage(pageId)
-  }
+  await notesStore.deletePage(pageId)
 }
 </script>
 

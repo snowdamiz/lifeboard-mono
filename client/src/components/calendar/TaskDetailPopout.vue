@@ -220,10 +220,12 @@ const save = async () => {
       : await calendarStore.createTask(taskPayload)
 
     if (form.value.task_type === 'trip' && createdTripId) {
+      // Transition directly to trip detail — do NOT emit 'saved' which would
+      // call closeEditPopout and reset inlinePopoutType back to null
       emit('manage-trip', createdTripId)
+    } else {
+      emit('saved', savedTask)
     }
-
-    emit('saved', savedTask)
   } catch (e) {
     console.error('Failed to save task:', e)
   } finally {

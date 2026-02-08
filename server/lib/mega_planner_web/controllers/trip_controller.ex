@@ -1,5 +1,6 @@
 defmodule MegaPlannerWeb.TripController do
   use MegaPlannerWeb, :controller
+  require Logger
 
   alias MegaPlanner.Receipts
   alias MegaPlanner.Receipts.Trip
@@ -8,22 +9,26 @@ defmodule MegaPlannerWeb.TripController do
 
   def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
+    Logger.debug("[TRIP_CTRL] INDEX params=#{inspect(params)}")
     
     opts = []
     |> maybe_add_datetime(:start_date, params["start_date"])
     |> maybe_add_datetime(:end_date, params["end_date"])
 
     trips = Receipts.list_trips(user.household_id, opts)
+    Logger.debug("[TRIP_CTRL] INDEX returning #{length(trips)} trips")
     json(conn, %{data: Enum.map(trips, &trip_to_json/1)})
   end
 
   def create(conn, %{"trip" => trip_params}) do
     user = Guardian.Plug.current_resource(conn)
+    Logger.debug("[TRIP_CTRL] CREATE params=#{inspect(trip_params)}")
     trip_params = trip_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
     with {:ok, %Trip{} = trip} <- Receipts.create_trip(trip_params) do
+      Logger.debug("[TRIP_CTRL] CREATE SUCCESS id=#{trip.id} trip_start=#{inspect(trip.trip_start)}")
       conn
       |> put_status(:created)
       |> json(%{data: trip_to_json(trip)})

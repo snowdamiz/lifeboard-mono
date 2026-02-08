@@ -74,7 +74,9 @@ const groupedItems = computed<GroupedInventoryItem[]>(() => {
         // For count-mode items, sum count (not quantity — quantity is per-container)
         group.count = String((Number(group.count) || 0) + (Number(item.count) || 0)) as any
       } else {
-        group.quantity = Number(group.quantity) + Number(item.quantity)
+        // For quantity-mode items, quantity is per-container (stays the same),
+        // sum count (number of containers) instead
+        group.count = String((Number(group.count) || 0) + (Number(item.count) || 0)) as any
       }
       group.original_ids.push(item.id)
     } else {
@@ -220,17 +222,11 @@ const handleDeleteTrip = async (tripId: string) => {
 }
 
 const updateQuantity = async (item: GroupedInventoryItem, delta: number) => {
-  // Determine which field to update based on usage_mode
-  const isCountMode = item.usage_mode === 'count' || !item.usage_mode
-  
-  if (isCountMode) {
-    const currentCount = Number(item.count) || 0
-    const newCount = Math.max(0, currentCount + delta)
-    await inventoryStore.updateItem(item.id, { count: String(newCount) })
-  } else {
-    const newQuantity = Math.max(0, Number(item.quantity) + delta)
-    await inventoryStore.updateItem(item.id, { quantity: newQuantity })
-  }
+  // Both modes: adjust count (number of containers)
+  // Quantity is per-container and stays constant
+  const currentCount = Number(item.count) || 0
+  const newCount = Math.max(0, currentCount + delta)
+  await inventoryStore.updateItem(item.id, { count: String(newCount) })
 
   // Delete valid redundant items (so we don't have ghosts)
   // We only delete items that are NOT the current representative
@@ -306,7 +302,7 @@ const onItemSaved = () => {
       <div class="flex-1 min-w-0">
         <h1 class="text-lg sm:text-2xl font-semibold tracking-tight truncate">{{ inventoryStore.currentSheet?.name || 'Loading...' }}</h1>
         <p class="text-muted-foreground text-xs sm:text-sm mt-0.5">
-          {{ inventoryStore.currentSheet?.items?.length || 0 }} items
+          {{ isPurchasesSheet ? tripReceipts.reduce((sum, r) => sum + r.items.length, 0) : (inventoryStore.currentSheet?.items?.length || 0) }} items
           <span v-if="lowItems.length > 0" class="text-destructive ml-2">
             · {{ lowItems.length }} low
           </span>
@@ -459,15 +455,15 @@ const onItemSaved = () => {
         <!-- Right value: Min quantity info -->
         <template #right-value>
           <div class="flex items-center gap-2">
-            <!-- Total Qty for count-mode items: count × quantity -->
+            <!-- Total Qty: count × quantity (per-container) -->
             <span 
-              v-if="(item.usage_mode === 'count' || !item.usage_mode) && Number(item.count) > 0 && Number(item.quantity) > 0"
+              v-if="Number(item.count) > 0 && Number(item.quantity) > 0"
               class="text-xs text-muted-foreground whitespace-nowrap font-mono"
             >
               Total: {{ (Number(item.count) * Number(item.quantity)).toFixed(Number.isInteger(Number(item.count) * Number(item.quantity)) ? 0 : 2) }}{{ item.unit_of_measure ? ` ${item.unit_of_measure}` : '' }}
             </span>
             <div class="text-sm text-muted-foreground whitespace-nowrap">
-              Min: {{ item.min_quantity }}{{ (item.usage_mode === 'count' || !item.usage_mode) ? (item.count_unit ? ` ${item.count_unit}` : '') : (item.unit_of_measure ? ` ${item.unit_of_measure}` : '') }}
+              Min: {{ item.min_quantity }}{{ item.count_unit ? ` ${item.count_unit}` : '' }}
             </div>
           </div>
         </template>
@@ -475,7 +471,7 @@ const onItemSaved = () => {
         <!-- Extension: Count/Quantity controls (inventory-specific, based on usage_mode) -->
         <template #extension>
           <div class="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
-            <span class="text-xs text-muted-foreground">{{ (item.usage_mode === 'count' || !item.usage_mode) ? 'Count' : 'Quantity' }}</span>
+            <span class="text-xs text-muted-foreground">Count</span>
             <div class="flex items-center gap-2">
               <Button 
                 variant="outline" 
@@ -489,7 +485,7 @@ const onItemSaved = () => {
                 'w-10 text-center font-mono text-lg font-semibold',
                 item.quantity < item.min_quantity && 'text-destructive'
               ]">
-                {{ (item.usage_mode === 'count' || !item.usage_mode) ? (Number(item.count) || 0) : item.quantity }}
+                {{ Number(item.count) || 0 }}
               </span>
               <Button 
                 variant="outline" 

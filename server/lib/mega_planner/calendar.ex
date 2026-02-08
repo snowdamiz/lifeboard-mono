@@ -4,6 +4,7 @@ defmodule MegaPlanner.Calendar do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias MegaPlanner.Repo
   alias MegaPlanner.Calendar.{Task, TaskStep, TaskTemplate}
   alias MegaPlanner.Tags.Tag
@@ -16,16 +17,21 @@ defmodule MegaPlanner.Calendar do
   Returns the list of tasks for a household within a date range.
   """
   def list_tasks(household_id, opts \\ []) do
+    Logger.debug("[LIST_TASKS] household=#{household_id} opts=#{inspect(opts)}")
     query = from t in Task,
       where: t.household_id == ^household_id,
       order_by: [asc: t.date, asc: t.start_time, asc: t.priority]
 
-    query
+    results = query
     |> filter_by_date_range(opts)
     |> filter_by_status(opts)
     |> filter_by_tags(opts)
     |> Repo.all()
     |> Repo.preload(@task_preloads)
+
+    trip_tasks = Enum.filter(results, & &1.trip_id)
+    Logger.debug("[LIST_TASKS] Found #{length(results)} tasks, #{length(trip_tasks)} with trip_id: #{inspect(Enum.map(trip_tasks, fn t -> %{id: t.id, title: t.title, date: t.date, trip_id: t.trip_id} end))}")
+    results
   end
 
   defp filter_by_date_range(query, opts) do
@@ -82,6 +88,97 @@ defmodule MegaPlanner.Calendar do
     Task
     |> Repo.get_by(trip_id: trip_id)
     |> Repo.preload(@task_preloads)
+  end
+
+  @doc """
+  Ensures a task exists for a given trip. If one already exists, updates its title
+  to reflect the current stops/stores. If none exists, creates a new task.
+
+  This is called after purchases are added to a trip (from manual entry or receipt scanning)
+  to ensure the trip always has a corresponding calendar task.
+  """
+  def ensure_task_for_trip(trip_id, household_id, user_id, opts \\ []) do
+    # Get the trip with stores preloaded to generate the title
+    trip = MegaPlanner.Receipts.get_trip(trip_id)
+
+    unless trip do
+      Logger.warning("[ENSURE_TASK] Trip #{trip_id} not found")
+      {:error, :trip_not_found}
+    else
+      title = generate_trip_task_title(trip)
+      date = if trip.trip_start, do: DateTime.to_date(trip.trip_start), else: Keyword.get(opts, :date, Date.utc_today())
+
+      case get_task_by_trip_id(trip_id) do
+        nil ->
+          # No task exists for this trip — create one
+          Logger.debug("[ENSURE_TASK] Creating task for trip #{trip_id}: \"#{title}\" on #{date}")
+          task_attrs = %{
+            "title" => title,
+            "date" => date && Date.to_iso8601(date),
+            "task_type" => "trip",
+            "status" => "not_started",
+            "household_id" => household_id,
+            "user_id" => user_id,
+            "trip_id" => trip_id
+          }
+          case create_task(task_attrs) do
+            {:ok, task} -> {:ok, task}
+            {:error, %Ecto.Changeset{} = changeset} ->
+              # If uniqueness violation (same title+date already exists), try with a suffix
+              if Keyword.has_key?(changeset.errors, :title) do
+                Logger.debug("[ENSURE_TASK] Title conflict, trying with time suffix")
+                time_suffix = if trip.trip_start, do: Calendar.strftime(trip.trip_start, " (%H:%M)"), else: " (#{:rand.uniform(999)})"
+                create_task(Map.put(task_attrs, "title", title <> time_suffix))
+              else
+                {:error, changeset}
+              end
+            error -> error
+          end
+
+        existing_task ->
+          # Task already exists — update the title if it changed
+          if existing_task.title != title do
+            Logger.debug("[ENSURE_TASK] Updating task #{existing_task.id} title: \"#{existing_task.title}\" -> \"#{title}\"")
+            update_task(existing_task, %{"title" => title})
+          else
+            Logger.debug("[ENSURE_TASK] Task #{existing_task.id} already up to date")
+            {:ok, existing_task}
+          end
+      end
+    end
+  end
+
+  @doc """
+  Generates a human-readable task title for a trip based on its stops and stores.
+
+  Examples:
+  - No stops/stores: "Shopping Trip"
+  - 1 store, 1 purchase: "Purchase from Walmart"
+  - 1 store, multiple purchases: "Purchases from Walmart"
+  - Multiple stores: "Purchases from Walmart, Target"
+  """
+  def generate_trip_task_title(trip) do
+    stores = (trip.stops || [])
+      |> Enum.map(fn stop ->
+        cond do
+          stop.store_name && stop.store_name != "" -> stop.store_name
+          match?(%{name: name} when is_binary(name), stop.store) -> stop.store.name
+          true -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    total_purchases = Enum.sum(Enum.map(trip.stops || [], fn s ->
+      length(s.purchases || [])
+    end))
+
+    case {stores, total_purchases} do
+      {[], _} -> "Shopping Trip"
+      {[store], n} when n <= 1 -> "Purchase from #{store}"
+      {[store], _} -> "Purchases from #{store}"
+      {stores, _} -> "Purchases from #{Enum.join(stores, ", ")}"
+    end
   end
 
   @doc """

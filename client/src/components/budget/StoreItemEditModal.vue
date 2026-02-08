@@ -128,7 +128,6 @@ const searchBrands = async (query: string) => {
 const selectBrand = async (brand: Brand) => {
     brandSearch.value = brand.name
     form.value.brand = brand.name // Ensure form is updated
-    form.value.brand = brand.name // Ensure form is updated
     
     // Auto-population (Store is fixed as props.store)
     if (props.store) {
@@ -145,12 +144,20 @@ const selectBrand = async (brand: Brand) => {
                   form.value.unit = latest.unit_measurement
                   unitSearch.value = latest.unit_measurement
               }
+              if (!form.value.count_unit && latest.count_unit) {
+                  form.value.count_unit = latest.count_unit
+              }
               if (!form.value.store_code && latest.store_code) form.value.store_code = latest.store_code
               if (!form.value.item_name && latest.item_name) form.value.item_name = latest.item_name
           }
         } catch (e) {
             console.error("Failed to get suggestions", e)
         }
+    }
+
+    // Apply brand defaults
+    if (brand.default_count_unit && !form.value.count_unit) {
+        form.value.count_unit = brand.default_count_unit
     }
 }
 

@@ -104,6 +104,9 @@ const selectBrand = async (brand: Brand) => {
   if (brand.default_unit_measurement && !props.item.unit) {
     emit('update', props.index, { unit: brand.default_unit_measurement })
   }
+  if (brand.default_count_unit && !props.item.count_unit) {
+    emit('update', props.index, { count_unit: brand.default_count_unit })
+  }
 }
 
 onMounted(async () => {

@@ -286,6 +286,20 @@ const selectBrand = async (brand: Brand) => {
     unitSet = true
   }
   
+  if (brand.default_count_unit) {
+    form.value.count_unit = brand.default_count_unit
+  }
+  
+  // Apply quantity per count defaults (the per-container amount, e.g., "16 Tea bags")
+  if (brand.default_quantity_per_count) {
+    form.value.units = brand.default_quantity_per_count
+  }
+  
+  if (brand.default_unit_measurement_per_count) {
+    form.value.unit_measurement = brand.default_unit_measurement_per_count
+    unitSet = true
+  }
+  
   if (brand.default_tags && brand.default_tags.length > 0) {
     brand.default_tags.forEach(tagId => {
       const tag = tagsStore.tags.find(t => t.id === tagId)
@@ -359,6 +373,15 @@ const selectBrand = async (brand: Brand) => {
        if (countUnit && typeof countUnit === 'string') {
            console.log('Found count_unit in history:', countUnit)
            form.value.count_unit = countUnit
+       }
+
+       // Apply units (quantity per count) from history if not already set by brand defaults
+       if (!form.value.units) {
+           const units = findVal('units')
+           if (units) {
+               console.log('Found units (quantity per count) in history:', units)
+               form.value.units = String(units)
+           }
        }
 
        // For tax, take from most recent relevant purchase

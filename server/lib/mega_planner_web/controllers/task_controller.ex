@@ -1,5 +1,6 @@
 defmodule MegaPlannerWeb.TaskController do
   use MegaPlannerWeb, :controller
+  require Logger
 
   alias MegaPlanner.Calendar
   alias MegaPlanner.Calendar.Task
@@ -8,6 +9,7 @@ defmodule MegaPlannerWeb.TaskController do
 
   def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
+    Logger.debug("[TASK_CTRL] INDEX params=#{inspect(params)}")
 
     opts = []
     |> maybe_add_date(:start_date, params["start_date"])
@@ -16,19 +18,28 @@ defmodule MegaPlannerWeb.TaskController do
     |> maybe_add_tag_ids(params["tag_ids"])
 
     tasks = Calendar.list_tasks(user.household_id, opts)
+    trip_tasks = Enum.filter(tasks, & &1.trip_id)
+    Logger.debug("[TASK_CTRL] INDEX returning #{length(tasks)} tasks, #{length(trip_tasks)} with trip_id")
     json(conn, %{data: Enum.map(tasks, &task_to_json/1)})
   end
 
   def create(conn, %{"task" => task_params}) do
     user = Guardian.Plug.current_resource(conn)
+    Logger.debug("[TASK_CTRL] CREATE raw params=#{inspect(task_params)}")
     task_params = task_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
-    with {:ok, %Task{} = task} <- Calendar.create_task(task_params) do
-      conn
-      |> put_status(:created)
-      |> json(%{data: task_to_json(task)})
+    Logger.debug("[TASK_CTRL] CREATE full params=#{inspect(task_params)}")
+    case Calendar.create_task(task_params) do
+      {:ok, %Task{} = task} ->
+        Logger.debug("[TASK_CTRL] CREATE success id=#{task.id}")
+        conn
+        |> put_status(:created)
+        |> json(%{data: task_to_json(task)})
+      {:error, changeset} ->
+        Logger.error("[TASK_CTRL] CREATE FAILED changeset=#{inspect(changeset)}")
+        {:error, changeset}
     end
   end
 

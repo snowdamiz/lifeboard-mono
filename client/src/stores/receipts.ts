@@ -96,12 +96,15 @@ export const useReceiptsStore = defineStore('receipts', () => {
     }
 
     async function createTrip(trip: Partial<Trip>) {
+        console.log('[DEBUG] createTrip sending:', JSON.stringify(trip, null, 2))
         const response = await api.createTrip(trip)
+        console.log('[DEBUG] createTrip response:', JSON.stringify(response.data, null, 2))
         trips.value.unshift(response.data)
         // Sync to calendar store
         const { useCalendarStore } = await import('./calendar')
         const calendarStore = useCalendarStore()
         calendarStore.addTrip(response.data)
+        console.log('[DEBUG] createTrip synced to calendar store, total trips:', calendarStore.trips.length)
         return response.data
     }
 
@@ -131,6 +134,14 @@ export const useReceiptsStore = defineStore('receipts', () => {
         const { useCalendarStore } = await import('./calendar')
         const calendarStore = useCalendarStore()
         calendarStore.removeTrip(id)
+
+        // Refresh budget store entries and summary
+        const { useBudgetStore } = await import('./budget')
+        const budgetStore = useBudgetStore()
+        await Promise.all([
+            budgetStore.fetchCurrentViewEntries(),
+            budgetStore.fetchSummary()
+        ])
 
         // Refresh inventory store so Purchases sheet item count stays in sync
         const { useInventoryStore } = await import('./inventory')
@@ -193,6 +204,23 @@ export const useReceiptsStore = defineStore('receipts', () => {
         for (const trip of trips.value) {
             trip.stops = trip.stops.filter(s => s.id !== id)
         }
+
+        // Remove from calendar store trips
+        const { useCalendarStore } = await import('./calendar')
+        const calendarStore = useCalendarStore()
+        for (const trip of calendarStore.trips) {
+            if (trip.stops) {
+                trip.stops = trip.stops.filter(s => s.id !== id)
+            }
+        }
+
+        // Refresh budget store entries and summary
+        const { useBudgetStore } = await import('./budget')
+        const budgetStore = useBudgetStore()
+        await Promise.all([
+            budgetStore.fetchCurrentViewEntries(),
+            budgetStore.fetchSummary()
+        ])
 
         // Refresh inventory store so Purchases sheet item count stays in sync
         const { useInventoryStore } = await import('./inventory')
@@ -268,7 +296,15 @@ export const useReceiptsStore = defineStore('receipts', () => {
     }
 
     async function createPurchase(purchase: Partial<Purchase> & { date?: string }) {
+        console.log('[DEBUG] createPurchase sending:', JSON.stringify(purchase, null, 2))
         const response = await api.createPurchase(purchase)
+        console.log('[DEBUG] createPurchase response:', JSON.stringify({
+            id: response.data.id,
+            brand: response.data.brand,
+            item: response.data.item,
+            stop_id: response.data.stop_id,
+            budget_entry_id: response.data.budget_entry_id
+        }, null, 2))
         purchases.value.unshift(response.data)
 
         // Update stop if it exists in current trip
@@ -276,7 +312,19 @@ export const useReceiptsStore = defineStore('receipts', () => {
             const stop = currentTrip.value.stops.find(s => s.id === purchase.stop_id)
             if (stop && stop.purchases) {
                 stop.purchases.push(response.data)
+                console.log('[DEBUG] createPurchase added to currentTrip stop, stop now has', stop.purchases.length, 'purchases')
             }
+        }
+
+        // Sync the updated trip data to calendar store so calendar view reflects the new purchase
+        // The backend auto-creates/updates a calendar task for the trip via ensure_task_for_trip
+        if (currentTrip.value) {
+            const { useCalendarStore } = await import('./calendar')
+            const calendarStore = useCalendarStore()
+            calendarStore.upsertTrip(currentTrip.value)
+            // Also refetch tasks — backend may have auto-created a new task for this trip
+            await calendarStore.fetchCurrentViewTasks()
+            console.log('[DEBUG] createPurchase synced currentTrip + refetched calendar tasks')
         }
 
         // Check if brand is new and refresh brands list if so
@@ -327,6 +375,28 @@ export const useReceiptsStore = defineStore('receipts', () => {
                 }
             }
         }
+
+        // Remove from receipts store trips list (embedded stop.purchases)
+        for (const trip of trips.value) {
+            for (const stop of trip.stops) {
+                if (stop.purchases) {
+                    stop.purchases = stop.purchases.filter(p => p.id !== id)
+                }
+            }
+        }
+
+        // Remove from calendar store trips so budget calendar / calendar views update
+        const { useCalendarStore } = await import('./calendar')
+        const calendarStore = useCalendarStore()
+        calendarStore.removePurchaseFromTrips(id)
+
+        // Refresh budget store entries and summary so budget views update
+        const { useBudgetStore } = await import('./budget')
+        const budgetStore = useBudgetStore()
+        await Promise.all([
+            budgetStore.fetchCurrentViewEntries(),
+            budgetStore.fetchSummary()
+        ])
 
         // Refresh inventory store so Purchases sheet item count stays in sync
         const { useInventoryStore } = await import('./inventory')
@@ -395,6 +465,16 @@ export const useReceiptsStore = defineStore('receipts', () => {
         // Refresh current trip if it was affected
         if (tripId && currentTrip.value?.id === tripId) {
             await fetchTrip(tripId)
+        }
+
+        // Sync calendar tasks so the auto-created task appears on the calendar
+        try {
+            const { useCalendarStore } = await import('./calendar')
+            const calendarStore = useCalendarStore()
+            await calendarStore.fetchCurrentViewTasks()
+            console.log('[DEBUG] confirmReceiptScan: synced calendar tasks')
+        } catch (e) {
+            console.warn('[DEBUG] confirmReceiptScan: failed to sync calendar', e)
         }
 
         return response.data

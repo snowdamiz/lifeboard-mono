@@ -40,7 +40,7 @@ defmodule MegaPlannerWeb.InventoryItemController do
 
   def delete(conn, %{"id" => id}) do
     with item when not is_nil(item) <- Inventory.get_item(id),
-         {:ok, %Item{}} <- Inventory.delete_item(item) do
+         {:ok, %Item{}} <- Inventory.delete_item(item, cascade_purchase: true) do
       send_resp(conn, :no_content, "")
     else
       nil -> {:error, :not_found}

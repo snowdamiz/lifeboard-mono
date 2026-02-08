@@ -9,6 +9,9 @@ defmodule MegaPlanner.Receipts.Brand do
     field :name, :string
     field :default_item, :string
     field :default_unit_measurement, :string
+    field :default_count_unit, :string
+    field :default_quantity_per_count, :decimal
+    field :default_unit_measurement_per_count, :string
     field :default_tags, {:array, :binary_id}
     field :image_url, :string
 
@@ -20,7 +23,7 @@ defmodule MegaPlanner.Receipts.Brand do
   @doc false
   def changeset(brand, attrs) do
     brand
-    |> cast(attrs, [:name, :default_item, :default_unit_measurement, :default_tags, :image_url, :household_id])
+    |> cast(attrs, [:name, :default_item, :default_unit_measurement, :default_count_unit, :default_quantity_per_count, :default_unit_measurement_per_count, :default_tags, :image_url, :household_id])
     |> validate_required([:name, :household_id])
     |> unique_constraint([:household_id, :name])
     |> foreign_key_constraint(:household_id)

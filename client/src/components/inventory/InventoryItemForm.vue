@@ -244,6 +244,9 @@ const selectBrand = async (brand: Brand) => {
           form.value.unit_of_measure = brand.default_unit_measurement
           unitSearch.value = brand.default_unit_measurement
       }
+      if (brand.default_count_unit && !form.value.count_unit) {
+          form.value.count_unit = brand.default_count_unit
+      }
       if (brand.default_tags && brand.default_tags.length > 0) {
           brand.default_tags.forEach(tagId => {
               const tag = tagsStore.tags.find(t => t.id === tagId)

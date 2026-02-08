@@ -97,7 +97,10 @@ export const useCalendarStore = defineStore('calendar', () => {
       if (endDate) params.end_date = format(endDate, 'yyyy-MM-dd')
       if (filterTags.value.length > 0) params.tag_ids = filterTags.value.join(',')
 
+      console.log('[DEBUG] fetchTasks params:', params)
       const response = await api.listTasks(params)
+      const tripTasks = response.data.filter((t: any) => t.trip_id)
+      console.log('[DEBUG] fetchTasks got', response.data.length, 'tasks,', tripTasks.length, 'with trip_id:', tripTasks.map((t: any) => ({ id: t.id, title: t.title, date: t.date, trip_id: t.trip_id })))
       tasks.value = response.data
     } finally {
       loading.value = false
@@ -155,9 +158,16 @@ export const useCalendarStore = defineStore('calendar', () => {
   }
 
   async function createTask(task: Partial<Task> & { tag_ids?: string[] }) {
-    const response = await api.createTask(task)
-    tasks.value.push(response.data)
-    return response.data
+    console.log('[DEBUG] calendarStore.createTask sending:', JSON.stringify(task, null, 2))
+    try {
+      const response = await api.createTask(task)
+      console.log('[DEBUG] calendarStore.createTask response:', JSON.stringify(response.data, null, 2))
+      tasks.value.push(response.data)
+      return response.data
+    } catch (error) {
+      console.error('[DEBUG] calendarStore.createTask FAILED:', error)
+      throw error
+    }
   }
 
   async function updateTask(id: string, updates: Partial<Task> & { tag_ids?: string[] }) {
@@ -288,6 +298,18 @@ export const useCalendarStore = defineStore('calendar', () => {
     }
   }
 
+  function removePurchaseFromTrips(purchaseId: string) {
+    for (const trip of trips.value) {
+      if (trip.stops) {
+        for (const stop of trip.stops) {
+          if (stop.purchases) {
+            stop.purchases = stop.purchases.filter(p => p.id !== purchaseId)
+          }
+        }
+      }
+    }
+  }
+
   return {
     tasks,
     trips,
@@ -324,7 +346,8 @@ export const useCalendarStore = defineStore('calendar', () => {
     filterTags,
     removeTrip,
     addTrip,
-    upsertTrip
+    upsertTrip,
+    removePurchaseFromTrips
   }
 })
 
