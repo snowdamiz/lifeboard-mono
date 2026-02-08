@@ -137,7 +137,7 @@ const removeItem = (index: number) => {
 
 const addItem = () => {
   if (!scanResult.value) return
-  scanResult.value.items.push({
+  const newItem: ReceiptScanItem = {
     raw_text: null,
     brand: '',
     item: '',
@@ -152,7 +152,8 @@ const addItem = () => {
     tax_amount: null,
     tax_rate: null,
     store_code: null
-  })
+  }
+  scanResult.value.items.push(newItem)
 }
 
 // Computed

@@ -61,6 +61,19 @@ defmodule MegaPlannerWeb.InventoryItemController do
       tags: Enum.map(item.tags || [], &tag_to_json/1),
       custom_fields: item.custom_fields,
       sheet_id: item.sheet_id,
+      count: item.count,
+      count_unit: item.count_unit,
+      price_per_count: item.price_per_count,
+      price_per_unit: item.price_per_unit,
+      taxable: item.taxable,
+      total_price: item.total_price,
+      store_code: item.store_code,
+      item_name: item.item_name,
+      purchase_date: item.purchase_date,
+      trip_id: item.trip_id,
+      stop_id: item.stop_id,
+      purchase_id: item.purchase_id,
+      usage_mode: item.usage_mode,
       inserted_at: item.inserted_at,
       updated_at: item.updated_at
     }
@@ -99,10 +112,11 @@ defmodule MegaPlannerWeb.InventoryItemController do
 
   # Transfer item between sheets
 
-  def transfer(conn, %{"source_id" => source_id, "target_sheet_id" => target_sheet_id, "quantity" => quantity}) do
+  def transfer(conn, %{"source_id" => source_id, "target_sheet_id" => target_sheet_id, "quantity" => quantity} = params) do
     quantity = if is_binary(quantity), do: Decimal.new(quantity), else: Decimal.new(quantity)
+    usage_mode = Map.get(params, "usage_mode", "count")
     
-    case Inventory.transfer_item(source_id, target_sheet_id, quantity) do
+    case Inventory.transfer_item(source_id, target_sheet_id, quantity, usage_mode) do
       {:ok, :ok} -> json(conn, %{success: true})
       {:error, :insufficient_quantity} -> 
         conn |> put_status(400) |> json(%{error: "Insufficient quantity"})

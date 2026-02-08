@@ -148,14 +148,17 @@ defmodule MegaPlannerWeb.ShoppingListController do
   end
 
   defp list_to_json(list) do
+    items = list.items || []
     %{
       id: list.id,
       name: list.name,
       is_auto_generated: list.is_auto_generated,
       notes: list.notes,
-      items: Enum.map(list.items || [], &item_to_json/1),
-      item_count: length(list.items || []),
-      unpurchased_count: Enum.count(list.items || [], &(!&1.purchased)),
+      status: list.status || "active",
+      items: Enum.map(items, &item_to_json/1),
+      item_count: length(items),
+      unpurchased_count: Enum.count(items, &(!&1.purchased)),
+      completed_count: Enum.count(items, fn i -> i.completed_at != nil and !i.purchased end),
       tags: Enum.map(list.tags || [], fn t -> %{id: t.id, name: t.name, color: t.color} end),
       inserted_at: list.inserted_at,
       updated_at: list.updated_at
@@ -168,6 +171,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
       name: item.name,
       quantity_needed: item.quantity_needed,
       purchased: item.purchased,
+      completed_at: item.completed_at,
       shopping_list_id: item.shopping_list_id,
       inserted_at: item.inserted_at
     }

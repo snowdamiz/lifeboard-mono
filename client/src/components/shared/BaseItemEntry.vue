@@ -29,6 +29,8 @@ interface Props {
   // Pricing
   price?: string | number | null
   total?: string | number | null
+  pricePerCount?: string | number | null
+  pricePerUnit?: string | number | null
   
   // Store info
   storeCode?: string | null
@@ -51,18 +53,21 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const formatCurrency = (amount: string | number | null | undefined) => {
-  if (amount === null || amount === undefined) return '$0.00'
+  if (amount === null || amount === undefined) return null
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount
+  if (isNaN(num)) return null
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD'
-  }).format(typeof amount === 'string' ? parseFloat(amount) : amount)
+  }).format(num)
 }
 
-const formattedPrice = computed(() => formatCurrency(props.price))
 const formattedTotal = computed(() => formatCurrency(props.total))
+const formattedPricePerCount = computed(() => formatCurrency(props.pricePerCount))
+const formattedPricePerUnit = computed(() => formatCurrency(props.pricePerUnit))
 
 // Use new formatItemCell to get unified display string
-// Format: "Quantity QuantityUnit of Brand Item of Count CountMeasurement"
+// Format: "Count Brand Item CountUnit of Quantity QuantityUnit"
 const formattedItemCell = computed(() => {
   return formatItemCell(
     props.count,
@@ -127,13 +132,17 @@ const cardClass = computed(() => {
               </Badge>
             </template>
             <slot name="right-value" />
+            <!-- Total price displayed on the right -->
+            <span v-if="formattedTotal" class="text-sm font-semibold text-emerald-400 flex-shrink-0 ml-auto">{{ formattedTotal }}</span>
           </div>
 
           <!-- Line 2: Details (Store, Code, Tax) - compact inline -->
-          <div v-if="hasStore || hasStoreCode || taxable || hasTags" class="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+          <div v-if="hasStore || hasStoreCode || taxable || hasTags || formattedPricePerCount || formattedPricePerUnit" class="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
             <span v-if="hasStore" class="truncate">{{ store }}</span>
             <span v-if="hasStoreCode" class="font-mono">{{ storeCode }}</span>
             <span v-if="taxable" class="text-amber-600">Tax</span>
+            <span v-if="formattedPricePerCount" class="font-mono text-[10px]">{{ formattedPricePerCount }}/count</span>
+            <span v-if="formattedPricePerUnit" class="font-mono text-[10px]">{{ formattedPricePerUnit }}/qty</span>
             <template v-if="hasTags">
               <Badge
                 v-for="tag in tags"

@@ -140,11 +140,13 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       brand: purchase.brand,
       item: purchase.item,
       count: purchase.count,
+      count_unit: purchase.count_unit,
       price_per_count: purchase.price_per_count,
       units: purchase.units,
       price_per_unit: purchase.price_per_unit,
       total_price: purchase.total_price,
-      item_name: purchase.item_name
+      item_name: purchase.item_name,
+      usage_mode: purchase.usage_mode
     }
   end
 

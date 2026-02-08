@@ -131,6 +131,13 @@ export const useReceiptsStore = defineStore('receipts', () => {
         const { useCalendarStore } = await import('./calendar')
         const calendarStore = useCalendarStore()
         calendarStore.removeTrip(id)
+
+        // Refresh inventory store so Purchases sheet item count stays in sync
+        const { useInventoryStore } = await import('./inventory')
+        const inventoryStore = useInventoryStore()
+        if (inventoryStore.currentSheet) {
+            inventoryStore.fetchSheet(inventoryStore.currentSheet.id)
+        }
     }
 
     // Stops
@@ -185,6 +192,13 @@ export const useReceiptsStore = defineStore('receipts', () => {
         // Remove from trips list
         for (const trip of trips.value) {
             trip.stops = trip.stops.filter(s => s.id !== id)
+        }
+
+        // Refresh inventory store so Purchases sheet item count stays in sync
+        const { useInventoryStore } = await import('./inventory')
+        const inventoryStore = useInventoryStore()
+        if (inventoryStore.currentSheet) {
+            inventoryStore.fetchSheet(inventoryStore.currentSheet.id)
         }
     }
 
@@ -312,6 +326,13 @@ export const useReceiptsStore = defineStore('receipts', () => {
                     stop.purchases = stop.purchases.filter(p => p.id !== id)
                 }
             }
+        }
+
+        // Refresh inventory store so Purchases sheet item count stays in sync
+        const { useInventoryStore } = await import('./inventory')
+        const inventoryStore = useInventoryStore()
+        if (inventoryStore.currentSheet) {
+            inventoryStore.fetchSheet(inventoryStore.currentSheet.id)
         }
     }
 

@@ -313,6 +313,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
         "taxable" => item["taxable"] || false,
         "store_code" => item["store_code"],
         "item_name" => item["raw_text"],
+        "usage_mode" => item["usage_mode"] || "count",
         "stop_id" => stop && stop.id,
         "budget_entry_id" => budget_entry.id,
         "household_id" => household_id

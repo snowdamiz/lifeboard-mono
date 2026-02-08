@@ -94,6 +94,7 @@ defmodule MegaPlannerWeb.InventorySheetController do
       custom_fields: item.custom_fields,
       # Purchase/Trip/Store data for full data parity
       count: item.count,
+      count_unit: item.count_unit,
       price_per_count: item.price_per_count,
       price_per_unit: item.price_per_unit,
       taxable: item.taxable,
@@ -103,7 +104,8 @@ defmodule MegaPlannerWeb.InventorySheetController do
       purchase_date: item.purchase_date,
       trip_id: item.trip_id,
       stop_id: item.stop_id,
-      purchase_id: item.purchase_id
+      purchase_id: item.purchase_id,
+      usage_mode: item.usage_mode
     }
   end
 

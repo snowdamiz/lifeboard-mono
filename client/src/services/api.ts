@@ -299,10 +299,10 @@ class ApiClient {
     return this.request(`/inventory/items/find-matching?${params}`)
   }
 
-  async transferItem(sourceId: string, targetSheetId: string, quantity: number): Promise<{ success: boolean } | { error: string }> {
+  async transferItem(sourceId: string, targetSheetId: string, quantity: number, usageMode: string = 'count'): Promise<{ success: boolean } | { error: string }> {
     return this.request('/inventory/items/transfer', {
       method: 'POST',
-      body: JSON.stringify({ source_id: sourceId, target_sheet_id: targetSheetId, quantity })
+      body: JSON.stringify({ source_id: sourceId, target_sheet_id: targetSheetId, quantity, usage_mode: usageMode })
     })
   }
 

@@ -164,6 +164,24 @@ const handleEnter = (e: KeyboardEvent) => {
         handleCreate()
     }
 }
+
+const handleTab = (e: KeyboardEvent) => {
+    // Only intercept Tab if the dropdown is showing and we have a unique string to create
+    if (showDropdown.value && props.showCreateOption && props.modelValue.trim()) {
+        const trimmedValue = props.modelValue.trim()
+        // Check if the current value matches any existing suggestion
+        const exactMatch = suggestions.value.find(s => 
+            props.valueFunction(s).toLowerCase() === trimmedValue.toLowerCase()
+        )
+        
+        // Only create if there's no exact match and dropdown is visible
+        if (!exactMatch) {
+            e.preventDefault()
+            handleCreate()
+        }
+    }
+    // Otherwise, allow normal Tab navigation
+}
 </script>
 
 <template>
@@ -173,6 +191,7 @@ const handleEnter = (e: KeyboardEvent) => {
       @input="handleInput"
       @focus="onFocus"
       @keydown.enter="handleEnter"
+      @keydown.tab="handleTab"
       :placeholder="placeholder"
       :disabled="disabled"
       class="w-full"

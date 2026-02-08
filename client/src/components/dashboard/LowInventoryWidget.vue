@@ -56,7 +56,7 @@ const lowInventoryItems = computed(() => {
           <div class="flex-1 min-w-0">
             <p class="text-xs sm:text-sm font-medium truncate">{{ item.name }}</p>
             <p class="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-              <span class="text-destructive font-medium">{{ item.quantity }}</span> / {{ item.min_quantity }} min
+              <span class="text-destructive font-medium">{{ (item.usage_mode === 'count' || !item.usage_mode) ? (Number(item.count) || 0) : item.quantity }}</span> / {{ item.min_quantity }} min
             </p>
           </div>
           <Badge variant="destructive" class="shrink-0 text-[10px] sm:text-xs px-1.5 sm:px-2">Low</Badge>

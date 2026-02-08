@@ -187,6 +187,7 @@ const form = ref({
   total_price: getInitialPrice(),
   store_code: props.purchase?.store_code || '',
   item_name: props.purchase?.item_name || '',
+  usage_mode: props.purchase?.usage_mode || 'count',
   tag_ids: props.purchase?.tags?.map(t => t.id) || [] as string[],
   stop_id: props.stopId || props.purchase?.stop_id || null,
   date: props.initialDate || new Date().toISOString().split('T')[0]
@@ -353,6 +354,13 @@ const selectBrand = async (brand: Brand) => {
           }
        }
 
+       // Apply count_unit from history if available
+       const countUnit = findVal('count_unit')
+       if (countUnit && typeof countUnit === 'string') {
+           console.log('Found count_unit in history:', countUnit)
+           form.value.count_unit = countUnit
+       }
+
        // For tax, take from most recent relevant purchase
        const latest = history[0]
        if (latest.taxable !== undefined) {
@@ -387,6 +395,13 @@ const selectBrand = async (brand: Brand) => {
            console.log('Found item_name:', name)
            form.value.item_name = name
        }
+
+       // Apply usage_mode from history
+       const usageMode = findVal('usage_mode')
+       if (usageMode && typeof usageMode === 'string') {
+           console.log('Found usage_mode:', usageMode)
+           form.value.usage_mode = usageMode
+       }
   }
   
   applyStoreTaxRate()
@@ -398,24 +413,35 @@ const selectBrand = async (brand: Brand) => {
 
 
 
-// Calculate total price
+// Calculate total price and auto-fill related pricing fields
 const calculateTotal = () => {
   const count = parseFloat(form.value.count) || 0
-  const pricePerCount = parseFloat(form.value.price_per_count) || 0
   const units = parseFloat(form.value.units) || 0
+  const pricePerCount = parseFloat(form.value.price_per_count) || 0
   const pricePerUnit = parseFloat(form.value.price_per_unit) || 0
   
-  let subtotal = 0
-  if (count && pricePerCount) {
-    subtotal = count * pricePerCount
-  } else if (units && pricePerUnit) {
-    subtotal = units * pricePerUnit
+  // Strategy: If user provides count + units + price_per_count, auto-calculate price_per_unit
+  // Formula: price_per_unit = price_per_count / (units / count) = (price_per_count * count) / units
+  if (count > 0 && units > 0 && pricePerCount > 0) {
+    const calculatedPricePerUnit = (pricePerCount * count) / units
+    form.value.price_per_unit = calculatedPricePerUnit.toFixed(2)
+  }
+  // If user provides count + units + price_per_unit (but no price_per_count), calculate price_per_count
+  else if (count > 0 && units > 0 && pricePerUnit > 0 && !pricePerCount) {
+    const calculatedPricePerCount = (pricePerUnit * units) / count
+    form.value.price_per_count = calculatedPricePerCount.toFixed(2)
   }
   
-  // if (form.value.taxable && form.value.tax_rate) {
-  //   const taxRate = parseFloat(form.value.tax_rate) || 0
-  //   subtotal = subtotal * (1 + taxRate / 100)
-  // }
+  // Calculate total price - prioritize count-based pricing
+  let subtotal = 0
+  const finalPricePerCount = parseFloat(form.value.price_per_count) || 0
+  const finalPricePerUnit = parseFloat(form.value.price_per_unit) || 0
+  
+  if (count > 0 && finalPricePerCount > 0) {
+    subtotal = count * finalPricePerCount
+  } else if (units > 0 && finalPricePerUnit > 0) {
+    subtotal = units * finalPricePerUnit
+  }
   
   form.value.total_price = subtotal.toFixed(2)
 }
@@ -502,6 +528,7 @@ const save = async () => {
       })(),
       store_code: form.value.store_code || null,
       item_name: form.value.item_name || null,
+      usage_mode: form.value.usage_mode,
       tag_ids: form.value.tag_ids,
       stop_id: form.value.stop_id,
       date: form.value.date
@@ -621,10 +648,10 @@ const save = async () => {
               </div>
             </div>
 
-            <!-- Row 2: Units (quantity) + Unit Measurement -->
+            <!-- Row 2: Quantity + Quantity Unit -->
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm font-medium text-muted-foreground">Units</label>
+                <label class="text-sm font-medium text-muted-foreground">Quantity</label>
                 <Input 
                   v-model="form.units" 
                   type="number" 
@@ -635,7 +662,7 @@ const save = async () => {
                 />
               </div>
               <div>
-                <label class="text-sm font-medium text-muted-foreground">Unit Measurement</label>
+                <label class="text-sm font-medium text-muted-foreground">Quantity Unit</label>
                 <SearchableInput 
                   v-model="form.unit_measurement"
                   :search-function="searchUnits"
@@ -664,7 +691,7 @@ const save = async () => {
                 />
               </div>
               <div>
-                <label class="text-sm font-medium text-muted-foreground">Price/Unit</label>
+                <label class="text-sm font-medium text-muted-foreground">Price/Quantity</label>
                 <Input 
                   v-model="form.price_per_unit" 
                   type="number" 
@@ -741,6 +768,33 @@ const save = async () => {
                 @create="handleItemNameCreate"
               />
             </div>
+          </div>
+
+          <!-- Usage Mode Toggle -->
+          <div>
+            <label class="text-sm font-medium">Usage Mode</label>
+            <p class="text-xs text-muted-foreground mb-2">How is this item consumed from inventory?</p>
+            <div class="flex rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm font-medium transition-colors"
+                :class="form.usage_mode === 'count' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+                @click="form.usage_mode = 'count'"
+              >
+                By Count
+              </button>
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border"
+                :class="form.usage_mode === 'quantity' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+                @click="form.usage_mode = 'quantity'"
+              >
+                By Quantity
+              </button>
+            </div>
+            <p class="text-xs text-muted-foreground mt-1">
+              {{ form.usage_mode === 'count' ? 'Consumed per container (1 box, 1 pack)' : 'Consumed by weight/volume (7 lbs potato, 16 oz cereal)' }}
+            </p>
           </div>
 
           <!-- Tags -->

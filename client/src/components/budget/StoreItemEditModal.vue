@@ -360,20 +360,20 @@ const handleSubmit = async () => {
            </div>
         </div>
 
-        <!-- Row 1: Quantity (purchases) + Quantity Unit -->
+        <!-- Row 1: Count (containers) + Count Unit -->
         <div class="grid grid-cols-2 gap-4 relative z-40">
           <div class="col-span-1 relative">
-            <label class="text-sm font-medium mb-1.5 block">Quantity</label>
+            <label class="text-sm font-medium mb-1.5 block">Count</label>
             <Input 
               v-model="form.quantity" 
               type="number" 
               step="any"
               min="0" 
-              placeholder="# of purchases" 
+              placeholder="# of boxes" 
             />
           </div>
           <div class="col-span-1 relative">
-            <label class="text-sm font-medium mb-1.5 block">Quantity Unit</label>
+            <label class="text-sm font-medium mb-1.5 block">Count Unit</label>
             <SearchableInput 
               v-model="form.quantity_unit"
               :search-function="searchCountUnits"
@@ -386,20 +386,20 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <!-- Row 2: Count (components per purchase) + Count Unit -->
+        <!-- Row 2: Quantity (weight/volume) + Quantity Unit -->
         <div class="grid grid-cols-2 gap-4 relative z-30">
           <div class="col-span-1 relative">
-            <label class="text-sm font-medium mb-1.5 block">Count</label>
+            <label class="text-sm font-medium mb-1.5 block">Quantity</label>
             <Input 
               v-model="form.count" 
               type="number" 
               step="any"
               min="0" 
-              placeholder="# per purchase" 
+              placeholder="e.g. 7 lbs" 
             />
           </div>
           <div class="col-span-1 relative">
-            <label class="text-sm font-medium mb-1.5 block">Count Unit</label>
+            <label class="text-sm font-medium mb-1.5 block">Quantity Unit</label>
             <SearchableInput 
               v-model="form.count_unit"
               :search-function="searchUnits"
@@ -407,7 +407,7 @@ const handleSubmit = async () => {
               :value-function="(u) => u.name"
               :show-create-option="true"
               :min-chars="0"
-              placeholder="oz, ct, lb..."
+              placeholder="lb, oz, ct..."
               @select="selectUnit"
               @create="createAndSelectUnit"
             />
@@ -446,7 +446,7 @@ const handleSubmit = async () => {
             </button>
           </div>
           <p class="text-xs text-muted-foreground mt-1">
-            {{ form.usage_mode === 'count' ? 'Individual pieces (1 battery, 5 lbs potato)' : 'Whole unit (entire couch, TV)' }}
+            {{ form.usage_mode === 'count' ? 'Consumed per container (1 box, 1 pack)' : 'Consumed by weight/volume (7 lbs potato, 16 oz cereal)' }}
           </p>
         </div>
 

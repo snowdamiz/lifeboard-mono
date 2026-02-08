@@ -1,6 +1,8 @@
 /**
  * Formats count and unit measurement into a standardized display string.
- * Format: "X count_unit of Y unit_measurement" (e.g., "1 box of 16 Batteries")
+ * Format: "X count_unit of Y unit_measurement" (e.g., "1 box of 7 lb")
+ * 
+ * Count = containers (box, pack) | Quantity = weight/volume (lb, oz)
  * 
  * Falls back gracefully when data is missing:
  * - If only count/countUnit: "2 packs"
@@ -78,12 +80,14 @@ export function formatCountUnit(
 
 /**
  * Formats a complete item cell display string.
- * Format: "Quantity QuantityUnit of Brand Item of Count CountMeasurement"
+ * Format: "Count Brand Item CountUnit of Quantity QuantityUnit"
+ * 
+ * Count = containers (box, pack) | Quantity = weight/volume (lb, oz)
  * 
  * Examples:
- * - "2 boxes of Cheerios Cereal of 12 oz"
- * - "1 pack of Kirkland Batteries of 32 ct"
- * - "Generic Gas Can of 5.3 gal" (when quantity is 1 and no unit)
+ * - "1 Kirkland Potato box of 7 lb"
+ * - "2 Kirkland Battery packs of 32 ct"
+ * - "Generic Gas Can of 5.3 gal" (when count is 1 and no unit)
  */
 export function formatItemCell(
     count?: string | number | null,
@@ -129,32 +133,24 @@ export function formatItemCell(
 
     const parts: string[] = []
 
-    // Part 1: Quantity and Quantity Unit (e.g., "2 boxes" or just "1")
-    // Always show quantity when we have a count value
+    // Part 1: Just the count number (e.g., "1", "2")
     if (hasCount) {
         const countStr = formatNumber(countVal!)
-        if (hasCountUnit) {
-            parts.push(`${countStr} ${pluralize(countUnitVal!, countVal!)}`)
-        } else {
-            parts.push(countStr)
-        }
+        parts.push(countStr)
     }
 
-    // Part 2: Brand and Item name (e.g., "of Cheerios Cereal" or just "Cheerios Cereal")
-    // Use "of" only when we have a quantity unit (e.g., "2 boxes of Brand Item")
-    // Otherwise just append directly (e.g., "1 Brand Item")
+    // Part 2: Brand and Item name (e.g., "Brand Item")
     const brandItem = [brandVal, itemVal].filter(Boolean).join(' ')
     if (brandItem) {
-        if (parts.length > 0 && hasCountUnit) {
-            // Has quantity unit: "2 boxes of Brand Item"
-            parts.push(`of ${brandItem}`)
-        } else {
-            // No quantity unit or no quantity: just "Brand Item" or "1 Brand Item"
-            parts.push(brandItem)
-        }
+        parts.push(brandItem)
     }
 
-    // Part 3: Count and Count Measurement (e.g., "of 12 oz")
+    // Part 3: Count Unit (e.g., "box", "pack")
+    if (hasCountUnit) {
+        parts.push(pluralize(countUnitVal!, countVal || 1))
+    }
+
+    // Part 4: Units and Unit Measurement with "of" connector (e.g., "of 10 Tea bags")
     if (hasUnits || hasUnitMeasurement) {
         let unitPart = ''
         if (hasUnits && hasUnitMeasurement) {
@@ -166,11 +162,7 @@ export function formatItemCell(
         }
 
         if (unitPart) {
-            if (parts.length > 0) {
-                parts.push(`of ${unitPart}`)
-            } else {
-                parts.push(unitPart)
-            }
+            parts.push(`of ${unitPart}`)
         }
     }
 

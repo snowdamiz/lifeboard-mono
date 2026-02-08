@@ -3,7 +3,7 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { 
   ShoppingCart, RefreshCw, Check, Package, AlertCircle, 
   Plus, ChevronDown, ChevronRight, X, Filter,
-  PlusCircle, MinusCircle, Store, Edit2, Trash2
+  PlusCircle, MinusCircle, Store, Edit2, Trash2, Undo2, CheckCircle2
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -232,6 +232,21 @@ const markPurchased = async (listId: string, itemId: string) => {
   await inventoryStore.markPurchased(listId, itemId)
 }
 
+const dismissCompletedItem = async (listId: string, itemId: string) => {
+  await inventoryStore.updateShoppingItem(listId, itemId, { purchased: true })
+}
+
+const undoCompletedItem = async (listId: string, itemId: string) => {
+  await inventoryStore.updateShoppingItem(listId, itemId, { completed_at: null } as any)
+}
+
+const dismissAllCompleted = async (list: ShoppingList) => {
+  const pendingItems = list.items.filter(i => !i.purchased && i.completed_at)
+  for (const item of pendingItems) {
+    await inventoryStore.updateShoppingItem(list.id, item.id, { purchased: true })
+  }
+}
+
 const deleteItem = async (listId: string, itemId: string) => {
   await inventoryStore.deleteShoppingItem(listId, itemId)
 }
@@ -239,6 +254,12 @@ const deleteItem = async (listId: string, itemId: string) => {
 const getItemName = (item: ShoppingListItem) => {
   return item.inventory_item?.name || item.name || 'Unknown Item'
 }
+
+const getActiveItems = (list: ShoppingList) => 
+  list.items.filter(i => !i.purchased && !i.completed_at)
+
+const getPendingReviewItems = (list: ShoppingList) =>
+  list.items.filter(i => !i.purchased && i.completed_at)
 
 const totalUnpurchased = computed(() => 
   inventoryStore.shoppingLists.reduce((sum, l) => sum + l.unpurchased_count, 0)
@@ -411,6 +432,10 @@ const totalUnpurchased = computed(() =>
               <div class="flex items-center gap-2">
                 <CardTitle class="text-base">{{ list.name }}</CardTitle>
                 <Badge v-if="list.is_auto_generated" variant="outline" class="text-xs">Auto</Badge>
+                <Badge v-if="list.status === 'completed'" variant="secondary" class="text-xs bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                  <CheckCircle2 class="h-3 w-3 mr-1" />
+                  Completed
+                </Badge>
                 
                 <!-- Tags Display -->
                 <div v-if="list.tags && list.tags.length > 0" class="flex gap-1 ml-2">
@@ -430,6 +455,9 @@ const totalUnpurchased = computed(() =>
               </div>
               <p class="text-xs text-muted-foreground mt-0.5">
                 {{ list.unpurchased_count }} of {{ list.item_count }} items remaining
+                <span v-if="list.completed_count > 0" class="ml-1 text-emerald-500 font-medium">
+                  • {{ list.completed_count }} ready for review
+                </span>
               </p>
             </div>
             <div class="flex items-center gap-1">
@@ -455,15 +483,18 @@ const totalUnpurchased = computed(() =>
         </CardHeader>
         
         <CardContent v-if="isExpanded(list.id)" class="pt-0">
-          <div v-if="list.items.filter(i => !i.purchased).length === 0" class="py-6 text-center text-muted-foreground text-sm">
+          <!-- Active Items Section -->
+          <div v-if="getActiveItems(list).length === 0 && getPendingReviewItems(list).length === 0" class="py-6 text-center text-muted-foreground text-sm">
             All items purchased! 
             <button class="text-primary hover:underline ml-1" @click="openAddItemModal(list.id)">
               Add more items
             </button>
           </div>
-          <div v-else class="space-y-1.5">
+
+          <!-- Active (Still need to buy) -->
+          <div v-if="getActiveItems(list).length > 0" class="space-y-1.5">
             <BaseItemEntry
-              v-for="item in list.items.filter(i => !i.purchased)"
+              v-for="item in getActiveItems(list)"
               :key="item.id"
               :name="getItemName(item)"
             >
@@ -510,6 +541,82 @@ const totalUnpurchased = computed(() =>
                 </div>
               </template>
             </BaseItemEntry>
+          </div>
+
+          <!-- Pending Review Section -->
+          <div v-if="getPendingReviewItems(list).length > 0" class="mt-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span class="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Pending Review</span>
+                <Badge variant="secondary" class="h-5 text-[10px] px-1.5 bg-emerald-500/10 text-emerald-500">
+                  {{ getPendingReviewItems(list).length }}
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                @click="dismissAllCompleted(list)"
+              >
+                <Check class="h-3 w-3 mr-1" />
+                Dismiss All
+              </Button>
+            </div>
+            <div class="space-y-1.5">
+              <BaseItemEntry
+                v-for="item in getPendingReviewItems(list)"
+                :key="item.id"
+                :name="getItemName(item)"
+                class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg"
+              >
+                <!-- Leading: Completed checkmark -->
+                <template #leading>
+                  <div class="h-6 w-6 rounded-md bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <Check class="h-3.5 w-3.5 text-emerald-500" />
+                  </div>
+                </template>
+
+                <!-- Right value: Quantity -->
+                <template #right-value>
+                  <span class="text-sm font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md whitespace-nowrap">
+                    ×{{ item.quantity_needed }}
+                  </span>
+                </template>
+
+                <!-- Details -->
+                <template #details>
+                  <span class="text-xs text-emerald-600/70 dark:text-emerald-400/70">
+                    Purchased ✓
+                    <span v-if="item.inventory_item"> • {{ item.inventory_item.store || 'No store' }}</span>
+                  </span>
+                </template>
+
+                <!-- Actions: Dismiss or Undo -->
+                <template #actions>
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-7 w-7 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                      @click="dismissCompletedItem(list.id, item.id)"
+                      title="Dismiss — I've reviewed this"
+                    >
+                      <Check class="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      @click="undoCompletedItem(list.id, item.id)"
+                      title="Undo — move back to active"
+                    >
+                      <Undo2 class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </template>
+              </BaseItemEntry>
+            </div>
           </div>
         </CardContent>
       </Card>

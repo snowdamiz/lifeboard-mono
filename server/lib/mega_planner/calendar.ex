@@ -134,8 +134,6 @@ defmodule MegaPlanner.Calendar do
         end
 
         {:ok, Repo.preload(task, @task_preloads, force: true)}
-
-        {:ok, Repo.preload(task, @task_preloads, force: true)}
       error ->
         error
     end
@@ -150,7 +148,8 @@ defmodule MegaPlanner.Calendar do
   end
 
   defp update_task_tags_internal(task, tag_ids) when is_list(tag_ids) do
-    tags = Repo.all(from t in Tag, where: t.id in ^tag_ids)
+    # Ensure we only fetch tags that belong to the same household as the task
+    tags = Repo.all(from t in Tag, where: t.id in ^tag_ids and t.household_id == ^task.household_id)
 
     task
     |> Repo.preload(:tags)

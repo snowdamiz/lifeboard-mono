@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { format, subDays, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from 'date-fns'
 import { 
   Flame, Plus, CheckCircle2, Circle, Trophy, Zap, Calendar, Filter,
-  PlusCircle, MinusCircle, X, Ban, ChevronLeft, ChevronRight, Trash2
+  PlusCircle, MinusCircle, X, Ban, ChevronLeft, ChevronRight, Trash2, Edit2
 } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import TagManager from '@/components/shared/TagManager.vue'
 import CollapsibleTagManager from '@/components/shared/CollapsibleTagManager.vue'
 import HabitCalendarView from '@/components/calendar/HabitCalendarView.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
+import BaseIconButton from '@/components/shared/BaseIconButton.vue'
 import { useHabitsStore, type HabitWithStatus } from '@/stores/habits'
 import { useTagsStore } from '@/stores/tags'
 import { useTextTemplate } from '@/composables/useTextTemplate'
@@ -1285,7 +1286,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
               <Badge variant="secondary" class="text-xs">Whole Day</Badge>
               <span class="text-xs text-muted-foreground">({{ group.wholeDay.habits.length }})</span>
               <span class="text-xs text-muted-foreground">{{ formatDuration(group.wholeDay.totalPlanned) }} / {{ formatDuration(group.wholeDay.timeAvailable) }}</span>
-              <DeleteButton
+              <BaseIconButton
+                :icon="Trash2"
+                variant="destructive"
                 :adaptive="false"
                 class="opacity-0 group-hover/header:opacity-100"
                 @click.stop="handleDeleteInventory(group.wholeDay.id)"
@@ -1392,7 +1395,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                         >
                           <Ban class="h-2 w-2" />
                         </Button>
-                        <DeleteButton
+                        <BaseIconButton
+                          :icon="Trash2"
+                          variant="destructive"
                           :adaptive="false"
                           @click.stop="handleDeleteHabit(habit.id)"
                         />
@@ -1416,7 +1421,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                 <h3 class="font-semibold">{{ partial.name }}</h3>
                 <span class="text-xs text-muted-foreground">({{ partial.habits.length }})</span>
                 <span class="text-xs text-muted-foreground">{{ formatDuration(partial.totalPlanned) }} / {{ formatDuration(partial.timeAvailable) }}</span>
-            <DeleteButton
+            <BaseIconButton
+              :icon="Trash2"
+              variant="destructive"
               :adaptive="false"
               class="opacity-0 group-hover/partialheader:opacity-100"
               @click.stop="handleDeleteInventory(partial.id)"
@@ -1523,7 +1530,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                       >
                         <Ban class="h-2 w-2" />
                       </Button>
-                      <DeleteButton
+                      <BaseIconButton
+                        :icon="Trash2"
+                        variant="destructive"
                         :adaptive="false"
                         @click.stop="handleDeleteHabit(habit.id)"
                       />
@@ -1551,7 +1560,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
           <div class="w-3 h-3 rounded-full shrink-0" :style="{ backgroundColor: inv.color || '#10b981' }" />
           <h3 class="font-semibold text-sm">{{ inv.name }}</h3>
           <span class="text-xs text-muted-foreground">({{ inv.habits.length }})</span>
-          <DeleteButton
+          <BaseIconButton
+            :icon="Trash2"
+            variant="destructive"
             :adaptive="false"
             class="opacity-0 group-hover/standaloneheader:opacity-100"
             @click.stop="handleDeleteInventory(inv.id)"
@@ -1639,7 +1650,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                     >
                       <Ban class="h-2 w-2" />
                     </Button>
-                    <DeleteButton
+                    <BaseIconButton
+                      :icon="Trash2"
+                      variant="destructive"
                       :adaptive="false"
                       @click.stop="handleDeleteHabit(habit.id)"
                     />
@@ -1722,7 +1735,7 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                 </div>
 
                 <div class="flex flex-col items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <EditButton :adaptive="false" @click.stop="openEditModal(habit)" />
+                  <BaseIconButton :icon="Edit2" :adaptive="false" @click.stop="openEditModal(habit)" />
                   <Button 
                     v-if="!habit.completed_today"
                     variant="ghost" 
@@ -1733,7 +1746,7 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                   >
                     <Ban class="h-3 w-3" />
                   </Button>
-                  <DeleteButton :adaptive="false" @click.stop="handleDeleteHabit(habit.id)" />
+                  <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click.stop="handleDeleteHabit(habit.id)" />
                 </div>
               </div>
             </CardContent>
@@ -2188,7 +2201,9 @@ const toggleAllInInventory = async (inventoryId: string | null) => {
                         {{ inv.coverage_mode === 'whole_day' ? 'Whole Day' : 'Partial Day' }}
                       </Badge>
                     </div>
-                    <DeleteButton
+                    <BaseIconButton
+                      :icon="Trash2"
+                      variant="destructive"
                       :adaptive="false"
                       @click="habitsStore.deleteHabitInventory(inv.id)"
                     />

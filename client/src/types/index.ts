@@ -113,8 +113,8 @@ export interface InventoryItem {
   total_price: string | null
   store_code: string | null
   item_name: string | null
-  // "count" = consumed by individual pieces/weight (batteries, potatoes)
-  // "quantity" = consumed as whole unit (couch, TV)
+  // "count" = consumed per container (1 box, 1 pack)
+  // "quantity" = consumed by weight/volume (7 lbs, 16 oz)
   usage_mode?: 'count' | 'quantity'
   tags: Tag[]
   tag_ids?: string[] // Used when creating/updating
@@ -133,10 +133,12 @@ export interface ShoppingList {
   id: string
   name: string
   is_auto_generated: boolean
+  status: 'active' | 'completed'
   notes: string | null
   items: ShoppingListItem[]
   item_count: number
   unpurchased_count: number
+  completed_count: number
   tags?: Tag[]
   tag_ids?: string[]
   inserted_at: string
@@ -148,6 +150,7 @@ export interface ShoppingListItem {
   name: string | null
   quantity_needed: number
   purchased: boolean
+  completed_at: string | null
   shopping_list_id: string
   inventory_item?: {
     id: string
@@ -277,6 +280,7 @@ export interface Purchase {
   total_price: string
   store_code: string | null
   item_name: string | null
+  usage_mode?: 'count' | 'quantity'
   tags: Tag[]
   tag_ids?: string[]
   inserted_at: string
@@ -338,6 +342,7 @@ export interface ReceiptScanItem {
   brand_id?: string | null
   unit_is_new?: boolean
   unit_id?: string | null
+  usage_mode?: 'count' | 'quantity'
 }
 
 export interface ReceiptScanResult {

@@ -170,8 +170,33 @@ export const useCalendarStore = defineStore('calendar', () => {
   }
 
   async function deleteTask(id: string) {
+    // Check if task has a trip before deleting (backend cascades trip deletion)
+    const task = tasks.value.find(t => t.id === id)
+    const tripId = task?.trip_id
+
     await api.deleteTask(id)
     tasks.value = tasks.value.filter(t => t.id !== id)
+
+    // If the task had a trip, clean up related stores since backend cascaded the deletion
+    if (tripId) {
+      // Remove trip from calendar trips list
+      trips.value = trips.value.filter(t => t.id !== tripId)
+
+      // Clean up receipts store
+      const { useReceiptsStore } = await import('./receipts')
+      const receiptsStore = useReceiptsStore()
+      receiptsStore.trips = receiptsStore.trips.filter(t => t.id !== tripId)
+      if (receiptsStore.currentTrip?.id === tripId) {
+        receiptsStore.currentTrip = null
+      }
+
+      // Refresh inventory store so Purchases sheet item count stays in sync
+      const { useInventoryStore } = await import('./inventory')
+      const inventoryStore = useInventoryStore()
+      if (inventoryStore.currentSheet) {
+        inventoryStore.fetchSheet(inventoryStore.currentSheet.id)
+      }
+    }
   }
 
   async function addStep(taskId: string, content: string) {

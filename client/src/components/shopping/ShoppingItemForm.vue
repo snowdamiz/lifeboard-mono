@@ -36,9 +36,6 @@ const isEditing = computed(() => !!props.item)
 
 // Brand autocomplete
 const brandSearch = ref('')
-const brandSuggestions = ref<Brand[]>([])
-const showBrandDropdown = ref(false)
-const loadingBrands = ref(false)
 
 // Unit autocomplete
 const unitSearch = ref('')
@@ -69,6 +66,7 @@ const form = ref({
   store: (props.item as any)?.store || props.item?.inventory_item?.store || '',
   store_code: (props.item as any)?.store_code || '',
   item_name: (props.item as any)?.item_name || '',
+  usage_mode: (props.item as any)?.usage_mode || 'count',
   tag_ids: ((props.item as any)?.tag_ids || []) as string[]
 })
 
@@ -83,6 +81,20 @@ const searchUnits = async (query: string) => {
   const q = query.toLowerCase()
   const allUnits = mergeUnitsWithDefaults(receiptsStore.units)
   return allUnits.filter(u => u.name.toLowerCase().includes(q))
+}
+
+// Brand search function for SearchableInput
+const searchBrandsForInput = async (query: string) => {
+  if (!query) return receiptsStore.brands
+  const search = query.toLowerCase()
+  const local = receiptsStore.brands.filter(b => b.name.toLowerCase().includes(search))
+  if (local.length > 0) return local
+  if (query.length >= 2) {
+    try {
+      return await receiptsStore.searchBrands(query)
+    } catch { return [] }
+  }
+  return []
 }
 
 // Initialize from existing item if possible
@@ -141,39 +153,9 @@ const getTagName = (tagId: string) => {
 
 const isSelecting = ref(false)
 
-// Brand autocomplete watcher
-watch(brandSearch, async (newValue) => {
-  if (isSelecting.value) return
-
-  if (!newValue) {
-    brandSuggestions.value = receiptsStore.brands
-    return
-  }
-  
-  if (receiptsStore.brands.length > 0) {
-    const search = newValue.toLowerCase()
-    brandSuggestions.value = receiptsStore.brands.filter(b => 
-      b.name.toLowerCase().includes(search)
-    )
-    showBrandDropdown.value = brandSuggestions.value.length > 0
-    return
-  }
-
-  if (newValue.length >= 2) {
-    loadingBrands.value = true
-    try {
-      brandSuggestions.value = await receiptsStore.searchBrands(newValue)
-      showBrandDropdown.value = brandSuggestions.value.length > 0
-    } catch (error: any) {
-      brandSuggestions.value = []
-      showBrandDropdown.value = false
-    } finally {
-      loadingBrands.value = false
-    }
-  } else {
-    brandSuggestions.value = []
-    showBrandDropdown.value = false
-  }
+// Sync form.brand when brandSearch changes (from typing)
+watch(brandSearch, (newVal) => {
+  form.value.brand = newVal
 })
 
 const selectBrand = async (brand: Brand) => {
@@ -225,17 +207,13 @@ const selectBrand = async (brand: Brand) => {
       }
   }
   
-  showBrandDropdown.value = false
-  
   setTimeout(() => {
     isSelecting.value = false
   }, 100)
 }
 
-const handleBrandBlur = () => {
-  setTimeout(() => {
-    showBrandDropdown.value = false
-  }, 200)
+const onBrandSelect = (brand: Brand) => {
+  selectBrand(brand)
 }
 
 const selectUnit = (unit: Unit) => {
@@ -335,29 +313,7 @@ onMounted(async () => {
   }
 })
 
-const handleBrandFocus = () => {
-  if (!brandSearch.value) {
-    brandSuggestions.value = receiptsStore.brands
-    showBrandDropdown.value = receiptsStore.brands.length > 0
-  } else if (brandSearch.value.length >= 2) {
-    showBrandDropdown.value = true
-  }
-}
 
-const handleBrandEnter = (e: KeyboardEvent) => {
-  if (showBrandDropdown.value && brandSuggestions.value.length > 0) {
-    const exactMatch = brandSuggestions.value.find(
-      b => b.name.toLowerCase() === brandSearch.value.toLowerCase()
-    )
-    if (exactMatch) {
-      selectBrand(exactMatch)
-      return
-    }
-    if (brandSearch.value.length >= 2) {
-      selectBrand(brandSuggestions.value[0])
-    }
-  }
-}
 
 const save = async () => {
   if (!form.value.name.trim()) return
@@ -444,38 +400,18 @@ const save = async () => {
           </div>
 
           <!-- Brand (with autocomplete) -->
-          <div class="relative">
+          <div>
             <label class="text-sm font-medium">Brand</label>
-            <Input 
-              v-model="brandSearch" 
-              @input="form.brand = brandSearch"
-              @blur="handleBrandBlur"
-              @focus="handleBrandFocus"
-              @keydown.enter.prevent="handleBrandEnter"
+            <SearchableInput 
+              v-model="brandSearch"
+              :search-function="searchBrandsForInput"
+              :display-function="(b: any) => b.name"
+              :value-function="(b: any) => b.name"
+              :min-chars="0"
               placeholder="Start typing brand name..." 
-              class="mt-1" 
-              autocomplete="off"
+              class="mt-1"
+              @select="onBrandSelect"
             />
-            
-            <div 
-              v-if="showBrandDropdown && brandSuggestions.length > 0" 
-              class="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 max-h-60 overflow-auto"
-            >
-              <button
-                v-for="brand in brandSuggestions"
-                :key="brand.id"
-                type="button"
-                class="w-full text-left px-3 py-2 hover:bg-accent text-sm border-b border-border last:border-0"
-                @click="selectBrand(brand)"
-              >
-                <div class="font-medium">{{ brand.name }}</div>
-                <div v-if="brand.default_item" class="text-xs text-muted-foreground">
-                  Default: {{ brand.default_item }}
-                </div>
-              </button>
-            </div>
-            
-            <p v-if="loadingBrands" class="text-xs text-muted-foreground mt-1">Searching...</p>
           </div>
 
           <!-- Extended Fields: Store Code & Receipt Item Name -->
@@ -572,6 +508,33 @@ const save = async () => {
                 class="mt-1"
               />
             </div>
+          </div>
+
+          <!-- Usage Mode Toggle -->
+          <div>
+            <label class="text-sm font-medium">Usage Mode</label>
+            <p class="text-xs text-muted-foreground mb-2">How is this item consumed from inventory?</p>
+            <div class="flex rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm font-medium transition-colors"
+                :class="form.usage_mode === 'count' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+                @click="form.usage_mode = 'count'"
+              >
+                By Count
+              </button>
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border"
+                :class="form.usage_mode === 'quantity' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+                @click="form.usage_mode = 'quantity'"
+              >
+                By Quantity
+              </button>
+            </div>
+            <p class="text-xs text-muted-foreground mt-1">
+              {{ form.usage_mode === 'count' ? 'Consumed per container (1 box, 1 pack)' : 'Consumed by weight/volume (7 lbs potato, 16 oz cereal)' }}
+            </p>
           </div>
 
 

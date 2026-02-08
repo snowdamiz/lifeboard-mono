@@ -115,6 +115,8 @@ const formatDate = (dateStr: string | null) => {
           :store-code="item.store_code"
           :price="item.price_per_unit"
           :total="item.total_price"
+          :price-per-count="item.price_per_count"
+          :price-per-unit="item.price_per_unit"
           :taxable="item.taxable ?? false"
           :tags="item.tags"
         >

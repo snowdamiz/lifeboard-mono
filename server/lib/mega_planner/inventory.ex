@@ -154,6 +154,32 @@ defmodule MegaPlanner.Inventory do
     case result do
       {:ok, item} ->
         item = if tag_ids != nil, do: update_item_tags(item, tag_ids), else: item
+
+        # Sync usage_mode globally to all inventory items and purchases with same brand+item
+        if Map.has_key?(attrs, "usage_mode") && item.brand && item.name do
+          new_mode = attrs["usage_mode"]
+          item_with_sheet = Repo.preload(item, :sheet)
+          household_id = item_with_sheet.sheet.household_id
+
+          # Update all other inventory items with same brand+name in the household
+          from(i in Item,
+            join: s in MegaPlanner.Inventory.Sheet, on: i.sheet_id == s.id,
+            where: s.household_id == ^household_id,
+            where: i.id != ^item.id,
+            where: fragment("LOWER(?) = LOWER(?)", i.brand, ^item.brand),
+            where: fragment("LOWER(?) = LOWER(?)", i.name, ^item.name)
+          )
+          |> Repo.update_all(set: [usage_mode: new_mode])
+
+          # Update all purchases with same brand+item in the household
+          from(p in MegaPlanner.Receipts.Purchase,
+            where: p.household_id == ^household_id,
+            where: fragment("LOWER(?) = LOWER(?)", p.brand, ^item.brand),
+            where: fragment("LOWER(?) = LOWER(?)", p.item, ^item.name)
+          )
+          |> Repo.update_all(set: [usage_mode: new_mode])
+        end
+
         {:ok, Repo.preload(item, :tags, force: true)}
       error ->
         error
@@ -462,16 +488,25 @@ defmodule MegaPlanner.Inventory do
     purchase = Repo.preload(purchase, [:budget_entry, stop: :store])
     household_id = purchase.household_id
     
-    # Determine quantity to add (default to 1 if units is nil or 0)
-    # Preserve full decimal precision - no rounding
-    quantity_to_add = 
-      if purchase.units && Decimal.gt?(purchase.units, Decimal.new(0)) do
-        purchase.units
-      else
-        Decimal.new(1)
+    # Determine quantity - this represents the per-container amount for count-mode items
+    # For "By Count" items: quantity = amount per container (e.g., 8 tea bags per box)
+    # If purchase has both count and units, compute per-container: units / count
+    purchase_count = purchase.count || Decimal.new(0)
+    purchase_units = purchase.units || Decimal.new(0)
+    
+    quantity_per_container = 
+      cond do
+        Decimal.gt?(purchase_units, Decimal.new(0)) && Decimal.gt?(purchase_count, Decimal.new(1)) ->
+          # Multiple containers: compute per-container amount
+          Decimal.div(purchase_units, purchase_count)
+        Decimal.gt?(purchase_units, Decimal.new(0)) ->
+          # Single container or no count: use units directly
+          purchase_units
+        true ->
+          Decimal.new(1)
       end
 
-    IO.puts("[create_item_from_purchase] Quantity to add: #{quantity_to_add}")
+    IO.puts("[create_item_from_purchase] Quantity per container: #{quantity_per_container}")
 
     # Normalize inputs for search
     search_brand = String.trim(purchase.brand || "")
@@ -513,15 +548,26 @@ defmodule MegaPlanner.Inventory do
           nil ->
             IO.puts("[create_item_from_purchase] Creating new inventory item")
             # Create new item in Purchases sheet
-            create_new_inventory_item(purchase, quantity_to_add)
+            create_new_inventory_item(purchase, quantity_per_container)
           
           item ->
             IO.puts("[create_item_from_purchase] Updating existing inventory item")
-            # Update existing item quantity in Purchases sheet
-            update_item(item, %{quantity: Decimal.add(item.quantity, quantity_to_add)})
+            # Update existing item in Purchases sheet
+            # In count mode, only add to count (not quantity)
+            if item.usage_mode == "count" do
+              count_to_add = purchase.count || Decimal.new(1)
+              existing_count = item.count || Decimal.new(0)
+              update_item(item, %{count: Decimal.add(existing_count, count_to_add)})
+            else
+              update_item(item, %{quantity: Decimal.add(item.quantity, quantity_per_container)})
+            end
         end
 
         IO.puts("[create_item_from_purchase] Result: #{inspect(result)}")
+
+        # Auto-complete matching shopping list items
+        complete_shopping_list_items_for_purchase(purchase)
+
         result
       
       error ->
@@ -558,6 +604,7 @@ defmodule MegaPlanner.Inventory do
             count: purchase.count,
             item_name: purchase.item_name,
             taxable: purchase.taxable,
+            usage_mode: purchase.usage_mode || "count",
           }
           
           Logger.info("[create_new_inventory_item] Creating item with attrs: #{inspect(attrs)}")
@@ -667,17 +714,73 @@ defmodule MegaPlanner.Inventory do
   Transfers quantity from source item to target sheet.
   Creates new item in target if none exists, otherwise adds to existing.
   Transferred items become regular inventory (no purchase linkage).
+  
+  When the source item's usage_mode is "count" and it has a count field,
+  the `amount` parameter represents a count of containers and the function
+  transfers proportional quantity. Otherwise `amount` is raw quantity.
   """
-  def transfer_item(source_item_id, target_sheet_id, quantity) do
+  def transfer_item(source_item_id, target_sheet_id, amount, _usage_mode \\ "count") do
     Repo.transaction(fn ->
       source = get_item(source_item_id)
       
       if source == nil do
         Repo.rollback(:item_not_found)
       end
-      
-      if Decimal.lt?(source.quantity, quantity) do
-        Repo.rollback(:insufficient_quantity)
+
+      # Determine transfer mode from the source item itself
+      # Use count-based transfer only when usage_mode is "count" AND source has a count value
+      use_count_mode = source.usage_mode == "count" && source.count != nil && 
+                       Decimal.compare(source.count || Decimal.new(0), Decimal.new(0)) == :gt
+
+      # Determine the actual quantity to transfer and what to deduct based on mode
+      {transfer_qty, should_delete} = if use_count_mode do
+        source_count = source.count
+        source_qty = source.quantity || Decimal.new(0)
+        
+        # Validate we have enough count
+        if Decimal.lt?(source_count, amount) do
+          Repo.rollback(:insufficient_quantity)
+        end
+        
+        new_count = Decimal.sub(source_count, amount)
+        
+        # Calculate proportional quantity to transfer
+        proportional_qty = if Decimal.compare(new_count, 0) != :gt do
+          # Transferring all remaining count -> transfer all remaining quantity
+          source_qty
+        else
+          # Proportional: (amount / source_count) * source_qty
+          if Decimal.compare(source_count, 0) == :gt do
+            Decimal.mult(Decimal.div(amount, source_count), source_qty)
+          else
+            source_qty
+          end
+        end
+        
+        Logger.info("Transfer (count mode): count #{source_count} -> #{new_count}, qty #{source_qty}, proportional_qty #{proportional_qty}")
+        
+        if Decimal.compare(new_count, 0) != :gt do
+          {proportional_qty, true}
+        else
+          new_qty = Decimal.sub(source_qty, proportional_qty)
+          {:ok, _} = update_item(source, %{count: new_count, quantity: new_qty})
+          {proportional_qty, false}
+        end
+      else
+        # Quantity-based transfer (original behavior)
+        if Decimal.lt?(source.quantity, amount) do
+          Repo.rollback(:insufficient_quantity)
+        end
+        
+        new_quantity = Decimal.sub(source.quantity, amount)
+        Logger.info("Transfer (qty mode): Source ID #{source.id}, Qty #{source.quantity}, Transfer #{amount}, New #{new_quantity}")
+        
+        if Decimal.compare(new_quantity, 0) != :gt do
+          {amount, true}
+        else
+          {:ok, _} = update_item(source, %{quantity: new_quantity})
+          {amount, false}
+        end
       end
       
       # Look for existing matching item in target sheet
@@ -693,29 +796,43 @@ defmodule MegaPlanner.Inventory do
       case target_item do
         nil ->
           # Create new item in target (no purchase linkage)
-          {:ok, _} = create_item(%{
+          target_attrs = %{
             "name" => source.name,
             "brand" => source.brand,
             "store" => source.store,
-            "quantity" => quantity,
+            "quantity" => transfer_qty,
             "sheet_id" => target_sheet_id,
             "unit_of_measure" => source.unit_of_measure,
-            "store_code" => source.store_code
-          })
+            "store_code" => source.store_code,
+            "usage_mode" => source.usage_mode,
+            "count_unit" => source.count_unit
+          }
+          
+          # For count mode, also set the count on the target
+          target_attrs = if use_count_mode do
+            Map.put(target_attrs, "count", amount)
+          else
+            target_attrs
+          end
+          
+          {:ok, _} = create_item(target_attrs)
         item ->
           # Add to existing item
-          {:ok, _} = update_item(item, %{quantity: Decimal.add(item.quantity, quantity)})
+          update_attrs = %{quantity: Decimal.add(item.quantity, transfer_qty)}
+          update_attrs = if use_count_mode do
+            existing_count = item.count || Decimal.new(0)
+            Map.put(update_attrs, :count, Decimal.add(existing_count, amount))
+          else
+            update_attrs
+          end
+          {:ok, _} = update_item(item, update_attrs)
       end
       
-      # Reduce source or delete if empty
-      new_quantity = Decimal.sub(source.quantity, quantity)
-      Logger.info("Transfer: Source ID #{source.id}, Qty #{source.quantity}, Transfer #{quantity}, New #{new_quantity}")
-
-      if Decimal.compare(new_quantity, 0) != :gt do
+      # Delete source if fully consumed
+      if should_delete do
         Logger.info("Transfer: Deleting source item #{source.id}")
         
         # Unlink from shopping lists before deletion to prevent FK violation
-        # Fetch IDs first to avoid macro complexity with name updates
         shopping_item_ids = from(s in ShoppingListItem, 
           where: s.inventory_item_id == ^source.id, 
           select: s.id
@@ -730,12 +847,79 @@ defmodule MegaPlanner.Inventory do
         end
 
         delete_item(source)
-      else
-        Logger.info("Transfer: Updating source item #{source.id} to qty #{new_quantity}")
-        update_item(source, %{quantity: new_quantity})
       end
       
       :ok
     end)
+  end
+
+  # Shopping List Completion
+
+  @doc """
+  Matches a purchase against shopping list items by brand + item name.
+  Sets `completed_at` on matched items and auto-completes lists where all items are matched.
+  """
+  def complete_shopping_list_items_for_purchase(%Purchase{} = purchase) do
+    household_id = purchase.household_id
+    purchase_item_name = String.downcase(String.trim(purchase.item || ""))
+    purchase_brand = String.downcase(String.trim(purchase.brand || ""))
+
+    if purchase_item_name == "" do
+      :noop
+    else
+      # Build query based on whether purchase has a brand
+      matching_items = if purchase_brand != "" do
+        # Match on both item name AND brand
+        from(sli in ShoppingListItem,
+          left_join: inv in assoc(sli, :inventory_item),
+          where: sli.household_id == ^household_id
+             and sli.purchased == false
+             and is_nil(sli.completed_at)
+             and fragment("LOWER(TRIM(COALESCE(?, ?)))", sli.name, inv.name) == ^purchase_item_name
+             and fragment("LOWER(TRIM(COALESCE(?, '')))", inv.brand) == ^purchase_brand
+        ) |> Repo.all()
+      else
+        # Match on item name only (no brand filter)
+        from(sli in ShoppingListItem,
+          left_join: inv in assoc(sli, :inventory_item),
+          where: sli.household_id == ^household_id
+             and sli.purchased == false
+             and is_nil(sli.completed_at)
+             and fragment("LOWER(TRIM(COALESCE(?, ?)))", sli.name, inv.name) == ^purchase_item_name
+        ) |> Repo.all()
+      end
+
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      affected_list_ids = Enum.map(matching_items, fn item ->
+        item
+        |> ShoppingListItem.changeset(%{completed_at: now})
+        |> Repo.update!()
+        item.shopping_list_id
+      end)
+      |> Enum.uniq()
+
+      # Check if any affected lists are now fully completed
+      Enum.each(affected_list_ids, &maybe_complete_list/1)
+
+      {:ok, length(matching_items)}
+    end
+  end
+
+  defp maybe_complete_list(list_id) do
+    # Count items not yet completed (no completed_at and not purchased)
+    remaining = from(sli in ShoppingListItem,
+      where: sli.shopping_list_id == ^list_id
+         and sli.purchased == false
+         and is_nil(sli.completed_at),
+      select: count(sli.id)
+    ) |> Repo.one()
+
+    if remaining == 0 do
+      list = Repo.get!(ShoppingList, list_id)
+      list
+      |> ShoppingList.changeset(%{status: "completed"})
+      |> Repo.update!()
+    end
   end
 end

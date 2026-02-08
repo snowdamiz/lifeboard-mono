@@ -145,7 +145,7 @@ defmodule MegaPlanner.Receipts do
   def update_store_inventory_item(store_id, item_id, source, attrs, propagate \\ false) do
     store = Repo.get!(Store, store_id)
 
-    case source do
+    result = case source do
       "manual" ->
         item = Repo.get!(MegaPlanner.Inventory.Item, item_id)
         update_inventory_item_with_propagation(item, store, attrs, propagate)
@@ -157,6 +157,30 @@ defmodule MegaPlanner.Receipts do
       _ ->
         {:error, :invalid_source}
     end
+
+    # Global usage_mode sync (runs after the Multi transaction)
+    if Map.has_key?(attrs, "usage_mode") || Map.has_key?(attrs, :usage_mode) do
+      new_mode = attrs["usage_mode"] || attrs[:usage_mode]
+
+      case source do
+        "manual" ->
+          item = Repo.get!(MegaPlanner.Inventory.Item, item_id)
+          item = Repo.preload(item, :sheet)
+          if item.brand && item.name do
+            sync_usage_mode_globally(item.sheet.household_id, item.brand, item.name, item_id, new_mode, :inventory)
+          end
+
+        "receipt" ->
+          purchase = Repo.get!(Purchase, item_id)
+          if purchase.brand && purchase.item do
+            sync_usage_mode_globally(purchase.household_id, purchase.brand, purchase.item, item_id, new_mode, :purchase)
+          end
+
+        _ -> :ok
+      end
+    end
+
+    result
   end
 
   defp update_inventory_item_with_propagation(item, store, attrs, propagate) do
@@ -323,7 +347,7 @@ defmodule MegaPlanner.Receipts do
     query = from t in Trip,
       where: t.household_id == ^household_id,
       order_by: [desc: t.trip_start],
-      preload: [stops: [:store, purchases: [:tags]]]
+      preload: [:driver, stops: [:store, purchases: [:tags]]]
 
     query
     |> filter_trips_by_date_range(opts)
@@ -848,6 +872,29 @@ defmodule MegaPlanner.Receipts do
             end
           end
         end
+
+        # Sync usage_mode globally to all purchases and inventory items with same brand+item
+        if Map.has_key?(attrs, "usage_mode") && purchase.brand && purchase.item do
+          new_mode = attrs["usage_mode"]
+
+          # Update all other purchases with same brand+item in the household
+          from(p in Purchase,
+            where: p.household_id == ^purchase.household_id,
+            where: p.id != ^purchase.id,
+            where: fragment("LOWER(?) = LOWER(?)", p.brand, ^purchase.brand),
+            where: fragment("LOWER(?) = LOWER(?)", p.item, ^purchase.item)
+          )
+          |> Repo.update_all(set: [usage_mode: new_mode])
+
+          # Update all inventory items with same brand+name in the household's sheets
+          from(i in MegaPlanner.Inventory.Item,
+            join: s in MegaPlanner.Inventory.Sheet, on: i.sheet_id == s.id,
+            where: s.household_id == ^purchase.household_id,
+            where: fragment("LOWER(?) = LOWER(?)", i.brand, ^purchase.brand),
+            where: fragment("LOWER(?) = LOWER(?)", i.name, ^purchase.item)
+          )
+          |> Repo.update_all(set: [usage_mode: new_mode])
+        end
         
 
         
@@ -1032,7 +1079,8 @@ defmodule MegaPlanner.Receipts do
             "taxable" => purchase.taxable,
             "total_price" => purchase.total_price,
             "store_code" => purchase.store_code,
-            "item_name" => purchase.item_name
+            "item_name" => purchase.item_name,
+            "usage_mode" => purchase.usage_mode || "count"
           }
           
           case Inventory.create_item(item_attrs) do
@@ -1281,6 +1329,36 @@ defmodule MegaPlanner.Receipts do
     else
       item
     end
+  end
+
+  @doc false
+  defp sync_usage_mode_globally(household_id, brand, item_name, exclude_id, new_mode, source_type) do
+    # Update all purchases with same brand+item in the household
+    purchase_query = from(p in Purchase,
+      where: p.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", p.brand, ^brand),
+      where: fragment("LOWER(?) = LOWER(?)", p.item, ^item_name)
+    )
+    purchase_query = if source_type == :purchase do
+      from(p in purchase_query, where: p.id != ^exclude_id)
+    else
+      purchase_query
+    end
+    Repo.update_all(purchase_query, set: [usage_mode: new_mode])
+
+    # Update all inventory items with same brand+name in the household
+    item_query = from(i in MegaPlanner.Inventory.Item,
+      join: s in MegaPlanner.Inventory.Sheet, on: i.sheet_id == s.id,
+      where: s.household_id == ^household_id,
+      where: fragment("LOWER(?) = LOWER(?)", i.brand, ^brand),
+      where: fragment("LOWER(?) = LOWER(?)", i.name, ^item_name)
+    )
+    item_query = if source_type == :inventory do
+      from(i in item_query, where: i.id != ^exclude_id)
+    else
+      item_query
+    end
+    Repo.update_all(item_query, set: [usage_mode: new_mode])
   end
 end
 

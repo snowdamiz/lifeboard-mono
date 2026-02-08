@@ -64,20 +64,22 @@ const form = ref({
   tax_rate: ''
 })
 
-watch(() => props.store, (newStore) => {
-  if (newStore) {
+// Reset form when the dialog opens, so it picks up the latest initialName
+watch(() => props.open, (isOpen) => {
+  if (!isOpen) return
+  if (props.store) {
     form.value = {
-      name: newStore.name,
-      address: newStore.address || '',
-      state: newStore.state || '',
-      store_code: newStore.store_code || '',
-      tax_rate: newStore.tax_rate ? parseFloat((parseFloat(newStore.tax_rate) * 100).toFixed(4)).toString() : ''
+      name: props.store.name,
+      address: props.store.address || '',
+      state: props.store.state || '',
+      store_code: props.store.store_code || '',
+      tax_rate: props.store.tax_rate ? parseFloat((parseFloat(props.store.tax_rate) * 100).toFixed(4)).toString() : ''
     }
-    nameSearchText.value = newStore.name
-    addressSearchText.value = newStore.address || ''
-    stateSearchText.value = newStore.state || ''
-    taxRateSearchText.value = newStore.tax_rate ? parseFloat((parseFloat(newStore.tax_rate) * 100).toFixed(4)).toString() : ''
-    codeSearchText.value = newStore.store_code || ''
+    nameSearchText.value = props.store.name
+    addressSearchText.value = props.store.address || ''
+    stateSearchText.value = props.store.state || ''
+    taxRateSearchText.value = props.store.tax_rate ? parseFloat((parseFloat(props.store.tax_rate) * 100).toFixed(4)).toString() : ''
+    codeSearchText.value = props.store.store_code || ''
   } else {
     form.value = {
       name: props.initialName || '',
@@ -92,7 +94,7 @@ watch(() => props.store, (newStore) => {
     taxRateSearchText.value = ''
     codeSearchText.value = ''
   }
-}, { immediate: true })
+})
 
 watch(() => form.value.state, (newState) => {
   if (!newState) return

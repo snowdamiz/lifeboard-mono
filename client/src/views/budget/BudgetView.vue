@@ -874,7 +874,7 @@ const handleTripDetailClose = async () => {
             <span class="text-sm font-semibold tabular-nums text-red-500">
               -{{ formatCurrency(trip.stops?.flatMap(s => s.purchases || []).reduce((sum, p) => sum + parseFloat(p.total_price || '0'), 0) || 0) }}
             </span>
-            <DeleteButton :adaptive="false" @click.stop="handleTripDelete(trip.id)" />
+            <BaseIconButton :icon="Trash2" variant="destructive" :adaptive="false" @click.stop="handleTripDelete(trip.id)" />
           </div>
         </div>
       </div>

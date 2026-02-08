@@ -64,6 +64,8 @@ const getUnitPrice = (p: Purchase) => {
       :unit-measurement="purchase.unit_measurement"
       :price="getUnitPrice(purchase)"
       :total="purchase.total_price"
+      :price-per-count="purchase.price_per_count"
+      :price-per-unit="purchase.price_per_unit"
       :store-code="purchase.store_code"
       :taxable="purchase.taxable"
       :tags="purchase.tags"

@@ -9,6 +9,7 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     field :name, :string
     field :is_auto_generated, :boolean, default: false
     field :notes, :string
+    field :status, :string, default: "active"
 
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :user, MegaPlanner.Accounts.User
@@ -21,8 +22,9 @@ defmodule MegaPlanner.Inventory.ShoppingList do
   @doc false
   def changeset(list, attrs) do
     list
-    |> cast(attrs, [:name, :is_auto_generated, :notes, :household_id, :user_id])
+    |> cast(attrs, [:name, :is_auto_generated, :notes, :status, :household_id, :user_id])
     |> validate_required([:name, :household_id])
+    |> validate_inclusion(:status, ["active", "completed"])
     |> validate_length(:name, min: 1, max: 200)
     |> foreign_key_constraint(:household_id)
     |> foreign_key_constraint(:user_id)

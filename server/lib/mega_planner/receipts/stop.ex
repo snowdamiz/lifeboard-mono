@@ -22,13 +22,26 @@ defmodule MegaPlanner.Receipts.Stop do
 
   @doc false
   def changeset(stop, attrs) do
+    # Normalize empty-string times to nil so Ecto's :time cast doesn't fail
+    attrs =
+      attrs
+      |> normalize_time_field("time_arrived")
+      |> normalize_time_field("time_left")
+
     stop
     |> cast(attrs, [:store_name, :store_address, :notes, :position, :trip_id, :store_id, :time_arrived, :time_left])
-    |> validate_required([:trip_id, :position, :time_arrived, :time_left])
+    |> validate_required([:trip_id, :position])
     |> foreign_key_constraint(:trip_id)
     |> foreign_key_constraint(:store_id)
     |> unique_constraint([:trip_id, :store_id],
        name: :stops_trip_store_unique,
        message: "This store is already part of the trip")
+  end
+
+  defp normalize_time_field(attrs, key) do
+    case Map.get(attrs, key) do
+      "" -> Map.put(attrs, key, nil)
+      _ -> attrs
+    end
   end
 end

@@ -9,6 +9,7 @@ defmodule MegaPlanner.Inventory.ShoppingListItem do
     field :quantity_needed, :integer, default: 1
     field :purchased, :boolean, default: false
     field :name, :string  # For manual items without inventory reference
+    field :completed_at, :utc_datetime  # When a purchase auto-matched this item
 
     belongs_to :shopping_list, MegaPlanner.Inventory.ShoppingList
     belongs_to :inventory_item, MegaPlanner.Inventory.Item
@@ -21,7 +22,7 @@ defmodule MegaPlanner.Inventory.ShoppingListItem do
   @doc false
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:quantity_needed, :purchased, :name, :shopping_list_id, :inventory_item_id, :user_id, :household_id])
+    |> cast(attrs, [:quantity_needed, :purchased, :completed_at, :name, :shopping_list_id, :inventory_item_id, :user_id, :household_id])
     |> validate_required([:user_id, :household_id])
     |> validate_number(:quantity_needed, greater_than: 0)
     |> validate_name_or_inventory_item()

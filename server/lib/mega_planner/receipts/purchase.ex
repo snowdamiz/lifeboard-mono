@@ -19,6 +19,7 @@ defmodule MegaPlanner.Receipts.Purchase do
     field :total_price, :decimal
     field :store_code, :string
     field :item_name, :string
+    field :usage_mode, :string, default: "count"
 
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :stop, MegaPlanner.Receipts.Stop
@@ -33,7 +34,7 @@ defmodule MegaPlanner.Receipts.Purchase do
     purchase
     |> cast(attrs, [
       :brand, :item, :unit_measurement, :count, :count_unit, :price_per_count,
-      :units, :price_per_unit, :taxable, :tax_rate, :total_price, :store_code,
+      :units, :price_per_unit, :taxable, :tax_rate, :total_price, :store_code, :usage_mode,
       :item_name, :household_id, :stop_id, :budget_entry_id
     ])
     |> validate_required([:brand, :item, :total_price, :household_id, :budget_entry_id])
@@ -45,9 +46,6 @@ defmodule MegaPlanner.Receipts.Purchase do
     |> foreign_key_constraint(:household_id)
     |> foreign_key_constraint(:stop_id)
     |> foreign_key_constraint(:budget_entry_id)
-    |> unique_constraint([:stop_id, :brand, :item],
-       name: :purchases_stop_brand_item_unique,
-       message: "This item already exists in this stop")
   end
 
   def tags_changeset(purchase, tags) do

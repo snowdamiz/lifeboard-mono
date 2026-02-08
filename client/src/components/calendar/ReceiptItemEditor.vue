@@ -282,6 +282,33 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- Usage Mode Toggle -->
+      <div>
+        <label class="text-sm font-medium">Usage Mode</label>
+        <p class="text-xs text-muted-foreground mb-2">How is this item consumed from inventory?</p>
+        <div class="flex rounded-lg border border-border overflow-hidden">
+          <button
+            type="button"
+            class="flex-1 px-3 py-2 text-sm font-medium transition-colors"
+            :class="item.usage_mode === 'quantity' ? 'bg-muted/30 hover:bg-muted' : 'bg-primary text-primary-foreground'"
+            @click="emit('update', index, { usage_mode: 'count' })"
+          >
+            By Count
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border"
+            :class="item.usage_mode === 'quantity' ? 'bg-primary text-primary-foreground' : 'bg-muted/30 hover:bg-muted'"
+            @click="emit('update', index, { usage_mode: 'quantity' })"
+          >
+            By Quantity
+          </button>
+        </div>
+        <p class="text-xs text-muted-foreground mt-1">
+          {{ item.usage_mode === 'quantity' ? 'Consumed by weight/volume (7 lbs potato, 16 oz cereal)' : 'Consumed per container (1 box, 1 pack)' }}
+        </p>
+      </div>
+
       <!-- Taxable Row -->
       <div class="flex items-center gap-3">
         <Checkbox 

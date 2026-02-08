@@ -212,7 +212,7 @@ const save = async () => {
       start_time: form.value.task_type === 'timed' ? form.value.start_time : null,
       tag_ids: Array.from(selectedTags.value),
       steps: taskSteps as unknown as TaskStep[],
-      trip_id: createdTripId || tripId.value || undefined
+      trip_id: createdTripId || tripId.value || null
     }
 
     const savedTask = isEditing.value && props.task?.id

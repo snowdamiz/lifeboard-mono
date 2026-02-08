@@ -124,6 +124,7 @@ defmodule MegaPlannerWeb.PurchaseController do
       item: purchase.item,
       unit_measurement: purchase.unit_measurement,
       count: purchase.count,
+      count_unit: purchase.count_unit,
       price_per_count: purchase.price_per_count,
       units: purchase.units,
       price_per_unit: purchase.price_per_unit,
@@ -132,6 +133,7 @@ defmodule MegaPlannerWeb.PurchaseController do
       total_price: purchase.total_price,
       store_code: purchase.store_code,
       item_name: purchase.item_name,
+      usage_mode: purchase.usage_mode,
       tags: Enum.map(purchase.tags || [], &tag_to_json/1),
       inserted_at: purchase.inserted_at,
       updated_at: purchase.updated_at

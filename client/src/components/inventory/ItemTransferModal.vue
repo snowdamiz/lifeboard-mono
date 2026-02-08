@@ -24,7 +24,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'transferred'): void
+  (e: 'transferred', quantity: number): void
 }>()
 
 const inventoryStore = useInventoryStore()
@@ -48,9 +48,14 @@ const sheetOptions = computed(() =>
   }))
 )
 
+// Determine if item is in count mode
+const isCountMode = computed(() => props.item?.usage_mode === 'count' || !props.item?.usage_mode)
+
 watch(() => props.item, async (newItem) => {
   if (newItem) {
-    transferQuantity.value = Math.min(1, Number(newItem.quantity))
+    const isCount = newItem.usage_mode === 'count' || !newItem.usage_mode
+    const availableValue = isCount ? (Number(newItem.count) || 1) : Number(newItem.quantity)
+    transferQuantity.value = Math.min(1, availableValue)
     targetSheetId.value = ''
     errorMessage.value = ''
     // Fetch matching items across sheets
@@ -74,8 +79,13 @@ onMounted(() => {
 })
 
 const maxQuantity = computed(() => Number(props.item?.quantity) || 0)
-// maxCount: prioritize quantity (available stock) over count (packaging)
-const maxCount = computed(() => Number(props.item?.quantity) || Number(props.item?.count) || 1)
+// maxCount: use count value when in count mode, quantity when in quantity mode
+const maxCount = computed(() => {
+  if (isCountMode.value) {
+    return Number(props.item?.count) || 1
+  }
+  return Number(props.item?.quantity) || 1
+})
 
 
 
@@ -91,10 +101,11 @@ const handleTransfer = async () => {
   errorMessage.value = ''
 
   try {
-    const result = await api.transferItem(props.item.id, targetSheetId.value, transferQuantity.value)
+    const usageMode = props.item.usage_mode || 'count'
+    const result = await api.transferItem(props.item.id, targetSheetId.value, transferQuantity.value, usageMode)
 
     if ('success' in result && result.success) {
-      emit('transferred')
+      emit('transferred', transferQuantity.value)
       emit('update:open', false)
     } else if ('error' in result) {
       errorMessage.value = result.error
@@ -141,7 +152,7 @@ const handleTransferAllQty = () => {
           <div class="text-sm text-muted-foreground flex items-center gap-2">
             <span v-if="item.brand">{{ item.brand }}</span>
             <Badge variant="outline" class="font-mono">
-              {{ item.quantity }} available
+              {{ isCountMode ? (Number(item.count) || 0) : item.quantity }} {{ isCountMode ? (item.count_unit || '') : (item.unit_of_measure || '') }} available
             </Badge>
           </div>
         </div>
@@ -162,7 +173,7 @@ const handleTransferAllQty = () => {
               <Package class="h-4 w-4 text-green-600" />
               <span class="font-medium">{{ match.sheet.name }}</span>
               <span class="text-muted-foreground">·</span>
-              <span>{{ match.quantity }} {{ match.unit_of_measure || '' }}</span>
+              <span>{{ (match.usage_mode === 'count' || !match.usage_mode) ? (Number(match.count) || 0) : match.quantity }} {{ (match.usage_mode === 'count' || !match.usage_mode) ? (match.count_unit || '') : (match.unit_of_measure || '') }}</span>
             </div>
           </div>
         </div>
@@ -171,7 +182,7 @@ const handleTransferAllQty = () => {
         <div class="space-y-2">
           <!-- By Count mode: transfer by individual pieces -->
           <template v-if="item.usage_mode === 'count' || !item.usage_mode">
-            <div class="text-sm font-medium">{{ item.count_unit || 'count' }} to transfer</div>
+            <div class="text-sm font-medium">count to transfer</div>
             <div class="flex items-center gap-2">
               <Input
                 type="number"
@@ -181,7 +192,7 @@ const handleTransferAllQty = () => {
                 class="w-24"
               />
               <span class="text-sm text-muted-foreground">
-                {{ item.count_unit || 'units' }}
+                {{ item.count_unit || 'count' }}
                 <span v-if="item.quantity && item.unit_of_measure">
                   ({{ item.quantity }} {{ item.unit_of_measure }} each)
                 </span>

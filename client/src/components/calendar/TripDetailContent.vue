@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
 import { X, Plus, MapPin, Trash, Camera } from 'lucide-vue-next'
 import type { Trip, Stop, Purchase, Store } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -12,6 +11,7 @@ import PurchaseForm from '@/components/budget/PurchaseForm.vue'
 import PurchaseList from '@/components/budget/PurchaseList.vue'
 import SearchableInput from '@/components/shared/SearchableInput.vue'
 import ReceiptScanModal from '@/components/calendar/ReceiptScanModal.vue'
+import StoreFormModal from '@/components/budget/StoreFormModal.vue'
 
 interface Props {
   tripId: string
@@ -28,8 +28,7 @@ const emit = defineEmits<{
 
 const receiptsStore = useReceiptsStore()
 const calendarStore = useCalendarStore()
-const router = useRouter()
-const route = useRoute()
+
 const loading = ref(false)
 const addingStop = ref(false)
 const trip = ref<Trip | null>(null)
@@ -39,6 +38,9 @@ const selectedStopId = ref<string | null>(null)
 const editingPurchase = ref<Purchase | null>(null)
 const storeSearchMap = ref<Record<string, string>>({})
 const showReceiptScan = ref(false)
+const showStoreForm = ref(false)
+const storeFormInitialName = ref('')
+const pendingStoreStop = ref<Stop | null>(null)
 
 // Driver state
 const driverSearchText = ref('')
@@ -88,8 +90,8 @@ const addStop = async () => {
   try {
     await receiptsStore.createStop(props.tripId, { 
       position: stops.value.length,
-      time_arrived: '00:00',
-      time_left: '00:00'
+      time_arrived: '',
+      time_left: ''
     })
     // Reload trip to get updated stops from store
     const updatedTrip = await receiptsStore.fetchTrip(props.tripId)
@@ -214,15 +216,22 @@ const createAndSelectStore = async (stop: Stop, storeName?: string) => {
   const name = storeName || storeSearchMap.value[stop.id]
   if (!name || isExactStoreMatch(stop.id)) return
   
-  // Redirect to store creation page
-  router.push({
-    path: '/budget/stores',
-    query: {
-      new: '1',
-      name: name,
-      returnTo: route.fullPath
-    }
-  })
+  // Open inline store form modal instead of navigating away
+  storeFormInitialName.value = name
+  pendingStoreStop.value = stop
+  showStoreForm.value = true
+}
+
+const handleNewStoreSaved = async (savedStore: Store) => {
+  showStoreForm.value = false
+  // Assign the new store to the pending stop
+  if (pendingStoreStop.value) {
+    await selectStore(pendingStoreStop.value, savedStore)
+    pendingStoreStop.value = null
+  }
+  storeFormInitialName.value = ''
+  // Refresh stores list so the new store appears in search
+  await receiptsStore.fetchStores()
 }
 
 const getPurchaseDate = () => {
@@ -349,11 +358,14 @@ onMounted(() => {
                  <div>
                    <label class="text-xs font-medium text-muted-foreground">Time Arrived</label>
                     <Input
-                      :model-value="stop.time_arrived || ''"
+                      :model-value="stop.time_arrived === '00:00' ? '' : (stop.time_arrived || '')"
                       type="text"
                       placeholder="0800 or 08:00"
                       maxlength="5"
                       class="mt-1 text-sm"
+                      @update:model-value="(value: string) => {
+                        stop.time_arrived = value
+                      }"
                       @blur="(e: FocusEvent) => {
                         const input = (e.target as HTMLInputElement).value.trim()
                         if (!input) return
@@ -368,11 +380,14 @@ onMounted(() => {
                  <div>
                    <label class="text-xs font-medium text-muted-foreground">Time Left</label>
                     <Input
-                      :model-value="stop.time_left || ''"
+                      :model-value="stop.time_left === '00:00' ? '' : (stop.time_left || '')"
                       type="text"
                       placeholder="1700 or 17:00"
                       maxlength="5"
                       class="mt-1 text-sm"
+                      @update:model-value="(value: string) => {
+                        stop.time_left = value
+                      }"
                       @blur="(e: FocusEvent) => {
                         const input = (e.target as HTMLInputElement).value.trim()
                         if (!input) return
@@ -469,6 +484,14 @@ onMounted(() => {
       :trip-id="tripId"
       @close="showReceiptScan = false"
       @confirmed="handleReceiptScanned"
+    />
+
+    <!-- Inline Store Form Modal -->
+    <StoreFormModal
+      v-model:open="showStoreForm"
+      :store="null"
+      :initial-name="storeFormInitialName"
+      @saved="handleNewStoreSaved"
     />
   </div>
 </template>
