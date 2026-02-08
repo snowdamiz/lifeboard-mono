@@ -101,7 +101,7 @@ defmodule MegaPlanner.Calendar do
     # Get the trip with stores preloaded to generate the title
     trip = MegaPlanner.Receipts.get_trip(trip_id)
 
-    unless trip do
+    if is_nil(trip) do
       Logger.warning("[ENSURE_TASK] Trip #{trip_id} not found")
       {:error, :trip_not_found}
     else

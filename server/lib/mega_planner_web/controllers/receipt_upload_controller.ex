@@ -1,5 +1,6 @@
 defmodule MegaPlannerWeb.ReceiptUploadController do
   use MegaPlannerWeb, :controller
+  require Logger
 
   alias MegaPlanner.Receipts.ReceiptParser
   alias MegaPlanner.Receipts

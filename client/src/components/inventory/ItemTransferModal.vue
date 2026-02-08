@@ -24,7 +24,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'transferred', quantity: number): void
+  (e: 'transferred', quantity: number, mode: 'count' | 'quantity'): void
 }>()
 
 const inventoryStore = useInventoryStore()
@@ -174,7 +174,7 @@ const handleTransfer = async () => {
     )
 
     if ('success' in result && result.success) {
-      emit('transferred', transferValue)
+      emit('transferred', transferValue, transferMode.value)
       emit('update:open', false)
     } else if ('error' in result) {
       errorMessage.value = result.error

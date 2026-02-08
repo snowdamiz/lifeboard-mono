@@ -148,17 +148,16 @@ const handleTransferClick = (item: InventoryItem) => {
   showTransferModal.value = true
 }
 
-const onTransferComplete = async (transferredQty: number) => {
-  console.log('Transfer complete, refreshing data...', { transferredQty, itemId: transferItem.value?.id })
+const onTransferComplete = async (transferredQty: number, mode: 'count' | 'quantity' = 'count') => {
+  console.log('Transfer complete, refreshing data...', { transferredQty, mode, itemId: transferItem.value?.id })
   
   // Optimistically update the local trip receipts to remove/reduce the transferred item
   if (transferItem.value) {
     const itemId = transferItem.value.id
-    const usageMode = transferItem.value.usage_mode || 'count'
     
-    // For count mode, check against count field; for quantity mode, check quantity
-    const currentAmount = usageMode === 'count'
-      ? (Number(transferItem.value.count) || Number(transferItem.value.quantity) || 1)
+    // Use the mode from the modal to determine which field was used
+    const currentAmount = mode === 'count'
+      ? (Number(transferItem.value.count) || 1)
       : (Number(transferItem.value.quantity) || 0)
     const remaining = currentAmount - transferredQty
     
@@ -170,7 +169,7 @@ const onTransferComplete = async (transferredQty: number) => {
             // If fully consumed, return null to filter out
             if (remaining <= 0) return null
             // Otherwise update the relevant field
-            if (usageMode === 'count') {
+            if (mode === 'count') {
               return { ...item, count: String(remaining) }
             } else {
               return { ...item, quantity: String(remaining) }

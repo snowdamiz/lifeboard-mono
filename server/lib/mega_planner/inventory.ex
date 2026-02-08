@@ -752,7 +752,7 @@ defmodule MegaPlanner.Inventory do
   the `amount` parameter represents a count of containers and the function
   transfers proportional quantity. Otherwise `amount` is raw quantity.
   """
-  def transfer_item(source_item_id, target_sheet_id, amount, _usage_mode \\ "count") do
+  def transfer_item(source_item_id, target_sheet_id, amount, usage_mode \\ "count") do
     Repo.transaction(fn ->
       source = get_item(source_item_id)
       
@@ -760,9 +760,10 @@ defmodule MegaPlanner.Inventory do
         Repo.rollback(:item_not_found)
       end
 
-      # Determine transfer mode from the source item itself
-      # Use count-based transfer only when usage_mode is "count" AND source has a count value
-      use_count_mode = source.usage_mode == "count" && source.count != nil && 
+      # Use the frontend-supplied usage_mode to determine transfer behavior
+      # 'count' -> amount is # of containers, proportional qty moves with it
+      # 'quantity' -> amount is raw quantity
+      use_count_mode = usage_mode == "count" && source.count != nil && 
                        Decimal.compare(source.count || Decimal.new(0), Decimal.new(0)) == :gt
 
       # Determine the actual quantity to transfer and what to deduct based on mode
@@ -853,10 +854,10 @@ defmodule MegaPlanner.Inventory do
         item ->
           # Add to existing item
           if use_count_mode do
-            # Count mode: add both count and proportional quantity
+            # Count mode: quantity is per-container (stays the same),
+            # only increment count (number of containers)
             existing_count = item.count || Decimal.new(0)
             update_attrs = %{
-              quantity: Decimal.add(item.quantity, transfer_qty),
               count: Decimal.add(existing_count, amount)
             }
             {:ok, _} = update_item(item, update_attrs)
