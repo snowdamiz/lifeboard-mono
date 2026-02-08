@@ -36,6 +36,11 @@ const isLoadingMatches = ref(false)
 const matchingItems = ref<(InventoryItem & { sheet: { id: string; name: string } })[]>([])
 const errorMessage = ref('')
 
+// Transfer mode: 'count', 'quantity', or 'both'
+const transferMode = ref<'count' | 'quantity'>('count')
+// For "both" mode, we have separate inputs
+const transferCount = ref(1)
+
 const nonPurchasesSheets = computed(() => 
   inventoryStore.sheets.filter(s => s.name !== 'Purchases')
 )
@@ -48,16 +53,45 @@ const sheetOptions = computed(() =>
   }))
 )
 
-// Determine if item is in count mode
-const isCountMode = computed(() => props.item?.usage_mode === 'count' || !props.item?.usage_mode)
+// Source item stats
+const sourceCount = computed(() => Number(props.item?.count) || 0)
+const sourceQuantity = computed(() => Number(props.item?.quantity) || 0)
+const hasCount = computed(() => sourceCount.value > 0)
+const hasQuantity = computed(() => sourceQuantity.value > 0)
+
+// Available transfer modes for this item
+const availableModes = computed(() => {
+  const modes: { value: 'count' | 'quantity'; label: string }[] = []
+  if (hasCount.value) {
+    modes.push({ value: 'count', label: 'By Count' })
+  }
+  if (hasQuantity.value) {
+    modes.push({ value: 'quantity', label: 'By Quantity' })
+  }
+  // If nothing is available, default to count
+  if (modes.length === 0) {
+    modes.push({ value: 'count', label: 'By Count' })
+  }
+  return modes
+})
 
 watch(() => props.item, async (newItem) => {
   if (newItem) {
-    const isCount = newItem.usage_mode === 'count' || !newItem.usage_mode
-    const availableValue = isCount ? (Number(newItem.count) || 1) : Number(newItem.quantity)
-    transferQuantity.value = Math.min(1, availableValue)
+    // Set default transfer mode based on usage_mode
+    const defaultMode = newItem.usage_mode === 'quantity' ? 'quantity' : 'count'
+    transferMode.value = defaultMode
+    
+    // Initialize transfer values
+    if (defaultMode === 'count') {
+      transferCount.value = Math.min(1, Number(newItem.count) || 1)
+      transferQuantity.value = transferCount.value
+    } else {
+      transferQuantity.value = Math.min(1, Number(newItem.quantity) || 1)
+    }
+    
     targetSheetId.value = ''
     errorMessage.value = ''
+    
     // Fetch matching items across sheets
     isLoadingMatches.value = true
     try {
@@ -78,22 +112,50 @@ onMounted(() => {
   }
 })
 
-const maxQuantity = computed(() => Number(props.item?.quantity) || 0)
-// maxCount: use count value when in count mode, quantity when in quantity mode
-const maxCount = computed(() => {
-  if (isCountMode.value) {
-    return Number(props.item?.count) || 1
+// Max values for validation
+const maxCount = computed(() => sourceCount.value || 1)
+const maxQuantity = computed(() => sourceQuantity.value || 1)
+
+// What we're actually transferring depends on mode
+const effectiveTransferValue = computed(() => {
+  if (transferMode.value === 'count') {
+    return transferCount.value
   }
-  return Number(props.item?.quantity) || 1
+  return transferQuantity.value
 })
 
-
-
+// Preview of what will be transferred
+const transferPreview = computed(() => {
+  if (!props.item) return ''
+  
+  if (transferMode.value === 'count') {
+    const count = transferCount.value
+    const unit = props.item.count_unit || 'count'
+    const perContainer = sourceQuantity.value
+    const perUnit = props.item.unit_of_measure
+    
+    let preview = `${count} ${unit}`
+    if (perContainer > 0 && perUnit) {
+      const totalQty = count * perContainer
+      preview += ` (${totalQty} ${perUnit} total)`
+    }
+    return preview
+  } else {
+    const qty = transferQuantity.value
+    const unit = props.item.unit_of_measure || 'units'
+    return `${qty} ${unit}`
+  }
+})
 
 const handleTransfer = async () => {
-  if (!props.item || !targetSheetId.value || transferQuantity.value < 1) {
-    // We let the user click, but show an error if invalid
-    errorMessage.value = 'Please select a destination sheet and valid quantity'
+  if (!props.item || !targetSheetId.value) {
+    errorMessage.value = 'Please select a destination sheet'
+    return
+  }
+
+  const transferValue = effectiveTransferValue.value
+  if (transferValue < 1) {
+    errorMessage.value = 'Transfer amount must be at least 1'
     return
   }
   
@@ -101,11 +163,18 @@ const handleTransfer = async () => {
   errorMessage.value = ''
 
   try {
-    const usageMode = props.item.usage_mode || 'count'
-    const result = await api.transferItem(props.item.id, targetSheetId.value, transferQuantity.value, usageMode)
+    // The backend transfer_item uses usage_mode to decide behavior:
+    // 'count' -> amount is # of containers, proportional qty moves with it
+    // 'quantity' -> amount is raw quantity
+    const result = await api.transferItem(
+      props.item.id, 
+      targetSheetId.value, 
+      transferValue, 
+      transferMode.value
+    )
 
     if ('success' in result && result.success) {
-      emit('transferred', transferQuantity.value)
+      emit('transferred', transferValue)
       emit('update:open', false)
     } else if ('error' in result) {
       errorMessage.value = result.error
@@ -119,17 +188,31 @@ const handleTransfer = async () => {
   }
 }
 
-
-const handleTransferAll = () => {
+const handleTransferAllCount = () => {
+  transferCount.value = maxCount.value
   transferQuantity.value = maxCount.value
 }
 
-
 const handleTransferAllQty = () => {
-  if (props.item) {
-    transferQuantity.value = Number(props.item.quantity)
-  }
+  transferQuantity.value = maxQuantity.value
 }
+
+// When mode changes, reset the transfer value
+watch(transferMode, (mode) => {
+  if (mode === 'count') {
+    transferCount.value = Math.min(1, maxCount.value)
+    transferQuantity.value = transferCount.value
+  } else {
+    transferQuantity.value = Math.min(1, maxQuantity.value)
+  }
+})
+
+// Keep transferQuantity in sync when in count mode (for the API call)
+watch(transferCount, (count) => {
+  if (transferMode.value === 'count') {
+    transferQuantity.value = count
+  }
+})
 </script>
 
 <template>
@@ -147,12 +230,18 @@ const handleTransferAllQty = () => {
 
       <div v-if="item" class="space-y-4 py-4">
         <!-- Source item info -->
-        <div class="bg-muted/50 rounded-lg p-3">
+        <div class="bg-muted/50 rounded-lg p-3 space-y-1.5">
           <div class="font-medium">{{ item.name }}</div>
-          <div class="text-sm text-muted-foreground flex items-center gap-2">
-            <span v-if="item.brand">{{ item.brand }}</span>
-            <Badge variant="outline" class="font-mono">
-              {{ isCountMode ? (Number(item.count) || 0) : item.quantity }} {{ isCountMode ? (item.count_unit || '') : (item.unit_of_measure || '') }} available
+          <div v-if="item.brand" class="text-sm text-muted-foreground">{{ item.brand }}</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <Badge v-if="hasCount" variant="outline" class="font-mono">
+              {{ sourceCount }} {{ item.count_unit || 'count' }}
+            </Badge>
+            <Badge v-if="hasQuantity && item.unit_of_measure" variant="outline" class="font-mono">
+              {{ sourceQuantity }} {{ item.unit_of_measure }}
+            </Badge>
+            <Badge v-if="hasCount && hasQuantity && item.unit_of_measure" variant="secondary" class="text-xs">
+              {{ sourceQuantity }} {{ item.unit_of_measure }} each
             </Badge>
           </div>
         </div>
@@ -173,58 +262,85 @@ const handleTransferAllQty = () => {
               <Package class="h-4 w-4 text-green-600" />
               <span class="font-medium">{{ match.sheet.name }}</span>
               <span class="text-muted-foreground">·</span>
-              <span>{{ (match.usage_mode === 'count' || !match.usage_mode) ? (Number(match.count) || 0) : match.quantity }} {{ (match.usage_mode === 'count' || !match.usage_mode) ? (match.count_unit || '') : (match.unit_of_measure || '') }}</span>
+              <span v-if="Number(match.count) > 0">{{ Number(match.count) }} {{ match.count_unit || 'count' }}</span>
+              <span v-if="Number(match.count) > 0 && Number(match.quantity) > 0" class="text-muted-foreground">·</span>
+              <span v-if="Number(match.quantity) > 0">{{ match.quantity }} {{ match.unit_of_measure || '' }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Quantity input - changes based on usage_mode -->
+        <!-- Transfer mode selector - only show if item has both count and quantity -->
+        <div v-if="availableModes.length > 1" class="space-y-2">
+          <div class="text-sm font-medium">Transfer by</div>
+          <div class="flex rounded-lg border border-border overflow-hidden">
+            <button
+              v-for="mode in availableModes"
+              :key="mode.value"
+              type="button"
+              class="flex-1 px-3 py-2 text-sm font-medium transition-colors"
+              :class="[
+                transferMode === mode.value 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted/30 hover:bg-muted',
+                mode.value !== availableModes[0].value ? 'border-l border-border' : ''
+              ]"
+              @click="transferMode = mode.value"
+            >
+              {{ mode.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Transfer amount input -->
         <div class="space-y-2">
-          <!-- By Count mode: transfer by individual pieces -->
-          <template v-if="item.usage_mode === 'count' || !item.usage_mode">
-            <div class="text-sm font-medium">count to transfer</div>
+          <!-- Count mode -->
+          <template v-if="transferMode === 'count'">
+            <div class="text-sm font-medium">Count to transfer</div>
             <div class="flex items-center gap-2">
               <Input
                 type="number"
-                v-model.number="transferQuantity"
+                v-model.number="transferCount"
                 :min="1"
                 :max="maxCount"
                 class="w-24"
               />
               <span class="text-sm text-muted-foreground">
                 {{ item.count_unit || 'count' }}
-                <span v-if="item.quantity && item.unit_of_measure">
-                  ({{ item.quantity }} {{ item.unit_of_measure }} each)
+                <span v-if="sourceQuantity > 0 && item.unit_of_measure" class="text-xs">
+                  ({{ sourceQuantity }} {{ item.unit_of_measure }} each)
                 </span>
               </span>
-              <Button variant="outline" size="sm" @click="handleTransferAll">
-                Transfer All ({{ maxCount }})
+              <Button variant="outline" size="sm" @click="handleTransferAllCount">
+                All ({{ maxCount }})
               </Button>
             </div>
           </template>
           
-          <!-- By Quantity mode: transfer whole units -->
+          <!-- Quantity mode -->
           <template v-else>
-            <div class="text-sm font-medium">quantity to transfer</div>
+            <div class="text-sm font-medium">Quantity to transfer</div>
             <div class="flex items-center gap-2">
               <Input
                 type="number"
                 v-model.number="transferQuantity"
                 :min="1"
-                :max="Number(item.quantity)"
+                :max="maxQuantity"
+                step="any"
                 class="w-24"
               />
               <span class="text-sm text-muted-foreground">
                 {{ item.unit_of_measure || 'units' }}
-                <span v-if="item.count && item.count_unit">
-                  ({{ item.name }} - {{ item.count }} {{ item.count_unit }})
-                </span>
               </span>
               <Button variant="outline" size="sm" @click="handleTransferAllQty">
-                Transfer All ({{ item.quantity }})
+                All ({{ maxQuantity }})
               </Button>
             </div>
           </template>
+
+          <!-- Transfer preview -->
+          <div v-if="transferPreview" class="text-xs text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5">
+            Transferring: <span class="font-medium text-foreground">{{ transferPreview }}</span>
+          </div>
         </div>
 
         <!-- Target sheet selection -->
@@ -241,14 +357,9 @@ const handleTransferAllQty = () => {
         </div>
       </div>
 
-        <div v-if="errorMessage" class="p-3 mb-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-          {{ errorMessage }}
-        </div>
-
-
-
-
-
+      <div v-if="errorMessage" class="p-3 mb-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+        {{ errorMessage }}
+      </div>
 
       <DialogFooter>
         <Button variant="outline" @click="emit('update:open', false)">
