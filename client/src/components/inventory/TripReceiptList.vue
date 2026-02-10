@@ -49,6 +49,27 @@ const formatDate = (dateStr: string | null) => {
   }).format(date)
 }
 
+/**
+ * Compute total units for an InventoryItem.
+ *
+ * InventoryItem.quantity stores the per-container weight/volume
+ * (e.g., 20 lb per chicken breast). Purchase.units stores the total
+ * (e.g., 40 lb for 2 items). When count > 1 we reconstruct the total
+ * so the display matches what PurchaseList shows.
+ */
+const getTotalUnits = (item: InventoryItem) => {
+  const qty = item.quantity
+  const count = item.count
+  if (qty != null && count != null) {
+    const qtyNum = typeof qty === 'string' ? parseFloat(qty) : Number(qty)
+    const countNum = typeof count === 'string' ? parseFloat(count) : Number(count)
+    if (!isNaN(qtyNum) && !isNaN(countNum) && countNum > 0) {
+      return String(qtyNum * countNum)
+    }
+  }
+  // Fallback: use quantity directly (single-item or missing count)
+  return qty != null ? String(qty) : null
+}
 
 </script>
 
@@ -109,7 +130,7 @@ const formatDate = (dateStr: string | null) => {
           :brand="item.brand"
           :count="item.count"
           :count-unit="item.count_unit"
-          :units="item.quantity"
+          :units="getTotalUnits(item)"
           :unit-measurement="item.unit_of_measure"
           :store="item.store"
           :store-code="item.store_code"

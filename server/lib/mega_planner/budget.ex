@@ -132,7 +132,7 @@ defmodule MegaPlanner.Budget do
     query = from e in Entry,
       where: e.household_id == ^household_id,
       order_by: [asc: e.date],
-      preload: [:source, :tags, purchase: [stop: [:store, :purchases]]]
+      preload: [:source, :tags, purchase: [:tags, stop: [:store, purchases: :tags]]]
 
     query
     |> filter_entries_by_date_range(opts)

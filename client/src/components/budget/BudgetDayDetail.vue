@@ -306,7 +306,7 @@ const deletePurchase = async (purchase: Purchase) => {
                   <!-- Expanded Trip Info & Purchases List -->
                   <div 
                     v-if="entry.is_trip && isTripExpanded(entry.id)"
-                    class="ml-2 mt-3 space-y-3"
+                    class="ml-2 mt-3 space-y-3 max-h-[50vh] overflow-auto"
                   >
                     <!-- Trip Details Header -->
                     <div v-if="getEntryStop(entry) || getEntryTrip(entry)" class="bg-secondary/50 rounded-lg p-3 space-y-2">
@@ -363,6 +363,8 @@ const deletePurchase = async (purchase: Purchase) => {
                         :unit-measurement="purchase.unit_measurement"
                         :price="getUnitPrice(purchase)"
                         :total="purchase.total_price"
+                        :price-per-count="purchase.price_per_count"
+                        :price-per-unit="purchase.price_per_unit"
                         :store-code="purchase.store_code"
                         :taxable="purchase.taxable"
                         :tags="purchase.tags"

@@ -143,12 +143,18 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       count_unit: purchase.count_unit,
       price_per_count: purchase.price_per_count,
       units: purchase.units,
+      unit_measurement: purchase.unit_measurement,
       price_per_unit: purchase.price_per_unit,
       total_price: purchase.total_price,
       item_name: purchase.item_name,
-      usage_mode: purchase.usage_mode
+      usage_mode: purchase.usage_mode,
+      store_code: purchase.store_code,
+      taxable: purchase.taxable,
+      tax_rate: purchase.tax_rate,
+      tags: Enum.map((purchase.tags || []), &tag_to_json/1)
     }
   end
+
 
   def create(conn, %{"entry" => entry_params}) do
     user = Guardian.Plug.current_resource(conn)
