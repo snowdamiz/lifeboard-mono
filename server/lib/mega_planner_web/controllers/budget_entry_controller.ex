@@ -28,6 +28,11 @@ defmodule MegaPlannerWeb.BudgetEntryController do
     json(conn, %{data: json_data})
   end
 
+  # Safely extract tags, handling NotLoaded
+  defp safe_tags(%Ecto.Association.NotLoaded{}), do: []
+  defp safe_tags(nil), do: []
+  defp safe_tags(tags) when is_list(tags), do: tags
+
   defp aggregate_entries(nil), do: []
   defp aggregate_entries([]), do: []
   defp aggregate_entries(entries) when is_list(entries) do
@@ -67,7 +72,7 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       notes: stop.notes,
       source_id: source.id,
       source: source,
-      tags: entry.tags || [],
+      tags: safe_tags(entry.tags),
       inserted_at: entry.inserted_at,
       updated_at: entry.updated_at,
       is_trip: true,
@@ -78,7 +83,7 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   defp update_stop_group(group, entry) do
     %{group | 
       amount: Decimal.add(group.amount, entry.amount),
-      tags: (group.tags ++ (entry.tags || [])) |> Enum.uniq_by(& &1.id)
+      tags: (group.tags ++ safe_tags(entry.tags)) |> Enum.uniq_by(& &1.id)
     }
   end
   
@@ -117,7 +122,7 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       notes: map.notes || "Trip to #{map.source.name}",
       source_id: map.source_id,
       source: map.source,
-      tags: Enum.map(map.tags || [], &tag_to_json/1),
+      tags: Enum.map(safe_tags(map.tags), &tag_to_json/1),
       inserted_at: map.inserted_at,
       updated_at: map.updated_at,
       is_trip: true,
@@ -151,9 +156,10 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       store_code: purchase.store_code,
       taxable: purchase.taxable,
       tax_rate: purchase.tax_rate,
-      tags: Enum.map((purchase.tags || []), &tag_to_json/1)
+      tags: Enum.map(safe_tags(purchase.tags), &tag_to_json/1)
     }
   end
+
 
 
   def create(conn, %{"entry" => entry_params}) do
@@ -245,7 +251,7 @@ defmodule MegaPlannerWeb.BudgetEntryController do
       notes: entry.notes,
       source_id: entry.source_id,
       source: source_obj,
-      tags: Enum.map(entry.tags || [], &tag_to_json/1),
+      tags: Enum.map(safe_tags(entry.tags), &tag_to_json/1),
       inserted_at: entry.inserted_at,
       updated_at: entry.updated_at,
       is_trip: false

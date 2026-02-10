@@ -360,6 +360,11 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
           ensure_brand_for_confirmed_purchase(brand_name, household_id)
           if unit_name, do: ensure_unit_for_confirmed_purchase(unit_name, household_id)
           
+          # Backfill budget entry's purchase_id for bidirectional link
+          # This enables trip aggregation in budget views
+          Budget.Entry.changeset(budget_entry, %{purchase_id: purchase.id})
+          |> Repo.update()
+          
           # Create the corresponding inventory item in the Purchases sheet
           MegaPlanner.Inventory.create_item_from_purchase(purchase)
           
