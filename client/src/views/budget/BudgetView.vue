@@ -23,6 +23,7 @@ const calendarStore = useCalendarStore()
 const receiptsStore = useReceiptsStore()
 const showEntryForm = ref(false)
 const showDayDetail = ref(false)
+const inlineDayDetail = ref(false)
 const selectedDate = ref<Date | null>(null)
 const editingEntry = ref<BudgetEntry | null>(null)
 
@@ -200,19 +201,34 @@ const allTrips = computed(() => {
 
 const openDayDetail = (date: Date) => {
   selectedDate.value = date
-  showDayDetail.value = true
+  // Desktop: inline popout within the calendar grid
+  // Mobile: full modal
+  if (window.innerWidth >= 640) {
+    inlineDayDetail.value = true
+    showDayDetail.value = false
+  } else {
+    showDayDetail.value = true
+    inlineDayDetail.value = false
+  }
+}
+
+const closeInlineDayDetail = () => {
+  inlineDayDetail.value = false
+  selectedDate.value = null
 }
 
 const openNewEntry = (date?: Date) => {
   selectedDate.value = date || new Date()
   editingEntry.value = null
   showDayDetail.value = false
+  inlineDayDetail.value = false
   showEntryForm.value = true
 }
 
 const openEditEntry = (entry: BudgetEntry) => {
   editingEntry.value = entry
   showDayDetail.value = false
+  inlineDayDetail.value = false
   showEntryForm.value = true
 }
 
@@ -389,7 +405,23 @@ const handleTripDetailClose = async () => {
     </div>
 
     <!-- Calendar Grid - Desktop (Month View) -->
-    <div v-if="budgetStore.viewMode === 'month'" class="hidden sm:block border border-border/80 rounded-xl overflow-hidden bg-card">
+    <div v-if="budgetStore.viewMode === 'month'" class="hidden sm:block border border-border/80 rounded-xl overflow-hidden bg-card relative">
+      <!-- Inline Day Detail Overlay (spans entire grid) -->
+      <div 
+        v-if="inlineDayDetail && selectedDate"
+        class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-lg overflow-hidden"
+      >
+        <BudgetDayDetail
+          :date="selectedDate"
+          :inline-mode="true"
+          class="h-full"
+          @close="closeInlineDayDetail"
+          @add-entry="openNewEntry(selectedDate!)"
+          @edit-entry="openEditEntry"
+          @refresh="refreshData()"
+        />
+      </div>
+
       <div class="grid grid-cols-7 bg-secondary/40">
         <div v-for="day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']" :key="day" class="p-2.5 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           {{ day }}
@@ -457,7 +489,23 @@ const handleTripDetailClose = async () => {
     </div>
 
     <!-- Budget Timeline View (Week Mode) - Habits Style -->
-    <div v-if="budgetStore.viewMode === 'week'" class="hidden sm:block space-y-4">
+    <div v-if="budgetStore.viewMode === 'week'" class="hidden sm:block space-y-4 relative">
+      <!-- Inline Day Detail Overlay (week mode) -->
+      <div 
+        v-if="inlineDayDetail && selectedDate"
+        class="absolute inset-0 z-30 bg-card border border-white/[0.12] rounded-xl overflow-hidden"
+      >
+        <BudgetDayDetail
+          :date="selectedDate"
+          :inline-mode="true"
+          class="h-full"
+          @close="closeInlineDayDetail"
+          @add-entry="openNewEntry(selectedDate!)"
+          @edit-entry="openEditEntry"
+          @refresh="refreshData()"
+        />
+      </div>
+
       <!-- Day Navigation Controls -->
       <div class="flex items-center gap-3 bg-card/50 rounded-lg px-3 py-2 border border-border/50">
         <Button 
@@ -920,6 +968,7 @@ const handleTripDetailClose = async () => {
       </div>
     </div>
 
+    <!-- Mobile-only modal day detail -->
     <BudgetDayDetail
       v-if="showDayDetail && selectedDate"
       :date="selectedDate"
