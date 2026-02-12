@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Store, Trip, Stop, Brand, Unit, Purchase, BrandSuggestion, Driver, ReceiptScanResult } from '@/types'
 import { api } from '@/services/api'
+import { fetchIfStale, invalidate } from '@/utils/prefetch'
 
 export const useReceiptsStore = defineStore('receipts', () => {
     // State
@@ -17,18 +18,21 @@ export const useReceiptsStore = defineStore('receipts', () => {
 
     // Stores
     async function fetchStores() {
-        loading.value = true
-        try {
-            const response = await api.listStores()
-            stores.value = response.data
-        } finally {
-            loading.value = false
-        }
+        return fetchIfStale('receipts:stores', async () => {
+            loading.value = true
+            try {
+                const response = await api.listStores()
+                stores.value = response.data
+            } finally {
+                loading.value = false
+            }
+        })
     }
 
     async function createStore(store: Partial<Store>) {
         const response = await api.createStore(store)
         stores.value.push(response.data)
+        invalidate('receipts:stores')
         return response.data
     }
 
@@ -44,6 +48,7 @@ export const useReceiptsStore = defineStore('receipts', () => {
     async function deleteStore(id: string) {
         await api.deleteStore(id)
         stores.value = stores.value.filter(s => s.id !== id)
+        invalidate('receipts:stores')
     }
 
     async function fetchStoreInventory(id: string) {
@@ -75,13 +80,15 @@ export const useReceiptsStore = defineStore('receipts', () => {
 
     // Trips
     async function fetchTrips(params?: { start_date?: string; end_date?: string }) {
-        loading.value = true
-        try {
-            const response = await api.listTrips(params)
-            trips.value = response.data
-        } finally {
-            loading.value = false
-        }
+        return fetchIfStale('receipts:trips', async () => {
+            loading.value = true
+            try {
+                const response = await api.listTrips(params)
+                trips.value = response.data
+            } finally {
+                loading.value = false
+            }
+        })
     }
 
     async function fetchTrip(id: string) {
@@ -232,13 +239,15 @@ export const useReceiptsStore = defineStore('receipts', () => {
 
     // Brands
     async function fetchBrands(search?: string) {
-        loading.value = true
-        try {
-            const response = await api.listBrands(search ? { search } : undefined)
-            brands.value = response.data
-        } finally {
-            loading.value = false
-        }
+        return fetchIfStale('receipts:brands', async () => {
+            loading.value = true
+            try {
+                const response = await api.listBrands(search ? { search } : undefined)
+                brands.value = response.data
+            } finally {
+                loading.value = false
+            }
+        })
     }
 
     async function searchBrands(query: string) {
@@ -269,13 +278,15 @@ export const useReceiptsStore = defineStore('receipts', () => {
 
     // Units
     async function fetchUnits() {
-        loading.value = true
-        try {
-            const response = await api.listUnits()
-            units.value = response.data
-        } finally {
-            loading.value = false
-        }
+        return fetchIfStale('receipts:units', async () => {
+            loading.value = true
+            try {
+                const response = await api.listUnits()
+                units.value = response.data
+            } finally {
+                loading.value = false
+            }
+        })
     }
 
     async function createUnit(name: string) {

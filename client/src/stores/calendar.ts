@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { Task, TaskStep, Trip } from '@/types'
 import { api } from '@/services/api'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, addMonths, parseISO, getDay } from 'date-fns'
+import { fetchIfStale, invalidate } from '@/utils/prefetch'
 
 export const useCalendarStore = defineStore('calendar', () => {
   const tasks = ref<Task[]>([])
@@ -124,20 +125,26 @@ export const useCalendarStore = defineStore('calendar', () => {
   }
 
   async function fetchWeekTasks() {
-    await Promise.all([
-      fetchTasks(weekStart.value, weekEnd.value),
-      fetchTripsForPeriod(weekStart.value, weekEnd.value)
-    ])
+    const key = `calendar:week:${format(weekStart.value, 'yyyy-MM-dd')}`
+    return fetchIfStale(key, async () => {
+      await Promise.all([
+        fetchTasks(weekStart.value, weekEnd.value),
+        fetchTripsForPeriod(weekStart.value, weekEnd.value)
+      ])
+    })
   }
 
   async function fetchMonthTasks() {
     // Fetch tasks and trips for the entire visible month grid (including padding days)
     const firstVisible = monthDays.value[0]
     const lastVisible = monthDays.value[monthDays.value.length - 1]
-    await Promise.all([
-      fetchTasks(firstVisible, lastVisible),
-      fetchTripsForPeriod(firstVisible, lastVisible)
-    ])
+    const key = `calendar:month:${format(firstVisible, 'yyyy-MM-dd')}`
+    return fetchIfStale(key, async () => {
+      await Promise.all([
+        fetchTasks(firstVisible, lastVisible),
+        fetchTripsForPeriod(firstVisible, lastVisible)
+      ])
+    })
   }
 
   async function fetchCurrentViewTasks() {
@@ -149,12 +156,14 @@ export const useCalendarStore = defineStore('calendar', () => {
   }
 
   async function fetchTodayTasks() {
-    const today = format(new Date(), 'yyyy-MM-dd')
-    const params: any = { start_date: today, end_date: today }
-    if (filterTags.value.length > 0) params.tag_ids = filterTags.value.join(',')
+    return fetchIfStale('calendar:today', async () => {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const params: any = { start_date: today, end_date: today }
+      if (filterTags.value.length > 0) params.tag_ids = filterTags.value.join(',')
 
-    const response = await api.listTasks(params)
-    todaysTasks.value = response.data
+      const response = await api.listTasks(params)
+      todaysTasks.value = response.data
+    })
   }
 
   async function createTask(task: Partial<Task> & { tag_ids?: string[] }) {
@@ -163,6 +172,7 @@ export const useCalendarStore = defineStore('calendar', () => {
       const response = await api.createTask(task)
       console.log('[DEBUG] calendarStore.createTask response:', JSON.stringify(response.data, null, 2))
       tasks.value.push(response.data)
+      invalidate('calendar:today')
       return response.data
     } catch (error) {
       console.error('[DEBUG] calendarStore.createTask FAILED:', error)
@@ -176,6 +186,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     if (index !== -1) {
       tasks.value[index] = response.data
     }
+    invalidate('calendar:today')
     return response.data
   }
 
@@ -186,6 +197,7 @@ export const useCalendarStore = defineStore('calendar', () => {
 
     await api.deleteTask(id)
     tasks.value = tasks.value.filter(t => t.id !== id)
+    invalidate('calendar:today')
 
     // If the task had a trip, clean up related stores since backend cascaded the deletion
     if (tripId) {
@@ -242,6 +254,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     if (taskIds.length === 0) return
     await api.reorderTasks(taskIds[0], taskIds)
     // Re-fetch to get updated priorities
+    invalidate(`calendar:week:${format(weekStart.value, 'yyyy-MM-dd')}`)
     await fetchWeekTasks()
   }
 
@@ -350,4 +363,3 @@ export const useCalendarStore = defineStore('calendar', () => {
     removePurchaseFromTrips
   }
 })
-

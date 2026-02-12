@@ -17,6 +17,7 @@ import {
 } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 import { usePreferencesStore } from '@/stores/preferences'
+import { prefetchForRoute } from '@/utils/prefetch'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,6 +82,36 @@ const handleMoreItemClick = (path: string) => {
   showMoreMenu.value = false
   router.push(path)
 }
+
+// Hover prefetch for mobile nav items
+let prefetchTimer: ReturnType<typeof setTimeout> | null = null
+const pathToRoute: Record<string, string> = {
+  '/': 'dashboard',
+  '/calendar': 'calendar',
+  '/goals': 'goals',
+  '/habits': 'habits',
+  '/inventory': 'inventory',
+  '/inventory/shopping-list': 'shopping-list',
+  '/budget': 'budget',
+  '/notes': 'notes',
+  '/reports': 'reports',
+  '/settings': 'settings'
+}
+
+const schedulePrefetch = (path: string) => {
+  if (prefetchTimer) clearTimeout(prefetchTimer)
+  prefetchTimer = setTimeout(() => {
+    const routeId = pathToRoute[path]
+    if (routeId) prefetchForRoute(routeId)
+  }, 80)
+}
+
+const cancelPrefetch = () => {
+  if (prefetchTimer) {
+    clearTimeout(prefetchTimer)
+    prefetchTimer = null
+  }
+}
 </script>
 
 <template>
@@ -90,6 +121,8 @@ const handleMoreItemClick = (path: string) => {
         v-for="item in navItems"
         :key="item.path"
         :to="item.path"
+        @pointerenter="schedulePrefetch(item.path)"
+        @pointerleave="cancelPrefetch"
         :class="cn(
           'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors touch-manipulation',
           isActive(item) 
@@ -172,6 +205,8 @@ const handleMoreItemClick = (path: string) => {
                 : 'text-foreground hover:bg-secondary'
             )"
             @click="handleMoreItemClick(item.path)"
+            @pointerenter="schedulePrefetch(item.path)"
+            @pointerleave="cancelPrefetch"
           >
             <component :is="item.icon" class="h-4 w-4" />
             {{ item.name }}

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Tag } from '@/types'
 import { api } from '@/services/api'
+import { fetchIfStale, invalidate } from '@/utils/prefetch'
 
 interface TagWithUsage {
     id: string
@@ -49,13 +50,15 @@ export const useTagsStore = defineStore('tags', () => {
 
     // Actions
     async function fetchTags() {
-        loading.value = true
-        try {
-            const response = await api.listTags()
-            tags.value = response.data
-        } finally {
-            loading.value = false
-        }
+        return fetchIfStale('tags:list', async () => {
+            loading.value = true
+            try {
+                const response = await api.listTags()
+                tags.value = response.data
+            } finally {
+                loading.value = false
+            }
+        })
     }
 
     async function fetchTagsWithUsage() {
@@ -71,6 +74,7 @@ export const useTagsStore = defineStore('tags', () => {
     async function createTag(tag: Partial<Tag>) {
         const response = await api.createTag(tag)
         tags.value.push(response.data)
+        invalidate('tags:list')
         return response.data
     }
 
@@ -87,6 +91,7 @@ export const useTagsStore = defineStore('tags', () => {
         await api.deleteTag(id)
         tags.value = tags.value.filter(t => t.id !== id)
         tagsWithUsage.value = tagsWithUsage.value.filter(t => t.id !== id)
+        invalidate('tags:list')
     }
 
     async function searchByTags(tagIds: string[], mode: 'any' | 'all' = 'any') {

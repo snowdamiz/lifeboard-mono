@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { BudgetSource, BudgetEntry, BudgetSummary } from '@/types'
 import { api } from '@/services/api'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns'
+import { fetchIfStale, invalidate, invalidatePrefix } from '@/utils/prefetch'
 
 export const useBudgetStore = defineStore('budget', () => {
   const sources = ref<BudgetSource[]>([])
@@ -33,18 +34,21 @@ export const useBudgetStore = defineStore('budget', () => {
   const filterTags = ref<string[]>([])
 
   async function fetchSources() {
-    loading.value = true
-    try {
-      const response = await api.listSources()
-      sources.value = response.data
-    } finally {
-      loading.value = false
-    }
+    return fetchIfStale('budget:sources', async () => {
+      loading.value = true
+      try {
+        const response = await api.listSources()
+        sources.value = response.data
+      } finally {
+        loading.value = false
+      }
+    })
   }
 
   async function createSource(source: Partial<BudgetSource>) {
     const response = await api.createSource(source)
     sources.value.push(response.data)
+    invalidate('budget:sources')
     return response.data
   }
 
@@ -54,12 +58,14 @@ export const useBudgetStore = defineStore('budget', () => {
     if (index !== -1) {
       sources.value[index] = response.data
     }
+    invalidate('budget:sources')
     return response.data
   }
 
   async function deleteSource(id: string) {
     await api.deleteSource(id)
     sources.value = sources.value.filter(s => s.id !== id)
+    invalidate('budget:sources')
   }
 
   async function fetchEntries(startDate?: Date, endDate?: Date) {
@@ -80,13 +86,19 @@ export const useBudgetStore = defineStore('budget', () => {
   async function fetchMonthEntries() {
     const start = startOfMonth(currentMonth.value)
     const end = endOfMonth(currentMonth.value)
-    await fetchEntries(start, end)
+    const key = `budget:entries:month:${format(start, 'yyyy-MM-dd')}`
+    return fetchIfStale(key, async () => {
+      await fetchEntries(start, end)
+    })
   }
 
   async function fetchWeekEntries() {
     const start = startOfWeek(currentWeek.value, { weekStartsOn: 1 })
     const end = endOfWeek(currentWeek.value, { weekStartsOn: 1 })
-    await fetchEntries(start, end)
+    const key = `budget:entries:week:${format(start, 'yyyy-MM-dd')}`
+    return fetchIfStale(key, async () => {
+      await fetchEntries(start, end)
+    })
   }
 
   async function fetchCurrentViewEntries() {
@@ -100,6 +112,8 @@ export const useBudgetStore = defineStore('budget', () => {
   async function createEntry(entry: Partial<BudgetEntry> & { tag_ids?: string[] }) {
     const response = await api.createEntry(entry)
     entries.value.push(response.data)
+    invalidatePrefix('budget:entries')
+    invalidate('budget:summary')
     // Refresh summary
     await fetchSummary()
     return response.data
@@ -111,6 +125,8 @@ export const useBudgetStore = defineStore('budget', () => {
     if (index !== -1) {
       entries.value[index] = response.data
     }
+    invalidatePrefix('budget:entries')
+    invalidate('budget:summary')
     await fetchSummary()
     return response.data
   }
@@ -118,16 +134,19 @@ export const useBudgetStore = defineStore('budget', () => {
   async function deleteEntry(id: string) {
     await api.deleteEntry(id)
     entries.value = entries.value.filter(e => e.id !== id)
+    invalidatePrefix('budget:entries')
+    invalidate('budget:summary')
     await fetchSummary()
   }
 
   async function fetchSummary(year?: number, month?: number) {
     const y = year || currentMonth.value.getFullYear()
     const m = month || currentMonth.value.getMonth() + 1
-
-    const response = await api.getBudgetSummary(y, m)
-    summary.value = response.data
-    return response.data
+    const key = `budget:summary:${y}-${m}`
+    return fetchIfStale(key, async () => {
+      const response = await api.getBudgetSummary(y, m)
+      summary.value = response.data
+    })
   }
 
   function setCurrentMonth(date: Date) {
@@ -195,5 +214,3 @@ export const useBudgetStore = defineStore('budget', () => {
     toggleViewMode
   }
 })
-
-

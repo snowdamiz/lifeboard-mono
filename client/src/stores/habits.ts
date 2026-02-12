@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Habit, HabitCompletion, HabitAnalytics, HabitInventory } from '@/types'
 import { api } from '@/services/api'
+import { fetchIfStale, invalidate } from '@/utils/prefetch'
 
 export interface HabitWithStatus extends Habit {
   completed_today: boolean
@@ -47,16 +48,19 @@ export const useHabitsStore = defineStore('habits', () => {
   const filterTags = ref<string[]>([])
 
   async function fetchHabits(silent = false) {
-    if (!silent) loading.value = true
-    try {
-      const response = await api.listHabits({
-        tag_ids: filterTags.value.length > 0 ? filterTags.value : undefined,
-        date: selectedDate.value
-      })
-      habits.value = response.data as HabitWithStatus[]
-    } finally {
-      if (!silent) loading.value = false
-    }
+    const key = `habits:list:${selectedDate.value}`
+    return fetchIfStale(key, async () => {
+      if (!silent) loading.value = true
+      try {
+        const response = await api.listHabits({
+          tag_ids: filterTags.value.length > 0 ? filterTags.value : undefined,
+          date: selectedDate.value
+        })
+        habits.value = response.data as HabitWithStatus[]
+      } finally {
+        if (!silent) loading.value = false
+      }
+    })
   }
 
   function setSelectedDate(date: string) {
@@ -81,12 +85,14 @@ export const useHabitsStore = defineStore('habits', () => {
 
   async function createHabit(habit: Partial<Habit> & { tag_ids?: string[] }) {
     const response = await api.createHabit(habit)
+    invalidate(`habits:list:${selectedDate.value}`)
     await fetchHabits()
     return response.data
   }
 
   async function updateHabit(id: string, updates: Partial<Habit> & { tag_ids?: string[] }) {
     const response = await api.updateHabit(id, updates)
+    invalidate(`habits:list:${selectedDate.value}`)
     await fetchHabits()
     return response.data
   }
@@ -94,6 +100,7 @@ export const useHabitsStore = defineStore('habits', () => {
   async function deleteHabit(id: string) {
     await api.deleteHabit(id)
     habits.value = habits.value.filter(h => h.id !== id)
+    invalidate(`habits:list:${selectedDate.value}`)
   }
 
   async function completeHabit(id: string) {
@@ -197,19 +204,22 @@ export const useHabitsStore = defineStore('habits', () => {
 
   // Habit Inventories
   async function fetchHabitInventories() {
-    const response = await api.listHabitInventories()
-    habitInventories.value = response.data
-    return response.data
+    return fetchIfStale('habits:inventories', async () => {
+      const response = await api.listHabitInventories()
+      habitInventories.value = response.data
+    })
   }
 
   async function createHabitInventory(inventory: Partial<HabitInventory>) {
     const response = await api.createHabitInventory(inventory)
+    invalidate('habits:inventories')
     await fetchHabitInventories()
     return response.data
   }
 
   async function updateHabitInventory(id: string, updates: Partial<HabitInventory>) {
     const response = await api.updateHabitInventory(id, updates)
+    invalidate('habits:inventories')
     await fetchHabitInventories()
     return response.data
   }
@@ -217,6 +227,7 @@ export const useHabitsStore = defineStore('habits', () => {
   async function deleteHabitInventory(id: string) {
     await api.deleteHabitInventory(id)
     habitInventories.value = habitInventories.value.filter(i => i.id !== id)
+    invalidate('habits:inventories')
   }
 
   // Computed: habits grouped by inventory
@@ -271,4 +282,3 @@ export const useHabitsStore = defineStore('habits', () => {
     deleteHabitInventory
   }
 })
-

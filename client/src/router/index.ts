@@ -149,5 +149,21 @@ router.beforeEach(async (to, from, next) => {
   next()
 })
 
+// --- Route-level prefetching ---
+// Fire-and-forget: trigger data fetch for the destination route.
+// The staleness guard in each store prevents double-fetching if
+// the view's onMounted also calls the same method.
+import { prefetchForRoute } from '@/utils/prefetch'
+
+router.beforeResolve((to) => {
+  const routeName = to.name as string | undefined
+  if (routeName) {
+    const params: Record<string, string> = {}
+    if (to.params.id) params.id = String(to.params.id)
+    if (to.params.date) params.date = String(to.params.date)
+    prefetchForRoute(routeName, params)
+  }
+})
+
 export default router
 

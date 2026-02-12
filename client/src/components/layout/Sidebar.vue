@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { 
   Calendar, 
   Package, 
@@ -13,10 +13,32 @@ import {
   BarChart3,
   Settings,
   GripVertical,
-  Tag
+  Tag,
+  Sun,
+  Moon,
+  Monitor,
+  LogOut,
+  User,
+  ChevronDown
 } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 import { usePreferencesStore } from '@/stores/preferences'
+import { useAuthStore } from '@/stores/auth'
+import { prefetchForRoute } from '@/utils/prefetch'
+import { useTheme } from '@/composables/useTheme'
+import PomodoroTimer from '@/components/timer/PomodoroTimer.vue'
+import NotificationCenter from '@/components/layout/NotificationCenter.vue'
+
+const { theme, toggleTheme } = useTheme()
+const themeIcon = { light: Sun, dark: Moon, system: Monitor }
+const authStore = useAuthStore()
+const router = useRouter()
+const showUserMenu = ref(false)
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/login')
+}
 
 const route = useRoute()
 const preferencesStore = usePreferencesStore()
@@ -109,38 +131,69 @@ const handleDragEnd = () => {
 const toggleEditMode = () => {
   isEditMode.value = !isEditMode.value
 }
+
+// Hover prefetch for nav items
+let prefetchTimer: ReturnType<typeof setTimeout> | null = null
+const idToRoute: Record<string, string> = {
+  'dashboard': 'dashboard',
+  'calendar': 'calendar',
+  'goals': 'goals',
+  'habits': 'habits',
+  'tags': 'tags',
+  'inventory': 'inventory',
+  'shopping-list': 'shopping-list',
+  'budget': 'budget',
+  'notes': 'notes',
+  'reports': 'reports',
+  'settings': 'settings'
+}
+
+const schedulePrefetch = (itemId: string) => {
+  if (isEditMode.value) return
+  if (prefetchTimer) clearTimeout(prefetchTimer)
+  prefetchTimer = setTimeout(() => {
+    const routeId = idToRoute[itemId]
+    if (routeId) prefetchForRoute(routeId)
+  }, 80)
+}
+
+const cancelPrefetch = () => {
+  if (prefetchTimer) {
+    clearTimeout(prefetchTimer)
+    prefetchTimer = null
+  }
+}
 </script>
 
 <template>
-  <aside class="w-60 border-r border-border bg-card/50 hidden md:flex flex-col">
-    <div class="p-5 pb-6">
-      <div class="flex items-center gap-2.5">
-        <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm shadow-primary/25">
-          <svg class="h-5 w-5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <aside class="w-44 border-r border-border bg-card/50 hidden md:flex flex-col">
+    <div class="p-3 pb-3">
+      <div class="flex items-start gap-2">
+        <div class="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm shadow-primary/25 shrink-0">
+          <svg class="h-[18px] w-[18px] text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2C6 8 4 12 4 15c0 4.5 3.5 7 8 7s8-2.5 8-7c0-3-2-7-8-13z"/>
             <path d="M12 22V10"/>
           </svg>
         </div>
-        <div class="flex-1">
-          <h1 class="text-lg font-semibold tracking-tight">
-            Life<span class="text-primary">Board</span>
-          </h1>
+        <div class="flex-1 min-w-0">
+          <div class="text-[15px] font-bold tracking-tight leading-[18px]">Life</div>
+          <div class="text-[15px] font-bold tracking-tight leading-[18px]"><span class="text-primary">Board</span></div>
         </div>
         <!-- Edit mode toggle -->
         <button
           @click="toggleEditMode"
           :class="cn(
-            'h-7 w-7 rounded-lg flex items-center justify-center transition-colors',
+            'h-6 w-6 rounded-md flex items-center justify-center transition-colors shrink-0',
             isEditMode ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'
           )"
           title="Reorder tabs"
         >
-          <GripVertical class="h-4 w-4" />
+          <GripVertical class="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
     
-    <nav class="flex-1 px-3 space-y-1">
+    <nav class="flex-1 px-2 space-y-0.5">
       <div
         v-for="item in orderedNavItems"
         :key="item.id"
@@ -159,8 +212,10 @@ const toggleEditMode = () => {
         <RouterLink
           :to="isEditMode ? route.path : item.path"
           @click.prevent="isEditMode ? null : undefined"
+          @pointerenter="schedulePrefetch(item.id)"
+          @pointerleave="cancelPrefetch"
           :class="cn(
-            'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 relative',
+            'group flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-all duration-150 relative',
             isActive(item) && !isEditMode
               ? 'bg-primary/10 text-primary' 
               : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
@@ -169,11 +224,11 @@ const toggleEditMode = () => {
           )"
         >
           <!-- Drag handle in edit mode -->
-          <div v-if="isEditMode" class="flex items-center justify-center w-8 h-8 rounded-lg bg-secondary">
-            <GripVertical class="h-[18px] w-[18px] text-muted-foreground" />
+          <div v-if="isEditMode" class="flex items-center justify-center w-7 h-7 rounded-md bg-secondary">
+            <GripVertical class="h-4 w-4 text-muted-foreground" />
           </div>
           <div v-else :class="cn(
-            'flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
+            'flex items-center justify-center w-7 h-7 rounded-md transition-colors',
             isActive(item) 
               ? 'bg-primary/15' 
               : 'bg-secondary group-hover:bg-secondary-foreground/10'
@@ -181,7 +236,7 @@ const toggleEditMode = () => {
             <component 
               :is="item.icon" 
               :class="cn(
-                'h-[18px] w-[18px] transition-colors', 
+                'h-4 w-4 transition-colors', 
                 isActive(item) ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
               )" 
             />
@@ -201,9 +256,69 @@ const toggleEditMode = () => {
     <div v-if="isEditMode" class="px-4 py-2 bg-primary/5 border-t border-primary/20">
       <p class="text-xs text-primary text-center">Drag to reorder tabs</p>
     </div>
+    <!-- Utility buttons -->
+    <div class="px-2 py-2 border-t border-border/50 flex items-center justify-center gap-1">
+      <PomodoroTimer />
+      <NotificationCenter />
+      <button
+        class="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
+        :title="`Theme: ${theme}`"
+        @click="toggleTheme"
+      >
+        <component :is="themeIcon[theme]" class="h-4 w-4" />
+      </button>
+    </div>
 
-    <div class="p-4 border-t border-border/50">
-      <div class="flex items-center justify-between text-[11px] text-muted-foreground/60">
+    <!-- User Menu -->
+    <div class="px-2 py-2 border-t border-border/50 relative">
+      <button 
+        class="w-full flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-secondary/80 transition-colors"
+        @click="showUserMenu = !showUserMenu"
+      >
+        <img 
+          v-if="authStore.user?.avatar_url" 
+          :src="authStore.user.avatar_url" 
+          :alt="authStore.user.name || 'User'"
+          class="h-6 w-6 rounded-full ring-2 ring-border shrink-0"
+        />
+        <div v-else class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <User class="h-3 w-3 text-primary" />
+        </div>
+        <span class="text-[12px] font-medium truncate flex-1 text-left">{{ authStore.user?.name?.split(' ')[0] }}</span>
+        <ChevronDown class="h-3 w-3 text-muted-foreground/60 shrink-0" />
+      </button>
+
+      <Transition
+        enter-active-class="transition duration-100 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-75 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div 
+          v-if="showUserMenu" 
+          class="absolute left-2 right-2 bottom-full mb-2 origin-bottom rounded-xl border border-border/80 bg-card shadow-lg overflow-hidden z-50"
+        >
+          <div class="px-3 py-2 bg-secondary/30">
+            <p class="text-xs font-medium">{{ authStore.user?.name }}</p>
+            <p class="text-[10px] text-muted-foreground truncate mt-0.5">{{ authStore.user?.email }}</p>
+          </div>
+          <div class="p-1">
+            <button 
+              class="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+              @click="handleLogout"
+            >
+              <LogOut class="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </div>
+
+    <div class="px-3 py-1.5 border-t border-border/50">
+      <div class="flex items-center justify-between text-[10px] text-muted-foreground/60">
         <span>LifeBoard</span>
         <span class="font-mono">v0.1.0</span>
       </div>

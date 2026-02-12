@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { UserPreferences, DashboardWidget, WidgetType, WidgetSize } from '@/types'
 import { api } from '@/services/api'
 import { sizeToDimensions, widgetMeta } from '@/components/dashboard/widgetConfig'
+import { fetchIfStale } from '@/utils/prefetch'
 
 // Default navigation order
 const DEFAULT_NAV_ORDER = [
@@ -89,17 +90,19 @@ export const usePreferencesStore = defineStore('preferences', () => {
   }
 
   async function fetchPreferences() {
-    loading.value = true
-    try {
-      const response = await api.getPreferences()
-      preferences.value = response.data
-      initialized.value = true
-    } catch (error) {
-      // Use defaults if fetch fails
-      console.error('Failed to fetch preferences:', error)
-    } finally {
-      loading.value = false
-    }
+    return fetchIfStale('preferences', async () => {
+      loading.value = true
+      try {
+        const response = await api.getPreferences()
+        preferences.value = response.data
+        initialized.value = true
+      } catch (error) {
+        // Use defaults if fetch fails
+        console.error('Failed to fetch preferences:', error)
+      } finally {
+        loading.value = false
+      }
+    })
   }
 
   async function updateNavOrder(order: string[]) {

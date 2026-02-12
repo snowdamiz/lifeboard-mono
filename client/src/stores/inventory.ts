@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { InventorySheet, InventoryItem, ShoppingList, ShoppingListItem } from '@/types'
 import { api } from '@/services/api'
+import { fetchIfStale, invalidate } from '@/utils/prefetch'
 
 export const useInventoryStore = defineStore('inventory', () => {
   const sheets = ref<InventorySheet[]>([])
@@ -20,28 +21,32 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   // Sheet functions
   async function fetchSheets() {
-    loading.value = true
-    try {
-      const response = await api.listSheets({ tag_ids: sheetFilterTags.value.length > 0 ? sheetFilterTags.value : undefined })
-      sheets.value = response.data
-    } finally {
-      loading.value = false
-    }
+    return fetchIfStale('inventory:sheets', async () => {
+      loading.value = true
+      try {
+        const response = await api.listSheets({ tag_ids: sheetFilterTags.value.length > 0 ? sheetFilterTags.value : undefined })
+        sheets.value = response.data
+      } finally {
+        loading.value = false
+      }
+    })
   }
 
   async function fetchSheet(id: string) {
-    loading.value = true
-    try {
-      const response = await api.getSheet(id)
-      currentSheet.value = response.data
-      return response.data
-    } finally {
-      loading.value = false
-    }
+    return fetchIfStale(`inventory:sheet:${id}`, async () => {
+      loading.value = true
+      try {
+        const response = await api.getSheet(id)
+        currentSheet.value = response.data
+      } finally {
+        loading.value = false
+      }
+    })
   }
 
   async function createSheet(name: string, tag_ids?: string[]) {
     const response = await api.createSheet({ name, tag_ids })
+    invalidate('inventory:sheets')
     // Re-fetch to respect order and filters
     await fetchSheets()
     return response.data
@@ -49,9 +54,11 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   async function updateSheet(id: string, updates: Partial<InventorySheet> & { tag_ids?: string[] }) {
     const response = await api.updateSheet(id, updates)
+    invalidate('inventory:sheets')
     await fetchSheets()
     // Update current if selected
     if (currentSheet.value?.id === id) {
+      invalidate(`inventory:sheet:${id}`)
       // Refresh current sheet to get updated tags
       await fetchSheet(id)
     }
@@ -61,6 +68,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function deleteSheet(id: string) {
     await api.deleteSheet(id)
     sheets.value = sheets.value.filter(s => s.id !== id)
+    invalidate('inventory:sheets')
+    invalidate(`inventory:sheet:${id}`)
     if (currentSheet.value?.id === id) {
       currentSheet.value = null
     }
@@ -72,6 +81,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (currentSheet.value && currentSheet.value.id === item.sheet_id) {
       currentSheet.value.items = [...(currentSheet.value.items || []), response.data]
     }
+    if (item.sheet_id) invalidate(`inventory:sheet:${item.sheet_id}`)
     return response.data
   }
 
@@ -83,6 +93,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         currentSheet.value.items[index] = response.data
       }
     }
+    if (currentSheet.value?.id) invalidate(`inventory:sheet:${currentSheet.value.id}`)
     return response.data
   }
 
@@ -91,17 +102,20 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (currentSheet.value?.items) {
       currentSheet.value.items = currentSheet.value.items.filter(i => i.id !== id)
     }
+    if (currentSheet.value?.id) invalidate(`inventory:sheet:${currentSheet.value.id}`)
   }
 
   // Shopping List functions
   async function fetchShoppingLists() {
-    loading.value = true
-    try {
-      const response = await api.listShoppingLists({ tag_ids: listFilterTags.value.length > 0 ? listFilterTags.value : undefined })
-      shoppingLists.value = response.data
-    } finally {
-      loading.value = false
-    }
+    return fetchIfStale('inventory:shopping-lists', async () => {
+      loading.value = true
+      try {
+        const response = await api.listShoppingLists({ tag_ids: listFilterTags.value.length > 0 ? listFilterTags.value : undefined })
+        shoppingLists.value = response.data
+      } finally {
+        loading.value = false
+      }
+    })
   }
 
   async function fetchShoppingList(id: string) {
@@ -122,12 +136,14 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   async function createShoppingList(name: string, notes?: string, tag_ids?: string[]) {
     const response = await api.createShoppingList({ name, notes, tag_ids })
+    invalidate('inventory:shopping-lists')
     await fetchShoppingLists()
     return response.data
   }
 
   async function updateShoppingList(id: string, updates: Partial<ShoppingList> & { tag_ids?: string[] }) {
     const response = await api.updateShoppingList(id, updates)
+    invalidate('inventory:shopping-lists')
     await fetchShoppingLists()
     if (currentList.value?.id === id) {
       // Refresh current list to get tags
@@ -139,6 +155,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function deleteShoppingList(id: string) {
     await api.deleteShoppingList(id)
     shoppingLists.value = shoppingLists.value.filter(l => l.id !== id)
+    invalidate('inventory:shopping-lists')
     if (currentList.value?.id === id) {
       currentList.value = null
     }
@@ -155,6 +172,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       } else {
         shoppingLists.value.unshift(response.data)
       }
+      invalidate('inventory:shopping-lists')
       return response.data
     } finally {
       loading.value = false

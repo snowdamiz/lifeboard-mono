@@ -333,119 +333,120 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-[calc(100vh-170px)] flex flex-col animate-fade-in relative overflow-hidden">
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-      <div class="flex items-center gap-3">
-        <div class="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <CalendarDays class="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 class="text-xl sm:text-2xl font-semibold tracking-tight">Calendar</h1>
-          <p class="text-muted-foreground text-sm mt-0.5">{{ headerText }}</p>
-        </div>
+  <div class="h-[calc(100vh-48px)] flex flex-col animate-fade-in relative overflow-hidden">
+    <!-- Single-row toolbar -->
+    <div class="flex items-center gap-2 mb-2 flex-wrap">
+      <!-- Calendar label (borderless pill) -->
+      <div class="flex items-center gap-1.5 h-9 px-3 rounded-lg">
+        <CalendarDays class="h-4 w-4 text-primary" />
+        <span class="text-sm font-bold tracking-tight">Calendar</span>
       </div>
 
-      <div class="flex items-center gap-2 sm:gap-3">
-        <!-- Today Button -->
+      <!-- Date range text (borderless pill) -->
+      <div class="h-9 flex items-center px-3 rounded-lg">
+        <span class="text-sm text-muted-foreground">{{ headerText }}</span>
+      </div>
+
+      <div class="flex-1" />
+
+      <!-- Today Button -->
+      <Button 
+        :variant="showExpandedDayView && isToday(expandedDayDate) ? 'default' : 'outline'" 
+        size="sm" 
+        class="h-9 px-3 text-[13px] gap-1.5" 
+        @click="handleTodayClick"
+      >
+        <Sun class="h-4 w-4" />
+        Today
+      </Button>
+
+      <!-- Navigation with View Toggle -->
+      <div class="flex items-center rounded-lg border border-border bg-card overflow-hidden">
+        <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.prevPeriod" title="Previous">
+          <ChevronLeft class="h-4 w-4" />
+        </Button>
+        <div class="w-px h-5 bg-border" />
         <Button 
-          :variant="showExpandedDayView && isToday(expandedDayDate) ? 'default' : 'outline'" 
+          :variant="calendarStore.viewMode === 'week' && !showExpandedDayView ? 'default' : 'ghost'" 
           size="sm" 
-          class="h-9 px-3 text-[13px] gap-1.5" 
-          @click="handleTodayClick"
+          class="rounded-none h-9 px-3 gap-1.5"
+          @click="showExpandedDayView = false; calendarStore.viewMode !== 'week' && toggleViewMode()"
         >
-          <Sun class="h-4 w-4" />
-          Today
+          <Calendar class="h-4 w-4" />
+          <span class="hidden sm:inline text-[13px]">Week</span>
         </Button>
-
-        <!-- Navigation with View Toggle -->
-        <div class="flex items-center rounded-lg border border-border bg-card overflow-hidden">
-          <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.prevPeriod" title="Previous">
-            <ChevronLeft class="h-4 w-4" />
-          </Button>
-          <div class="w-px h-5 bg-border" />
-          <Button 
-            :variant="calendarStore.viewMode === 'week' && !showExpandedDayView ? 'default' : 'ghost'" 
-            size="sm" 
-            class="rounded-none h-9 px-3 gap-1.5"
-            @click="showExpandedDayView = false; calendarStore.viewMode !== 'week' && toggleViewMode()"
-          >
-            <Calendar class="h-4 w-4" />
-            <span class="hidden sm:inline text-[13px]">Week</span>
-          </Button>
-          <div class="w-px h-5 bg-border" />
-          <Button 
-            :variant="calendarStore.viewMode === 'month' && !showExpandedDayView ? 'default' : 'ghost'" 
-            size="sm" 
-            class="rounded-none h-9 px-3 gap-1.5"
-            @click="showExpandedDayView = false; calendarStore.viewMode !== 'month' && toggleViewMode()"
-          >
-            <CalendarDays class="h-4 w-4" />
-            <span class="hidden sm:inline text-[13px]">Month</span>
-          </Button>
-          <div class="w-px h-5 bg-border" />
-          <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.nextPeriod" title="Next">
-            <ChevronRight class="h-4 w-4" />
-          </Button>
-        </div>
-
-        <!-- Filter Button -->
-        <div class="relative">
-          <Button 
-            :variant="activeFilterCount > 0 ? 'default' : 'outline'" 
-            size="sm" 
-            class="h-9 gap-2"
-            @click="showFilterDropdown = !showFilterDropdown"
-          >
-            <Filter class="h-4 w-4" />
-            <span class="hidden sm:inline">Filter</span>
-            <Badge v-if="activeFilterCount > 0" variant="secondary" class="ml-0.5 h-5 px-1.5 min-w-[20px] justify-center bg-background/20 text-current border-0">
-              {{ activeFilterCount }}
-            </Badge>
-          </Button>
-
-          <!-- Filter Dropdown -->
-          <div
-            v-if="showFilterDropdown"
-            class="absolute top-full right-0 mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
-          >
-            <div class="p-3 border-b border-border bg-secondary/30 flex items-center justify-between">
-              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter by Tags</span>
-              <button class="text-xs text-primary hover:underline" @click="clearFilters" v-if="activeFilterCount > 0">
-                Clear all
-              </button>
-            </div>
-            
-            <TagManager
-              ref="filterTagManagerRef"
-              v-model:checkedTagIds="filterCheckedTagIds"
-              :hide-input="true"
-              :compact="true"
-              :embedded="true"
-              :applied-tag-ids="filterAppliedTagIds"
-              class="max-h-[300px] overflow-auto"
-            >
-              <template #actions="{ checkedCount }">
-                <Button
-                  type="button"
-                  size="sm"
-                  class="w-full text-xs"
-                  @click="applyFilters"
-                >
-                  Apply Filter
-                </Button>
-              </template>
-            </TagManager>
-          </div>
-          <!-- Backdrop to close -->
-          <div v-if="showFilterDropdown" class="fixed inset-0 z-40 bg-transparent" @click="showFilterDropdown = false" />
-        </div>
-        
-        <Button @click.stop="openNewTask()" class="shrink-0" data-testid="add-button">
-          <Plus class="h-4 w-4" />
-          <span class="hidden sm:inline">New Task</span>
+        <div class="w-px h-5 bg-border" />
+        <Button 
+          :variant="calendarStore.viewMode === 'month' && !showExpandedDayView ? 'default' : 'ghost'" 
+          size="sm" 
+          class="rounded-none h-9 px-3 gap-1.5"
+          @click="showExpandedDayView = false; calendarStore.viewMode !== 'month' && toggleViewMode()"
+        >
+          <CalendarDays class="h-4 w-4" />
+          <span class="hidden sm:inline text-[13px]">Month</span>
+        </Button>
+        <div class="w-px h-5 bg-border" />
+        <Button variant="ghost" size="icon" class="rounded-none h-9 w-9" @click="calendarStore.nextPeriod" title="Next">
+          <ChevronRight class="h-4 w-4" />
         </Button>
       </div>
+
+      <!-- Filter Button -->
+      <div class="relative">
+        <Button 
+          :variant="activeFilterCount > 0 ? 'default' : 'outline'" 
+          size="sm" 
+          class="h-9 gap-2"
+          @click="showFilterDropdown = !showFilterDropdown"
+        >
+          <Filter class="h-4 w-4" />
+          <span class="hidden sm:inline">Filter</span>
+          <Badge v-if="activeFilterCount > 0" variant="secondary" class="ml-0.5 h-5 px-1.5 min-w-[20px] justify-center bg-background/20 text-current border-0">
+            {{ activeFilterCount }}
+          </Badge>
+        </Button>
+
+        <!-- Filter Dropdown -->
+        <div
+          v-if="showFilterDropdown"
+          class="absolute top-full right-0 mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+        >
+          <div class="p-3 border-b border-border bg-secondary/30 flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter by Tags</span>
+            <button class="text-xs text-primary hover:underline" @click="clearFilters" v-if="activeFilterCount > 0">
+              Clear all
+            </button>
+          </div>
+          
+          <TagManager
+            ref="filterTagManagerRef"
+            v-model:checkedTagIds="filterCheckedTagIds"
+            :hide-input="true"
+            :compact="true"
+            :embedded="true"
+            :applied-tag-ids="filterAppliedTagIds"
+            class="max-h-[300px] overflow-auto"
+          >
+            <template #actions="{ checkedCount }">
+              <Button
+                type="button"
+                size="sm"
+                class="w-full text-xs"
+                @click="applyFilters"
+              >
+                Apply Filter
+              </Button>
+            </template>
+          </TagManager>
+        </div>
+        <!-- Backdrop to close -->
+        <div v-if="showFilterDropdown" class="fixed inset-0 z-40 bg-transparent" @click="showFilterDropdown = false" />
+      </div>
+      
+      <Button variant="outline" size="sm" class="h-9 gap-1.5 shrink-0" @click.stop="openNewTask()" data-testid="add-button">
+        <Plus class="h-4 w-4" />
+        <span class="hidden sm:inline">New Task</span>
+      </Button>
     </div>
 
     <!-- Mobile Day Picker - Week View -->

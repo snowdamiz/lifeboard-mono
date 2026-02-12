@@ -1,18 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, LogOut, User, ChevronDown, Command, Sun, Moon, Monitor } from 'lucide-vue-next'
+import { LogOut, User, ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
-import { useSearchStore } from '@/stores/search'
-import { useTheme } from '@/composables/useTheme'
-import { Button } from '@/components/ui/button'
 import CommandPalette from '@/components/shared/CommandPalette.vue'
-import NotificationCenter from '@/components/layout/NotificationCenter.vue'
-import PomodoroTimer from '@/components/timer/PomodoroTimer.vue'
 
 const authStore = useAuthStore()
-const searchStore = useSearchStore()
-const { theme, toggleTheme } = useTheme()
 const router = useRouter()
 const showUserMenu = ref(false)
 
@@ -20,47 +13,11 @@ const handleLogout = () => {
   authStore.logout()
   router.push('/login')
 }
-
-const themeIcon = {
-  light: Sun,
-  dark: Moon,
-  system: Monitor,
-}
 </script>
 
 <template>
-  <header class="h-14 border-b border-border/60 bg-background/95 backdrop-blur-sm flex items-center justify-between px-4 md:px-5 sticky top-0 z-40">
-    <div class="flex items-center gap-2 sm:gap-3 flex-1 max-w-sm">
-      <button 
-        class="group flex items-center gap-2 sm:gap-3 flex-1 px-2.5 sm:px-3 py-2 rounded-lg bg-secondary/60 hover:bg-secondary border border-transparent hover:border-border/50 transition-all text-left"
-        @click="searchStore.openSearch()"
-      >
-        <Search class="h-4 w-4 text-muted-foreground/60 group-hover:text-muted-foreground shrink-0" />
-        <span class="text-sm text-muted-foreground/70 flex-1 truncate">Search...</span>
-        <kbd class="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-border/50 bg-background/80 text-[10px] font-mono text-muted-foreground/60 shrink-0">
-          <Command class="h-2.5 w-2.5" />K
-        </kbd>
-      </button>
-    </div>
-
+  <header class="h-12 border-b border-border/60 bg-background/95 backdrop-blur-sm flex items-center justify-end px-4 md:px-5 sticky top-0 z-40">
     <div class="flex items-center gap-1">
-      <!-- Pomodoro Timer -->
-      <PomodoroTimer />
-
-      <!-- Notifications -->
-      <NotificationCenter />
-
-      <!-- Theme Toggle -->
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        class="h-9 w-9 text-muted-foreground"
-        :title="`Theme: ${theme}`"
-        @click="toggleTheme"
-      >
-        <component :is="themeIcon[theme]" class="h-[18px] w-[18px]" />
-      </Button>
-
       <!-- User Menu -->
       <div class="relative">
         <button 
@@ -113,3 +70,4 @@ const themeIcon = {
     <CommandPalette />
   </header>
 </template>
+

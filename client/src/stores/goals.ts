@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Goal, GoalCategory, GoalHistoryItem, Milestone } from '@/types'
 import { api } from '@/services/api'
+import { fetchIfStale, invalidate } from '@/utils/prefetch'
 
 export const useGoalsStore = defineStore('goals', () => {
   const goals = ref<Goal[]>([])
@@ -46,17 +47,19 @@ export const useGoalsStore = defineStore('goals', () => {
   const filterTags = ref<string[]>([])
 
   async function fetchGoals(params?: { status?: string; category_id?: string; tag_ids?: string[] }) {
-    loading.value = true
-    try {
-      const requestParams = { ...params }
-      if (filterTags.value.length > 0) {
-        requestParams.tag_ids = filterTags.value
+    return fetchIfStale('goals:list', async () => {
+      loading.value = true
+      try {
+        const requestParams = { ...params }
+        if (filterTags.value.length > 0) {
+          requestParams.tag_ids = filterTags.value
+        }
+        const response = await api.listGoals(requestParams)
+        goals.value = response.data
+      } finally {
+        loading.value = false
       }
-      const response = await api.listGoals(requestParams)
-      goals.value = response.data
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
 
@@ -74,6 +77,7 @@ export const useGoalsStore = defineStore('goals', () => {
   async function createGoal(goal: Partial<Goal>) {
     const response = await api.createGoal(goal)
     goals.value.unshift(response.data)
+    invalidate('goals:list')
     return response.data
   }
 
@@ -86,6 +90,7 @@ export const useGoalsStore = defineStore('goals', () => {
     if (currentGoal.value?.id === id) {
       currentGoal.value = response.data
     }
+    invalidate('goals:list')
     return response.data
   }
 
@@ -95,6 +100,7 @@ export const useGoalsStore = defineStore('goals', () => {
     if (currentGoal.value?.id === id) {
       currentGoal.value = null
     }
+    invalidate('goals:list')
   }
 
   async function addMilestone(goalId: string, title: string) {
@@ -253,4 +259,3 @@ export const useGoalsStore = defineStore('goals', () => {
     saveMilestone
   }
 })
-
