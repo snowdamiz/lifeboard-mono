@@ -3,21 +3,30 @@ defmodule MegaPlanner.Repo.Migrations.AddHouseholdIdToDataTables do
 
   def up do
     # First, create households for each user and associate them
-    execute """
-    DO $$
-    DECLARE
-      user_record RECORD;
-      new_household_id UUID;
-    BEGIN
-      FOR user_record IN SELECT id, name, email FROM users WHERE household_id IS NULL
-      LOOP
-        new_household_id := gen_random_uuid();
-        INSERT INTO households (id, name, inserted_at, updated_at)
-        VALUES (new_household_id, COALESCE(user_record.name, user_record.email) || '''s Household', NOW(), NOW());
-        UPDATE users SET household_id = new_household_id WHERE id = user_record.id;
-      END LOOP;
-    END $$;
-    """
+    execute fn ->
+      {:ok, %{rows: users}} =
+        repo().query("SELECT id, name, email FROM users WHERE household_id IS NULL", [])
+
+      now =
+        DateTime.utc_now()
+        |> DateTime.truncate(:second)
+        |> DateTime.to_iso8601()
+
+      Enum.each(users, fn [user_id, name, email] ->
+        household_id = Ecto.UUID.generate()
+        household_name = (name || email) <> "'s Household"
+
+        repo().query!(
+          "INSERT INTO households (id, name, inserted_at, updated_at) VALUES (?, ?, ?, ?)",
+          [household_id, household_name, now, now]
+        )
+
+        repo().query!(
+          "UPDATE users SET household_id = ? WHERE id = ?",
+          [household_id, user_id]
+        )
+      end)
+    end
 
     # Add household_id to tasks
     alter table(:tasks) do
