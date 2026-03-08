@@ -36,7 +36,15 @@ defmodule MegaPlanner.Tags.Tag do
     |> validate_required([:name, :user_id, :household_id])
     |> validate_format(:color, ~r/^#[0-9A-Fa-f]{6}$/, message: "must be a valid hex color")
     |> unique_constraint([:household_id, :name])
-    |> foreign_key_constraint(:user_id)
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:user_id, fn :user_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [user_id: "does not exist"]
+       end)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end

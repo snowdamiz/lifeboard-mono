@@ -27,8 +27,16 @@ defmodule MegaPlanner.Households.Invitation do
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
     |> validate_inclusion(:status, @statuses)
     |> unique_constraint(:token)
-    |> foreign_key_constraint(:household_id)
-    |> foreign_key_constraint(:inviter_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
+    |> validate_change(:inviter_id, fn :inviter_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [inviter_id: "does not exist"]
+       end)
   end
 
   @doc false

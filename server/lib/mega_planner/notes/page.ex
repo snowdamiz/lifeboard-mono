@@ -23,8 +23,16 @@ defmodule MegaPlanner.Notes.Page do
     page
     |> cast(attrs, [:title, :content, :metadata, :notebook_id, :user_id])
     |> validate_required([:title, :notebook_id, :user_id])
-    |> foreign_key_constraint(:notebook_id)
-    |> foreign_key_constraint(:user_id)
+    |> validate_change(:notebook_id, fn :notebook_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Notes.Notebook, id),
+           do: [],
+           else: [notebook_id: "does not exist"]
+       end)
+    |> validate_change(:user_id, fn :user_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [user_id: "does not exist"]
+       end)
   end
 
   @doc """

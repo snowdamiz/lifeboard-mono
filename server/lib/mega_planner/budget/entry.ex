@@ -29,9 +29,21 @@ defmodule MegaPlanner.Budget.Entry do
     |> validate_required([:date, :amount, :type, :user_id, :household_id])
     |> validate_inclusion(:type, @types)
     |> validate_number(:amount, greater_than_or_equal_to: 0)
-    |> foreign_key_constraint(:source_id)
-    |> foreign_key_constraint(:user_id)
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:source_id, fn :source_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Budget.Source, id),
+           do: [],
+           else: [source_id: "does not exist"]
+       end)
+    |> validate_change(:user_id, fn :user_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [user_id: "does not exist"]
+       end)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
     |> unique_constraint(:purchase_id,
        name: :budget_entries_purchase_unique,
        message: "A budget entry already exists for this purchase")

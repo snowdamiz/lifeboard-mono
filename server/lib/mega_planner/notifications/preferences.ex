@@ -45,6 +45,10 @@ defmodule MegaPlanner.Notifications.Preferences do
     |> validate_number(:task_due_hours_before, greater_than: 0, less_than_or_equal_to: 168)
     |> validate_number(:budget_threshold_percent, greater_than: 0, less_than_or_equal_to: 100)
     |> unique_constraint(:user_id)
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end
