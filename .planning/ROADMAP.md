@@ -60,7 +60,13 @@ Plans:
   2. `mix test` passes against the local SQLite database with zero failures caused by adapter incompatibility
   3. All ExUnit test cases that use database connections are marked `async: false`
   4. All Ecto query fragments using JSONB operators (`->`, `->>`, `@>`, `?`) have been replaced or removed from context modules
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Replace 31 ilike → like calls in 5 context modules; create DataCase + AccountsFixtures; fix async: false
+- [ ] 03-02-PLAN.md — Replace 27 foreign_key_constraint calls with validate_change/3 in receipts, calendar, goals schemas
+- [ ] 03-03-PLAN.md — Replace 27 foreign_key_constraint calls with validate_change/3 in inventory, accounts, budget, notes, notifications, households, tags schemas
+- [ ] 03-04-PLAN.md — Verify CODE-04 (no JSONB operators); run mix test integration gate; human checkpoint
 
 ### Phase 4: Data Migration Pipeline
 **Goal**: All production data is exported from PostgreSQL, imported into a local SQLite file, and verified as complete with zero record count discrepancies
@@ -95,6 +101,6 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 |-------|----------------|--------|-----------|
 | 1. Dependency & Config | 2/2 | Complete   | 2026-03-08 |
 | 2. Migration Rewrites | 0/3 | Not started | - |
-| 3. Application Code Fixes | 0/? | Not started | - |
+| 3. Application Code Fixes | 0/4 | Not started | - |
 | 4. Data Migration Pipeline | 0/? | Not started | - |
 | 5. Fly.io Deployment & Cutover | 0/? | Not started | - |
