@@ -49,7 +49,8 @@ defmodule MegaPlanner.MixProject do
       # Dev/Test
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:swoosh, "~> 1.3"},
-      {:finch, "~> 0.13"}
+      {:finch, "~> 0.13"},
+      {:postgrex, "~> 0.21", only: [:dev, :test]}
     ]
   end
 
