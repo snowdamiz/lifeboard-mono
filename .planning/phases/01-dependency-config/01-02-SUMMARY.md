@@ -78,7 +78,7 @@ Each task was committed atomically:
 1. **Task 1: Replace PostgreSQL blocks in dev.exs and test.exs** - `b45a038` (feat)
 2. **Task 2: Replace DATABASE_URL block in runtime.exs and verify full compile + db create** - `8acbb78` (feat)
 
-**Plan metadata:** (docs commit — see below)
+**Plan metadata:** `da87092` (docs: complete config-layer SQLite3 migration plan)
 
 ## Files Created/Modified
 - `server/config/dev.exs` - SQLite3 file-path config replacing postgres credentials
@@ -106,6 +106,17 @@ None - no external service configuration required. The `.env` file warning durin
 - No PostgreSQL credentials remain in any config file
 - `mix ecto.create` is confirmed working — ready for Phase 2 (schema migrations)
 - Production deployment will require `DATABASE_PATH` env var set to the Fly.io volume file path
+
+## Self-Check: PASSED
+
+- server/config/dev.exs — FOUND
+- server/config/test.exs — FOUND
+- server/config/runtime.exs — FOUND
+- server/mega_planner_dev.db — FOUND
+- .planning/phases/01-dependency-config/01-02-SUMMARY.md — FOUND
+- Commit b45a038 — FOUND
+- Commit 8acbb78 — FOUND
+- Commit da87092 — FOUND
 
 ---
 *Phase: 01-dependency-config*
