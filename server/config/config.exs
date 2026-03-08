@@ -5,6 +5,10 @@ config :mega_planner,
   generators: [timestamp_type: :utc_datetime, binary_id: true],
   frontend_url: "http://localhost:5173"
 
+config :mega_planner, MegaPlanner.Repo,
+  migration_primary_key: [name: :id, type: :binary_id],
+  migration_timestamps: [type: :utc_datetime]
+
 config :mega_planner, MegaPlannerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Phoenix.Endpoint.Cowboy2Adapter,
