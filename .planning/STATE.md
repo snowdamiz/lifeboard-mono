@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md — migration 13 PL/pgSQL DO block replaced with Elixir execute fn -> using Ecto.UUID.generate() and repo().query!/2
-last_updated: "2026-03-08T02:25:41.431Z"
+stopped_at: "Completed 02-03-PLAN.md — all 60 migrations green via mix ecto.reset; 7 additional PostgreSQL-specific migrations fixed (ALTER COLUMN, ADD/DROP CONSTRAINT, EXTRACT, ::cast syntax)"
+last_updated: "2026-03-08T02:36:06.664Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 100
 ---
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 | Phase 01-dependency-config P02 | 2 | 2 tasks | 3 files |
 | Phase 02-migration-rewrites P01 | 2 | 2 tasks | 2 files |
 | Phase 02-migration-rewrites P02 | 1 | 1 tasks | 1 files |
+| Phase 02-migration-rewrites P03 | 7 | 1 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,10 @@ Recent decisions affecting current work:
 - [Phase 02-migration-rewrites]: ecto_sqlite3 JSON column defaults must use Elixir values ([], %{}) not JSON strings; string form stores literal characters bypassing serialization
 - [Phase 02-02]: execute fn -> pattern established: repo().query/2 for SELECT, repo().query!/2 for INSERT/UPDATE in Ecto migration data back-fills
 - [Phase 02-02]: ? positional params used throughout SQLite migration SQL (not $1 PostgreSQL style)
+- [Phase 02-migration-rewrites]: SQLite table-rebuild pattern required for ALL nullability changes (shopping_list_items.inventory_item_id, purchases.budget_entry_id): CREATE _new, INSERT SELECT, DROP indexes, DROP table, RENAME — must match columns present at migration run time only
+- [Phase 02-migration-rewrites]: ALTER TABLE ADD/DROP CONSTRAINT (fix_cascade_deletes migration): all 20 calls removed as no-ops for SQLite — FK cascade behavior is defined at table creation and cannot be altered after the fact
+- [Phase 02-migration-rewrites]: integer→decimal type changes (change_quantity_to_decimal, change_corrected_quantity_to_decimal) are no-ops for SQLite via dynamic typing — numeric affinity stores decimals in integer-declared columns without any ALTER
+- [Phase 02-migration-rewrites]: EXTRACT(HOUR/MINUTE/SECOND FROM col) replaced by CAST(strftime('%H/%M/%S', col) AS INTEGER) in SQLite for trip-start repair migrations; ::date/::text PostgreSQL casts replaced by Elixir String.slice/0 in execute fn -> blocks
 
 ### Pending Todos
 
@@ -89,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:25:41.426Z
-Stopped at: Completed 02-02-PLAN.md — migration 13 PL/pgSQL DO block replaced with Elixir execute fn -> using Ecto.UUID.generate() and repo().query!/2
+Last session: 2026-03-08T02:36:06.660Z
+Stopped at: Completed 02-03-PLAN.md — all 60 migrations green via mix ecto.reset; 7 additional PostgreSQL-specific migrations fixed (ALTER COLUMN, ADD/DROP CONSTRAINT, EXTRACT, ::cast syntax)
 Resume file: None
