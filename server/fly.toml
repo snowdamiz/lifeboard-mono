@@ -6,12 +6,14 @@ primary_region = 'iad'
 
 [build]
 
-[deploy]
-  release_command = '/app/bin/migrate'
+[mounts]
+  source = "lifeboard_data"
+  destination = "/data"
 
 [env]
   PHX_HOST = 'mega-planner-api.fly.dev'
   PORT = '4000'
+  DATABASE_PATH = '/data/lifeboard.db'
 
 [http_service]
   internal_port = 4000
