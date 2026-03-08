@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-04-PLAN.md — Phase 3 integration gate approved by human, all CODE requirements verified
-last_updated: "2026-03-08T03:47:05.918Z"
+stopped_at: Completed 04-01-PLAN.md — postgrex dep + mix migrate.export task implemented
+last_updated: "2026-03-08T04:32:55.552Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 13
+  completed_plans: 11
   percent: 100
 ---
 
@@ -59,6 +59,7 @@ Progress: [██████████] 100%
 | Phase 03-application-code-fixes P03 | 2 | 2 tasks | 15 files |
 | Phase 03-application-code-fixes P04 | 5 | 2 tasks | 2 files |
 | Phase 03-application-code-fixes P04 | 15 | 3 tasks | 1 files |
+| Phase 04-data-migration-pipeline P01 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 03-application-code-fixes]: Migration 20260101000018 table-rebuild bug fixed: shopping_list_items_new CREATE TABLE must include household_id (added by migration 13) to avoid no-such-column errors
 - [Phase 03-application-code-fixes]: Migration 20260101000018 table-rebuild bug fixed: shopping_list_items_new CREATE TABLE must include household_id (added by migration 13) to avoid no-such-column errors
 - [Phase 03-application-code-fixes]: Phase 3 integration gate pattern validated: grep verification + mix test + human checkpoint confirmed all four CODE requirements satisfied before Phase 4 begins
+- [Phase 04-data-migration-pipeline]: postgrex added as only: [:dev, :test] — not needed in prod, only for one-time migration export task
+- [Phase 04-data-migration-pipeline]: @tables module attribute with ~w[] sigil listing all 48 data tables provides compile-time safety for export
+- [Phase 04-data-migration-pipeline]: serialize/1 6-clause pattern: NaiveDateTime/DateTime/Decimal/list/map/passthrough for JSON-safe type coercion
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:43:41.862Z
-Stopped at: Completed 03-04-PLAN.md — Phase 3 integration gate approved by human, all CODE requirements verified
+Last session: 2026-03-08T04:32:41.623Z
+Stopped at: Completed 04-01-PLAN.md — postgrex dep + mix migrate.export task implemented
 Resume file: None
