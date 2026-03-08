@@ -34,6 +34,10 @@ defmodule MegaPlanner.Calendar.TaskTemplate do
     |> validate_inclusion(:task_type, @task_types)
     |> validate_number(:priority, greater_than_or_equal_to: 1, less_than_or_equal_to: 5)
     |> validate_number(:duration_minutes, greater_than: 0)
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end

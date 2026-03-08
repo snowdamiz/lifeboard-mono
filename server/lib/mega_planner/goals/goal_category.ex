@@ -25,9 +25,16 @@ defmodule MegaPlanner.Goals.GoalCategory do
     |> validate_required([:name, :household_id])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_format(:color, ~r/^#[0-9a-fA-F]{6}$/, message: "must be a valid hex color")
-    |> foreign_key_constraint(:household_id)
-    |> foreign_key_constraint(:parent_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
+    |> validate_change(:parent_id, fn :parent_id, id ->
+         if MegaPlanner.Repo.get(__MODULE__, id),
+           do: [],
+           else: [parent_id: "does not exist"]
+       end)
     |> unique_constraint([:household_id, :name, :parent_id], name: :goal_categories_household_name_parent_unique)
   end
 end
-

@@ -35,14 +35,18 @@ defmodule MegaPlanner.Goals.Habit do
   def changeset(habit, attrs) do
     # Pre-process time fields to handle HH:MM format from HTML time inputs
     attrs = normalize_time_fields(attrs)
-    
+
     habit
     |> cast(attrs, [:name, :description, :frequency, :days_of_week, :reminder_time, :scheduled_time, :duration_minutes, :color, :is_start_of_day, :inventory_id, :user_id, :household_id])
     |> validate_required([:name, :user_id, :household_id])
     |> validate_inclusion(:frequency, @frequencies)
     |> validate_days_of_week()
     |> validate_duration_minutes()
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 
   # Normalize time fields to add seconds if missing (HH:MM -> HH:MM:SS)

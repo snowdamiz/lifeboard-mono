@@ -26,7 +26,10 @@ defmodule MegaPlanner.Goals.HabitInventory do
     |> cast(attrs, [:name, :color, :position, :household_id, :coverage_mode, :linked_inventory_ids, :day_start_time, :day_end_time])
     |> validate_required([:name, :household_id])
     |> validate_inclusion(:coverage_mode, ["whole_day", "partial_day"])
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end
-

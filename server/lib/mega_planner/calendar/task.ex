@@ -42,9 +42,21 @@ defmodule MegaPlanner.Calendar.Task do
     |> validate_inclusion(:task_type, @task_types)
     |> validate_number(:duration_minutes, greater_than: 0)
     |> validate_number(:priority, greater_than_or_equal_to: 0)
-    |> foreign_key_constraint(:user_id)
-    |> foreign_key_constraint(:household_id)
-    |> foreign_key_constraint(:parent_task_id)
+    |> validate_change(:user_id, fn :user_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [user_id: "does not exist"]
+       end)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
+    |> validate_change(:parent_task_id, fn :parent_task_id, id ->
+         if MegaPlanner.Repo.get(__MODULE__, id),
+           do: [],
+           else: [parent_task_id: "does not exist"]
+       end)
     |> unique_constraint([:title, :date, :household_id],
        name: :tasks_title_date_household_unique,
        message: "A task with this title already exists on this date")

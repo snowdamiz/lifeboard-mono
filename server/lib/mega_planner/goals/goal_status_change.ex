@@ -21,8 +21,15 @@ defmodule MegaPlanner.Goals.GoalStatusChange do
     status_change
     |> cast(attrs, [:from_status, :to_status, :notes, :goal_id, :user_id])
     |> validate_required([:to_status, :goal_id])
-    |> foreign_key_constraint(:goal_id)
-    |> foreign_key_constraint(:user_id)
+    |> validate_change(:goal_id, fn :goal_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Goals.Goal, id),
+           do: [],
+           else: [goal_id: "does not exist"]
+       end)
+    |> validate_change(:user_id, fn :user_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [user_id: "does not exist"]
+       end)
   end
 end
-
