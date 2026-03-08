@@ -5,6 +5,8 @@ defmodule MegaPlanner.Application do
 
   @impl true
   def start(_type, _args) do
+    MegaPlanner.Release.migrate()
+
     children = [
       MegaPlannerWeb.Telemetry,
       MegaPlanner.Repo,
