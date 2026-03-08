@@ -3,7 +3,7 @@ defmodule MegaPlanner.Goals.HabitInventoryTest do
   Tests for HabitInventory schema and CRUD operations.
   Tests coverage_mode, linked_inventory_ids, day_start_time, and day_end_time fields.
   """
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias MegaPlanner.Repo
   alias MegaPlanner.Goals

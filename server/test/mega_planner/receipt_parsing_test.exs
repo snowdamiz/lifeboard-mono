@@ -9,7 +9,7 @@ defmodule MegaPlanner.ReceiptParsingTest do
   - Garbage: Mostly unreadable
   - Store-specific: Costco, Walmart patterns
   """
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias MegaPlanner.{Repo, Accounts}
   alias MegaPlanner.Receipts.MockReceiptParser
 
