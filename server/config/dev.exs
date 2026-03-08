@@ -1,13 +1,10 @@
 import Config
 
 config :mega_planner, MegaPlanner.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "mega_planner_dev",
-  stacktrace: true,
+  database: Path.expand("../mega_planner_dev.db", Path.dirname(__ENV__.file)),
+  pool_size: 5,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  stacktrace: true
 
 config :mega_planner, MegaPlannerWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4000],
