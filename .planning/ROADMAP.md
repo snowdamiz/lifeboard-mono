@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Dependency & Config** - Swap ecto_sqlite3 for postgrex in mix.exs and update all Ecto config files (completed 2026-03-08)
 - [ ] **Phase 2: Migration Rewrites** - Rewrite PostgreSQL-specific migration files and verify clean `mix ecto.migrate` on SQLite
-- [ ] **Phase 3: Application Code Fixes** - Remove all SQLite-incompatible Ecto calls so the app boots and serves requests without runtime errors
+- [x] **Phase 3: Application Code Fixes** - Remove all SQLite-incompatible Ecto calls so the app boots and serves requests without runtime errors (completed 2026-03-08)
 - [ ] **Phase 4: Data Migration Pipeline** - Build and run the export-import-verify pipeline that moves all production data from PostgreSQL to SQLite
 - [ ] **Phase 5: Fly.io Deployment & Cutover** - Configure Fly.io volume, deploy the SQLite-backed image, smoke test, and decommission PostgreSQL
 
@@ -101,6 +101,6 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 |-------|----------------|--------|-----------|
 | 1. Dependency & Config | 2/2 | Complete   | 2026-03-08 |
 | 2. Migration Rewrites | 0/3 | Not started | - |
-| 3. Application Code Fixes | 0/4 | Not started | - |
+| 3. Application Code Fixes | 4/4 | Complete   | 2026-03-08 |
 | 4. Data Migration Pipeline | 0/? | Not started | - |
 | 5. Fly.io Deployment & Cutover | 0/? | Not started | - |
