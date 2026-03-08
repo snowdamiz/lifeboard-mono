@@ -1,7 +1,7 @@
 defmodule MegaPlanner.Repo.Migrations.CreateInventory do
   use Ecto.Migration
 
-  def change do
+  def up do
     create table(:inventory_sheets, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
@@ -40,6 +40,22 @@ defmodule MegaPlanner.Repo.Migrations.CreateInventory do
 
     create index(:shopping_list_items, [:user_id])
     create index(:shopping_list_items, [:inventory_item_id])
-    create unique_index(:shopping_list_items, [:user_id, :inventory_item_id], where: "purchased = false")
+
+    execute """
+    CREATE UNIQUE INDEX shopping_list_items_user_id_inventory_item_id_index
+    ON shopping_list_items (user_id, inventory_item_id)
+    WHERE purchased = 0
+    """
+  end
+
+  def down do
+    execute "DROP INDEX IF EXISTS shopping_list_items_user_id_inventory_item_id_index"
+    drop index(:shopping_list_items, [:inventory_item_id])
+    drop index(:shopping_list_items, [:user_id])
+    drop table(:shopping_list_items)
+    drop index(:inventory_items, [:sheet_id])
+    drop table(:inventory_items)
+    drop index(:inventory_sheets, [:user_id])
+    drop table(:inventory_sheets)
   end
 end
