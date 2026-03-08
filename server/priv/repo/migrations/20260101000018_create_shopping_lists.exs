@@ -1,7 +1,7 @@
 defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
   use Ecto.Migration
 
-  def change do
+  def up do
     # Create shopping lists table
     create table(:shopping_lists, primary_key: false) do
       add :id, :binary_id, primary_key: true
@@ -17,19 +17,100 @@ defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
 
     create index(:shopping_lists, [:household_id])
     create unique_index(:shopping_lists, [:household_id, :is_auto_generated],
-      where: "is_auto_generated = true",
+      where: "is_auto_generated = 1",
       name: :shopping_lists_household_auto_generated_unique)
 
-    # Add shopping_list_id to shopping_list_items
-    alter table(:shopping_list_items) do
-      add :shopping_list_id, references(:shopping_lists, on_delete: :delete_all, type: :binary_id)
-      # Allow manual items without inventory_item reference
-      modify :inventory_item_id, :binary_id, null: true
-      # Add name for manual items
-      add :name, :string
-    end
+    # SQLite does not support ALTER COLUMN (to change nullability) or adding FK references
+    # via ALTER TABLE ADD COLUMN with a reference to a newly created table.
+    # Use the SQLite table-rebuild pattern to:
+    #   1. Make inventory_item_id nullable (for manual items without inventory reference)
+    #   2. Add shopping_list_id FK column
+    #   3. Add name column
+    execute """
+    CREATE TABLE shopping_list_items_new (
+      id BLOB NOT NULL PRIMARY KEY,
+      quantity_needed INTEGER DEFAULT 1,
+      purchased BOOLEAN DEFAULT FALSE,
+      inventory_item_id BLOB REFERENCES inventory_items(id) ON DELETE CASCADE,
+      user_id BLOB NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      shopping_list_id BLOB REFERENCES shopping_lists(id) ON DELETE CASCADE,
+      name VARCHAR(255),
+      inserted_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL
+    )
+    """
+
+    execute """
+    INSERT INTO shopping_list_items_new
+      (id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at)
+    SELECT id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at
+    FROM shopping_list_items
+    """
+
+    # Drop old indexes (custom indexes must be dropped before renaming)
+    execute "DROP INDEX IF EXISTS shopping_list_items_user_id_inventory_item_id_index"
+    execute "DROP INDEX IF EXISTS shopping_list_items_user_id_index"
+    execute "DROP INDEX IF EXISTS shopping_list_items_inventory_item_id_index"
+
+    execute "DROP TABLE shopping_list_items"
+    execute "ALTER TABLE shopping_list_items_new RENAME TO shopping_list_items"
+
+    # Recreate indexes
+    create index(:shopping_list_items, [:user_id])
+    create index(:shopping_list_items, [:inventory_item_id])
+
+    execute """
+    CREATE UNIQUE INDEX shopping_list_items_user_id_inventory_item_id_index
+    ON shopping_list_items (user_id, inventory_item_id)
+    WHERE purchased = 0
+    """
 
     create index(:shopping_list_items, [:shopping_list_id])
   end
-end
 
+  def down do
+    # Drop shopping list indexes
+    execute "DROP INDEX IF EXISTS shopping_list_items_user_id_inventory_item_id_index"
+    drop_if_exists index(:shopping_list_items, [:shopping_list_id])
+    drop_if_exists index(:shopping_list_items, [:inventory_item_id])
+    drop_if_exists index(:shopping_list_items, [:user_id])
+
+    # Rebuild shopping_list_items back to original structure (inventory_item_id NOT NULL)
+    execute """
+    CREATE TABLE shopping_list_items_orig (
+      id BLOB NOT NULL PRIMARY KEY,
+      quantity_needed INTEGER DEFAULT 1,
+      purchased BOOLEAN DEFAULT FALSE,
+      inventory_item_id BLOB NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+      user_id BLOB NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      inserted_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL
+    )
+    """
+
+    execute """
+    INSERT INTO shopping_list_items_orig
+      (id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at)
+    SELECT id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at
+    FROM shopping_list_items
+    WHERE inventory_item_id IS NOT NULL
+    """
+
+    execute "DROP TABLE shopping_list_items"
+    execute "ALTER TABLE shopping_list_items_orig RENAME TO shopping_list_items"
+
+    create index(:shopping_list_items, [:user_id])
+    create index(:shopping_list_items, [:inventory_item_id])
+
+    execute """
+    CREATE UNIQUE INDEX shopping_list_items_user_id_inventory_item_id_index
+    ON shopping_list_items (user_id, inventory_item_id)
+    WHERE purchased = 0
+    """
+
+    drop_if_exists unique_index(:shopping_lists, [:household_id, :is_auto_generated],
+      name: :shopping_lists_household_auto_generated_unique)
+    drop_if_exists index(:shopping_lists, [:household_id])
+    drop table(:shopping_lists)
+  end
+end

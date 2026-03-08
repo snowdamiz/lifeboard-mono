@@ -17,160 +17,142 @@ defmodule MegaPlanner.Repo.Migrations.FixCascadeDeletes do
   - Stop deletion → nullifies Inventory Items references (item stays, loses stop link)
   - Trip deletion → nullifies Inventory Items references (item stays, loses trip link)
   - Trip deletion → nullifies Task.trip_id (task stays, loses trip link)
+
+  SQLite Note: SQLite does not support ALTER TABLE ADD/DROP CONSTRAINT.
+  FK cascade behavior is defined at table creation time and cannot be changed.
+  The original create migrations already define the FK behavior for SQLite.
+  The only structural change applied here is making purchases.budget_entry_id nullable,
+  which requires a full table rebuild in SQLite.
   """
 
   def up do
-    # === TRIP CASCADE CHAIN ===
-    # Trip → Stops: already cascade in original migration
-    
-    # Stops → Purchases: should cascade delete when stop is deleted
-    execute "ALTER TABLE purchases DROP CONSTRAINT IF EXISTS purchases_stop_id_fkey"
+    # SQLite does not support ALTER TABLE DROP CONSTRAINT / ADD CONSTRAINT.
+    # All FK constraint modifications are no-ops for SQLite — FK cascade behavior
+    # is already defined at table creation time in the original create migrations.
+    # No-op: purchases.stop_id, purchases.budget_entry_id FK constraints
+    # No-op: budget_entries.purchase_id FK constraint
+    # No-op: task_steps.task_id FK constraint (already CASCADE in create_tasks migration)
+    # No-op: budget_entries.source_id FK constraint
+    # No-op: inventory_items.purchase_id, trip_id, stop_id FK constraints
+    # No-op: tasks.trip_id FK constraint
+
+    # STRUCTURAL CHANGE: Make purchases.budget_entry_id nullable using SQLite table rebuild.
+    # This allows purchases to exist without a linked budget entry (e.g., after budget entry
+    # is deleted with SET NULL semantics).
+    # Note: at this migration point, purchases table has these columns:
+    #   id, household_id, stop_id, budget_entry_id (NOT NULL), brand, item,
+    #   unit_measurement, count, price_per_count, units, price_per_unit,
+    #   taxable, total_price, store_code, item_name, tax_rate, timestamps
+    # (count_unit is added later in 20260206021800_add_count_unit_field.exs)
+
     execute """
-    ALTER TABLE purchases
-    ADD CONSTRAINT purchases_stop_id_fkey
-    FOREIGN KEY (stop_id) REFERENCES stops(id) ON DELETE CASCADE
+    CREATE TABLE purchases_new (
+      id BLOB NOT NULL PRIMARY KEY,
+      household_id BLOB NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      stop_id BLOB REFERENCES stops(id) ON DELETE SET NULL,
+      budget_entry_id BLOB REFERENCES budget_entries(id) ON DELETE SET NULL,
+      brand VARCHAR(255) NOT NULL,
+      item VARCHAR(255) NOT NULL,
+      unit_measurement VARCHAR(255),
+      count NUMERIC,
+      price_per_count NUMERIC,
+      units NUMERIC,
+      price_per_unit NUMERIC,
+      taxable BOOLEAN DEFAULT FALSE,
+      total_price NUMERIC NOT NULL,
+      store_code VARCHAR(255),
+      item_name VARCHAR(255),
+      tax_rate NUMERIC,
+      inserted_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL
+    )
     """
 
-    # === PURCHASE CASCADE ===
-    # Make budget_entry_id in purchases nullable
-    execute "ALTER TABLE purchases DROP CONSTRAINT IF EXISTS purchases_budget_entry_id_fkey"
     execute """
-    ALTER TABLE purchases
-    ADD CONSTRAINT purchases_budget_entry_id_fkey
-    FOREIGN KEY (budget_entry_id) REFERENCES budget_entries(id) ON DELETE SET NULL
-    """
-    alter table(:purchases) do
-      modify :budget_entry_id, :binary_id, null: true
-    end
-
-    # Budget entries have purchase_id - when purchase deleted, delete the entry
-    execute "ALTER TABLE budget_entries DROP CONSTRAINT IF EXISTS budget_entries_purchase_id_fkey"
-    execute """
-    ALTER TABLE budget_entries
-    ADD CONSTRAINT budget_entries_purchase_id_fkey
-    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE
+    INSERT INTO purchases_new
+      (id, household_id, stop_id, budget_entry_id, brand, item,
+       unit_measurement, count, price_per_count, units, price_per_unit,
+       taxable, total_price, store_code, item_name, tax_rate,
+       inserted_at, updated_at)
+    SELECT
+      id, household_id, stop_id, budget_entry_id, brand, item,
+      unit_measurement, count, price_per_count, units, price_per_unit,
+      taxable, total_price, store_code, item_name, tax_rate,
+      inserted_at, updated_at
+    FROM purchases
     """
 
-    # === TASK CASCADE ===
-    # Task steps should be deleted when task is deleted
-    execute "ALTER TABLE task_steps DROP CONSTRAINT IF EXISTS task_steps_task_id_fkey"
-    execute """
-    ALTER TABLE task_steps
-    ADD CONSTRAINT task_steps_task_id_fkey
-    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-    """
+    # Drop existing indexes before dropping table
+    execute "DROP INDEX IF EXISTS purchases_household_id_index"
+    execute "DROP INDEX IF EXISTS purchases_stop_id_index"
+    execute "DROP INDEX IF EXISTS purchases_budget_entry_id_index"
+    execute "DROP INDEX IF EXISTS purchases_brand_index"
+    execute "DROP INDEX IF EXISTS purchases_item_index"
 
-    # === SOURCE CASCADE ===
-    # Budget entries should be deleted when source is deleted
-    execute "ALTER TABLE budget_entries DROP CONSTRAINT IF EXISTS budget_entries_source_id_fkey"
-    execute """
-    ALTER TABLE budget_entries
-    ADD CONSTRAINT budget_entries_source_id_fkey
-    FOREIGN KEY (source_id) REFERENCES budget_sources(id) ON DELETE CASCADE
-    """
+    execute "DROP TABLE purchases"
+    execute "ALTER TABLE purchases_new RENAME TO purchases"
 
-    # === INVENTORY ITEMS NULLIFY ===
-    # Inventory items should keep the item but lose the reference
-    execute "ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_purchase_id_fkey"
-    execute """
-    ALTER TABLE inventory_items
-    ADD CONSTRAINT inventory_items_purchase_id_fkey
-    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL
-    """
-
-    execute "ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_trip_id_fkey"
-    execute """
-    ALTER TABLE inventory_items
-    ADD CONSTRAINT inventory_items_trip_id_fkey
-    FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE SET NULL
-    """
-
-    execute "ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_stop_id_fkey"
-    execute """
-    ALTER TABLE inventory_items
-    ADD CONSTRAINT inventory_items_stop_id_fkey
-    FOREIGN KEY (stop_id) REFERENCES stops(id) ON DELETE SET NULL
-    """
-
-    # === TASKS NULLIFY ===
-    # Tasks should keep the task but lose the trip reference when trip is deleted
-    execute "ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_trip_id_fkey"
-    execute """
-    ALTER TABLE tasks
-    ADD CONSTRAINT tasks_trip_id_fkey
-    FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE SET NULL
-    """
+    # Recreate indexes
+    create index(:purchases, [:household_id])
+    create index(:purchases, [:stop_id])
+    create index(:purchases, [:budget_entry_id])
+    create index(:purchases, [:brand])
+    create index(:purchases, [:item])
   end
 
   def down do
-    # Revert purchases.stop_id to nilify
-    execute "ALTER TABLE purchases DROP CONSTRAINT IF EXISTS purchases_stop_id_fkey"
+    # Rebuild purchases back with budget_entry_id as NOT NULL
     execute """
-    ALTER TABLE purchases
-    ADD CONSTRAINT purchases_stop_id_fkey
-    FOREIGN KEY (stop_id) REFERENCES stops(id) ON DELETE SET NULL
+    CREATE TABLE purchases_orig (
+      id BLOB NOT NULL PRIMARY KEY,
+      household_id BLOB NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+      stop_id BLOB REFERENCES stops(id) ON DELETE SET NULL,
+      budget_entry_id BLOB NOT NULL REFERENCES budget_entries(id) ON DELETE CASCADE,
+      brand VARCHAR(255) NOT NULL,
+      item VARCHAR(255) NOT NULL,
+      unit_measurement VARCHAR(255),
+      count NUMERIC,
+      price_per_count NUMERIC,
+      units NUMERIC,
+      price_per_unit NUMERIC,
+      taxable BOOLEAN DEFAULT FALSE,
+      total_price NUMERIC NOT NULL,
+      store_code VARCHAR(255),
+      item_name VARCHAR(255),
+      tax_rate NUMERIC,
+      inserted_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL
+    )
     """
 
-    # Revert purchases.budget_entry_id
-    execute "ALTER TABLE purchases DROP CONSTRAINT IF EXISTS purchases_budget_entry_id_fkey"
     execute """
-    ALTER TABLE purchases
-    ADD CONSTRAINT purchases_budget_entry_id_fkey
-    FOREIGN KEY (budget_entry_id) REFERENCES budget_entries(id) ON DELETE CASCADE
+    INSERT INTO purchases_orig
+      (id, household_id, stop_id, budget_entry_id, brand, item,
+       unit_measurement, count, price_per_count, units, price_per_unit,
+       taxable, total_price, store_code, item_name, tax_rate,
+       inserted_at, updated_at)
+    SELECT
+      id, household_id, stop_id, budget_entry_id, brand, item,
+      unit_measurement, count, price_per_count, units, price_per_unit,
+      taxable, total_price, store_code, item_name, tax_rate,
+      inserted_at, updated_at
+    FROM purchases
+    WHERE budget_entry_id IS NOT NULL
     """
 
-    # Revert budget_entries.purchase_id
-    execute "ALTER TABLE budget_entries DROP CONSTRAINT IF EXISTS budget_entries_purchase_id_fkey"
-    execute """
-    ALTER TABLE budget_entries
-    ADD CONSTRAINT budget_entries_purchase_id_fkey
-    FOREIGN KEY (purchase_id) REFERENCES purchases(id)
-    """
+    execute "DROP INDEX IF EXISTS purchases_household_id_index"
+    execute "DROP INDEX IF EXISTS purchases_stop_id_index"
+    execute "DROP INDEX IF EXISTS purchases_budget_entry_id_index"
+    execute "DROP INDEX IF EXISTS purchases_brand_index"
+    execute "DROP INDEX IF EXISTS purchases_item_index"
 
-    # Revert task_steps
-    execute "ALTER TABLE task_steps DROP CONSTRAINT IF EXISTS task_steps_task_id_fkey"
-    execute """
-    ALTER TABLE task_steps
-    ADD CONSTRAINT task_steps_task_id_fkey
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
-    """
+    execute "DROP TABLE purchases"
+    execute "ALTER TABLE purchases_orig RENAME TO purchases"
 
-    # Revert budget_entries.source_id
-    execute "ALTER TABLE budget_entries DROP CONSTRAINT IF EXISTS budget_entries_source_id_fkey"
-    execute """
-    ALTER TABLE budget_entries
-    ADD CONSTRAINT budget_entries_source_id_fkey
-    FOREIGN KEY (source_id) REFERENCES budget_sources(id) ON DELETE SET NULL
-    """
-
-    # Revert inventory_items to nothing (original behavior)
-    execute "ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_purchase_id_fkey"
-    execute """
-    ALTER TABLE inventory_items
-    ADD CONSTRAINT inventory_items_purchase_id_fkey
-    FOREIGN KEY (purchase_id) REFERENCES purchases(id)
-    """
-
-    execute "ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_trip_id_fkey"
-    execute """
-    ALTER TABLE inventory_items
-    ADD CONSTRAINT inventory_items_trip_id_fkey
-    FOREIGN KEY (trip_id) REFERENCES trips(id)
-    """
-
-    execute "ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_stop_id_fkey"
-    execute """
-    ALTER TABLE inventory_items
-    ADD CONSTRAINT inventory_items_stop_id_fkey
-    FOREIGN KEY (stop_id) REFERENCES stops(id)
-    """
-
-    # Revert tasks.trip_id
-    execute "ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_trip_id_fkey"
-    execute """
-    ALTER TABLE tasks
-    ADD CONSTRAINT tasks_trip_id_fkey
-    FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE SET NULL
-    """
+    create index(:purchases, [:household_id])
+    create index(:purchases, [:stop_id])
+    create index(:purchases, [:budget_entry_id])
+    create index(:purchases, [:brand])
+    create index(:purchases, [:item])
   end
 end
