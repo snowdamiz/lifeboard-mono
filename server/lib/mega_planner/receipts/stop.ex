@@ -31,8 +31,16 @@ defmodule MegaPlanner.Receipts.Stop do
     stop
     |> cast(attrs, [:store_name, :store_address, :notes, :position, :trip_id, :store_id, :time_arrived, :time_left])
     |> validate_required([:trip_id, :position])
-    |> foreign_key_constraint(:trip_id)
-    |> foreign_key_constraint(:store_id)
+    |> validate_change(:trip_id, fn :trip_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Receipts.Trip, id),
+           do: [],
+           else: [trip_id: "does not exist"]
+       end)
+    |> validate_change(:store_id, fn :store_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Receipts.Store, id),
+           do: [],
+           else: [store_id: "does not exist"]
+       end)
     |> unique_constraint([:trip_id, :store_id],
        name: :stops_trip_store_unique,
        message: "This store is already part of the trip")

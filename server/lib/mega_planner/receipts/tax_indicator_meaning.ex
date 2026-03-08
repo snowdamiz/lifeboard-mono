@@ -1,12 +1,12 @@
 defmodule MegaPlanner.Receipts.TaxIndicatorMeaning do
   @moduledoc """
   Stores user-defined meanings for tax indicator codes on receipts.
-  
+
   Different stores use different indicator codes:
   - Walmart: "N" = non-taxable food, "X" = taxable
   - Costco: "A" = taxable, blank = non-taxable
   - Target: "T" = taxable, "N" = non-taxable
-  
+
   Users can correct the AI's interpretation, and those corrections
   are stored here to improve future receipt parsing for that store.
   """
@@ -36,6 +36,10 @@ defmodule MegaPlanner.Receipts.TaxIndicatorMeaning do
     |> validate_length(:indicator, max: 5)
     |> unique_constraint([:household_id, :store_name, :indicator],
        name: :tax_indicator_meanings_unique)
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end

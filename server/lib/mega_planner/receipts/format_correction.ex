@@ -2,11 +2,11 @@ defmodule MegaPlanner.Receipts.FormatCorrection do
   @moduledoc """
   Stores user corrections to receipt parsing results.
   Used to learn from user preferences and apply corrections to future scans.
-  
+
   The system learns:
-  - Brand name preferences (e.g., "GV" → "Great Value")
-  - Item name formatting (e.g., "WHOLE MILK 1GAL" → "Whole Milk")
-  - Unit preferences (e.g., "GAL" → "Gallon")
+  - Brand name preferences (e.g., "GV" -> "Great Value")
+  - Item name formatting (e.g., "WHOLE MILK 1GAL" -> "Whole Milk")
+  - Unit preferences (e.g., "GAL" -> "Gallon")
   - Quantity interpretations
   """
   use Ecto.Schema
@@ -35,19 +35,23 @@ defmodule MegaPlanner.Receipts.FormatCorrection do
   def changeset(correction, attrs) do
     correction
     |> cast(attrs, [
-      :raw_text, 
-      :corrected_brand, 
-      :corrected_item, 
+      :raw_text,
+      :corrected_brand,
+      :corrected_item,
       :corrected_unit,
       :corrected_quantity,
       :corrected_unit_quantity,
-      :match_type, 
+      :match_type,
       :preference_notes,
       :household_id
     ])
     |> validate_required([:raw_text, :household_id])
     |> validate_inclusion(:match_type, ["exact", "fuzzy"])
     |> unique_constraint([:household_id, :raw_text])
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end

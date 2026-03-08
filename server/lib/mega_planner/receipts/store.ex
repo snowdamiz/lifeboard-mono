@@ -38,7 +38,11 @@ defmodule MegaPlanner.Receipts.Store do
     ])
     |> validate_required([:name, :household_id])
     |> build_full_address()
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
     # Primary unique constraint: household + store_id (when store_id exists)
     |> unique_constraint([:household_id, :store_id],
        name: :stores_household_store_id_unique,
@@ -59,7 +63,7 @@ defmodule MegaPlanner.Receipts.Store do
       state = get_change(changeset, :state) || get_field(changeset, :state)
       zip = get_change(changeset, :zip_code) || get_field(changeset, :zip_code)
       suite = get_change(changeset, :suite) || get_field(changeset, :suite)
-      
+
       address = build_address_string(street, suite, city, state, zip)
       if address && address != "", do: put_change(changeset, :address, address), else: changeset
     end
@@ -68,11 +72,10 @@ defmodule MegaPlanner.Receipts.Store do
   defp build_address_string(nil, _, _, _, _), do: nil
   defp build_address_string(street, suite, city, state, zip) do
     street_part = if suite && suite != "", do: "#{street} #{suite}", else: street
-    
+
     # Build address as: Street, City, State, ZIP (all comma-separated)
     [street_part, city, state, zip]
     |> Enum.reject(&(is_nil(&1) || &1 == ""))
     |> Enum.join(", ")
   end
 end
-
