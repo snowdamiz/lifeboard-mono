@@ -54,7 +54,10 @@ defmodule MegaPlanner.Inventory.Item do
     |> validate_number(:quantity, greater_than_or_equal_to: 0)
     |> validate_number(:min_quantity, greater_than_or_equal_to: 0)
     |> validate_inclusion(:usage_mode, ["count", "quantity"])
-    |> foreign_key_constraint(:sheet_id)
+    |> validate_change(:sheet_id, fn :sheet_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Inventory.Sheet, id),
+           do: [],
+           else: [sheet_id: "does not exist"]
+       end)
   end
 end
-

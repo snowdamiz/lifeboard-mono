@@ -33,6 +33,10 @@ defmodule MegaPlanner.Accounts.User do
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
     |> unique_constraint(:email)
     |> unique_constraint([:provider, :provider_id])
-    |> foreign_key_constraint(:household_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
   end
 end

@@ -26,8 +26,16 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     |> validate_required([:name, :household_id])
     |> validate_inclusion(:status, ["active", "completed"])
     |> validate_length(:name, min: 1, max: 200)
-    |> foreign_key_constraint(:household_id)
-    |> foreign_key_constraint(:user_id)
+    |> validate_change(:household_id, fn :household_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+           do: [],
+           else: [household_id: "does not exist"]
+       end)
+    |> validate_change(:user_id, fn :user_id, id ->
+         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+           do: [],
+           else: [user_id: "does not exist"]
+       end)
     |> unique_constraint([:household_id, :is_auto_generated],
         name: :shopping_lists_household_auto_generated_unique,
         message: "only one auto-generated list per household")
@@ -39,4 +47,3 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     |> put_assoc(:tags, tags)
   end
 end
-
