@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Swap postgrex for ecto_sqlite3 in mix.exs, change Repo adapter, add migration_primary_key config
-- [ ] 01-02-PLAN.md — Replace PostgreSQL connection blocks in dev.exs, test.exs, and runtime.exs with SQLite3 equivalents
+- [x] 01-02-PLAN.md — Replace PostgreSQL connection blocks in dev.exs, test.exs, and runtime.exs with SQLite3 equivalents
 
 ### Phase 2: Migration Rewrites
 **Goal**: All Ecto migration files are SQLite-compatible so `mix ecto.migrate` runs from scratch against a fresh SQLite file without errors
@@ -44,7 +44,12 @@ Plans:
   2. `grep -rn ":jsonb\|gen_random_uuid" priv/repo/migrations/` returns zero results
   3. The partial unique index in the inventory migration is expressed as a raw `execute` SQL statement with `WHERE purchased = 0`
   4. The PL/pgSQL anonymous block in migration 13 is replaced with Elixir Repo calls using `Ecto.UUID.generate/0`
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Fix migration 04 partial index (purchased = 0) and migration 17 :jsonb types
+- [ ] 02-02-PLAN.md — Replace PL/pgSQL block in migration 13 with Elixir execute fn ->
+- [ ] 02-03-PLAN.md — Run mix ecto.reset to verify all ~60 migrations pass on fresh SQLite
 
 ### Phase 3: Application Code Fixes
 **Goal**: The application boots against SQLite and handles all requests without runtime Ecto errors caused by PostgreSQL-only query functions
@@ -89,7 +94,7 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Dependency & Config | 2/2 | Complete   | 2026-03-08 |
-| 2. Migration Rewrites | 0/? | Not started | - |
+| 2. Migration Rewrites | 0/3 | Not started | - |
 | 3. Application Code Fixes | 0/? | Not started | - |
 | 4. Data Migration Pipeline | 0/? | Not started | - |
 | 5. Fly.io Deployment & Cutover | 0/? | Not started | - |
