@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md — 31 ilike->like replacements across 5 modules; DataCase + AccountsFixtures test infrastructure created
-last_updated: "2026-03-08T03:21:19.766Z"
+stopped_at: Completed 03-02-PLAN.md — 27 foreign_key_constraint calls replaced with validate_change/3 across 16 schema files in receipts, calendar, and goals domains
+last_updated: "2026-03-08T03:27:41.888Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 100
 ---
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100%
 | Phase 02-migration-rewrites P02 | 1 | 1 tasks | 1 files |
 | Phase 02-migration-rewrites P03 | 7 | 1 tasks | 7 files |
 | Phase 03-application-code-fixes P01 | 3 | 2 tasks | 9 files |
+| Phase 03-application-code-fixes P02 | 7 | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 02-migration-rewrites]: EXTRACT(HOUR/MINUTE/SECOND FROM col) replaced by CAST(strftime('%H/%M/%S', col) AS INTEGER) in SQLite for trip-start repair migrations; ::date/::text PostgreSQL casts replaced by Elixir String.slice/0 in execute fn -> blocks
 - [Phase 03-application-code-fixes]: like/2 replaces ilike/2 everywhere: ecto_sqlite3 sets case_sensitive_like=OFF by default, making SQLite LIKE case-insensitive for ASCII equivalent to PostgreSQL ILIKE
 - [Phase 03-application-code-fixes]: DataCase does not set async: on CaseTemplate — tests default to sync (async: false) required for DB sandbox correctness
+- [Phase 03-application-code-fixes]: validate_change/3 replaces foreign_key_constraint/3 everywhere: ecto_sqlite3 returns [foreign_key: nil] causing unhandled Ecto.ConstraintError (500) instead of changeset validation errors
+- [Phase 03-application-code-fixes]: Self-referential FKs (parent_task_id, parent_id) use __MODULE__ as Repo.get target in validate_change/3 blocks
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:21:19.761Z
-Stopped at: Completed 03-01-PLAN.md — 31 ilike->like replacements across 5 modules; DataCase + AccountsFixtures test infrastructure created
+Last session: 2026-03-08T03:27:41.885Z
+Stopped at: Completed 03-02-PLAN.md — 27 foreign_key_constraint calls replaced with validate_change/3 across 16 schema files in receipts, calendar, and goals domains
 Resume file: None
