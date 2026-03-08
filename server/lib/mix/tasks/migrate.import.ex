@@ -17,70 +17,73 @@ defmodule Mix.Tasks.Migrate.Import do
     data = File.read!(input_path) |> Jason.decode!()
     tables = data["tables"]
 
-    MegaPlanner.Repo.transaction(
-      fn ->
-        # Set FK off INSIDE the transaction (same connection guaranteed)
-        MegaPlanner.Repo.query!("PRAGMA foreign_keys = OFF")
+    # SQLite ignores PRAGMA foreign_keys when set inside a transaction.
+    # Use checkout to hold a single connection, set PRAGMA before BEGIN, then transact.
+    MegaPlanner.Repo.checkout(fn ->
+      MegaPlanner.Repo.query!("PRAGMA foreign_keys = OFF")
 
-        # Standard tables (no two-pass needed)
-        import_table(tables["brands"], "brands")
-        import_table(tables["budget_entries_tags"], "budget_entries_tags")
-        import_table(tables["budget_sources"], "budget_sources")
-        import_table(tables["budget_sources_tags"], "budget_sources_tags")
-        import_table(tables["drivers"], "drivers")
-        import_table(tables["format_corrections"], "format_corrections")
-        import_table(tables["goal_milestones"], "goal_milestones")
-        import_table(tables["goal_status_changes"], "goal_status_changes")
-        import_table(tables["goals"], "goals")
-        import_table(tables["goals_tags"], "goals_tags")
-        import_table(tables["habit_completions"], "habit_completions")
-        import_table(tables["habit_inventories"], "habit_inventories")
-        import_table(tables["habits"], "habits")
-        import_table(tables["habits_tags"], "habits_tags")
-        import_table(tables["household_invitations"], "household_invitations")
-        import_table(tables["households"], "households")
-        import_table(tables["inventory_items"], "inventory_items")
-        import_table(tables["inventory_items_tags"], "inventory_items_tags")
-        import_table(tables["inventory_sheets"], "inventory_sheets")
-        import_table(tables["inventory_sheets_tags"], "inventory_sheets_tags")
-        import_table(tables["milestone_templates"], "milestone_templates")
-        import_table(tables["notebooks"], "notebooks")
-        import_table(tables["notebooks_tags"], "notebooks_tags")
-        import_table(tables["notification_preferences"], "notification_preferences")
-        import_table(tables["notifications"], "notifications")
-        import_table(tables["page_links"], "page_links")
-        import_table(tables["pages"], "pages")
-        import_table(tables["pages_tags"], "pages_tags")
-        import_table(tables["purchases_tags"], "purchases_tags")
-        import_table(tables["shopping_list_items"], "shopping_list_items")
-        import_table(tables["shopping_lists"], "shopping_lists")
-        import_table(tables["shopping_lists_tags"], "shopping_lists_tags")
-        import_table(tables["stops"], "stops")
-        import_table(tables["stores"], "stores")
-        import_table(tables["tags"], "tags")
-        import_table(tables["task_steps"], "task_steps")
-        import_table(tables["task_templates"], "task_templates")
-        import_table(tables["tasks_tags"], "tasks_tags")
-        import_table(tables["tax_indicator_meanings"], "tax_indicator_meanings")
-        import_table(tables["text_templates"], "text_templates")
-        import_table(tables["trips"], "trips")
-        import_table(tables["units"], "units")
-        import_table(tables["user_preferences"], "user_preferences")
-        import_table(tables["users"], "users")
+      MegaPlanner.Repo.transaction(
+        fn ->
+          # Standard tables (no two-pass needed)
+          import_table(tables["brands"], "brands")
+          import_table(tables["budget_entries_tags"], "budget_entries_tags")
+          import_table(tables["budget_sources"], "budget_sources")
+          import_table(tables["budget_sources_tags"], "budget_sources_tags")
+          import_table(tables["drivers"], "drivers")
+          import_table(tables["format_corrections"], "format_corrections")
+          import_table(tables["goal_milestones"], "goal_milestones")
+          import_table(tables["goal_status_changes"], "goal_status_changes")
+          import_table(tables["goals"], "goals")
+          import_table(tables["goals_tags"], "goals_tags")
+          import_table(tables["habit_completions"], "habit_completions")
+          import_table(tables["habit_inventories"], "habit_inventories")
+          import_table(tables["habits"], "habits")
+          import_table(tables["habits_tags"], "habits_tags")
+          import_table(tables["household_invitations"], "household_invitations")
+          import_table(tables["households"], "households")
+          import_table(tables["inventory_items"], "inventory_items")
+          import_table(tables["inventory_items_tags"], "inventory_items_tags")
+          import_table(tables["inventory_sheets"], "inventory_sheets")
+          import_table(tables["inventory_sheets_tags"], "inventory_sheets_tags")
+          import_table(tables["milestone_templates"], "milestone_templates")
+          import_table(tables["notebooks"], "notebooks")
+          import_table(tables["notebooks_tags"], "notebooks_tags")
+          import_table(tables["notification_preferences"], "notification_preferences")
+          import_table(tables["notifications"], "notifications")
+          import_table(tables["page_links"], "page_links")
+          import_table(tables["pages"], "pages")
+          import_table(tables["pages_tags"], "pages_tags")
+          import_table(tables["purchases_tags"], "purchases_tags")
+          import_table(tables["shopping_list_items"], "shopping_list_items")
+          import_table(tables["shopping_lists"], "shopping_lists")
+          import_table(tables["shopping_lists_tags"], "shopping_lists_tags")
+          import_table(tables["stops"], "stops")
+          import_table(tables["stores"], "stores")
+          import_table(tables["tags"], "tags")
+          import_table(tables["task_steps"], "task_steps")
+          import_table(tables["task_templates"], "task_templates")
+          import_table(tables["tasks_tags"], "tasks_tags")
+          import_table(tables["tax_indicator_meanings"], "tax_indicator_meanings")
+          import_table(tables["text_templates"], "text_templates")
+          import_table(tables["trips"], "trips")
+          import_table(tables["units"], "units")
+          import_table(tables["user_preferences"], "user_preferences")
+          import_table(tables["users"], "users")
 
-        # Two-pass: tasks (self-referential parent_task_id)
-        import_tasks_two_pass(tables["tasks"])
+          # Two-pass: tasks (self-referential parent_task_id)
+          import_tasks_two_pass(tables["tasks"])
 
-        # Two-pass: goal_categories (self-referential parent_id)
-        import_goal_categories_two_pass(tables["goal_categories"])
+          # Two-pass: goal_categories (self-referential parent_id)
+          import_goal_categories_two_pass(tables["goal_categories"])
 
-        # Two-pass: purchases <-> budget_entries (circular FK)
-        import_purchases_budget_entries_two_pass(tables["purchases"], tables["budget_entries"])
-      end,
-      timeout: :infinity
-    )
+          # Two-pass: purchases <-> budget_entries (circular FK)
+          import_purchases_budget_entries_two_pass(tables["purchases"], tables["budget_entries"])
+        end,
+        timeout: :infinity
+      )
 
-    MegaPlanner.Repo.query!("PRAGMA foreign_keys = ON")
+      MegaPlanner.Repo.query!("PRAGMA foreign_keys = ON")
+    end)
 
     result = MegaPlanner.Repo.query!("PRAGMA foreign_key_check")
 
@@ -100,9 +103,14 @@ defmodule Mix.Tasks.Migrate.Import do
     end
   end
 
-  defp atomize_keys(map) do
-    Map.new(map, fn {k, v} -> {String.to_atom(k), v} end)
+  defp atomize_keys(row) do
+    Map.new(row, fn {k, v} -> {String.to_atom(k), encode_for_sqlite(v)} end)
   end
+
+  # Maps (JSONB columns) and lists (array columns) must be JSON-encoded for SQLite TEXT storage
+  defp encode_for_sqlite(v) when is_map(v), do: Jason.encode!(v)
+  defp encode_for_sqlite(v) when is_list(v), do: Jason.encode!(v)
+  defp encode_for_sqlite(v), do: v
 
   defp import_table(nil, table_name) do
     IO.puts("  #{table_name}: missing from export (skipping)")
