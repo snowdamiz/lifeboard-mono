@@ -96,7 +96,12 @@ Plans:
   3. A second `fly deploy` (no-op redeploy) confirms the SQLite file survives container restart and all data remains intact
   4. Database migrations do not re-run on deploy (migrations run in `Application.start/2` and the schema version table prevents re-application)
   5. The PostgreSQL cluster is decommissioned after the 48-hour rollback window passes with no issues
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Add SQLite libs to Dockerfile, remove release_command from fly.toml, add volume mount, wire Application.start/2 migrate()
+- [ ] 05-02-PLAN.md — Create Fly volume, set DATABASE_PATH secret, deploy twice with SFTP upload of SQLite DB
+- [ ] 05-03-PLAN.md — Smoke test all features, confirm volume persistence across restart, decommission PostgreSQL after 48h
 
 ## Progress
 
@@ -109,4 +114,4 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 | 2. Migration Rewrites | 0/3 | Not started | - |
 | 3. Application Code Fixes | 4/4 | Complete   | 2026-03-08 |
 | 4. Data Migration Pipeline | 2/4 | In Progress|  |
-| 5. Fly.io Deployment & Cutover | 0/? | Not started | - |
+| 5. Fly.io Deployment & Cutover | 0/3 | Not started | - |
