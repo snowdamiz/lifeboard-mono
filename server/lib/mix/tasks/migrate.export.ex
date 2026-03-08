@@ -107,7 +107,15 @@ defmodule Mix.Tasks.Migrate.Export do
 
   defp serialize(%NaiveDateTime{} = dt), do: NaiveDateTime.to_iso8601(dt)
   defp serialize(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
+  defp serialize(%Date{} = d), do: Date.to_iso8601(d)
+  defp serialize(%Time{} = t), do: Time.to_iso8601(t)
   defp serialize(%Decimal{} = d), do: Decimal.to_string(d)
+  # 16-byte binary → UUID string (Postgrex returns raw UUID binaries from direct queries)
+  defp serialize(<<_::binary-size(16)>> = bytes), do: Ecto.UUID.cast!(bytes)
+  # Other non-UTF-8 binary → base64 to avoid Jason encoding errors
+  defp serialize(binary) when is_binary(binary) do
+    if String.valid?(binary), do: binary, else: Base.encode64(binary)
+  end
   defp serialize(list) when is_list(list), do: Enum.map(list, &serialize/1)
   defp serialize(map) when is_map(map), do: Map.new(map, fn {k, v} -> {k, serialize(v)} end)
   defp serialize(v), do: v
