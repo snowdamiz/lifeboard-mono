@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 01-02-PLAN.md — all three per-env config files migrated to SQLite3, mix ecto.create confirmed working
+last_updated: "2026-03-08T02:00:49.008Z"
+last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
+progress:
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 100
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 1 of 2 in current phase
 Status: In progress
 Last activity: 2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [█░░░░░░░░░] 10%
 - Trend: establishing baseline
 
 *Updated after each plan completion*
+| Phase 01-dependency-config P02 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -49,6 +66,9 @@ Recent decisions affecting current work:
 - [Init]: Migrations run in `Application.start/2` — `release_command` in fly.toml has no volume access
 - [01-01]: postgrex removed entirely (not kept optional) to prevent stale Postgres compile-time references
 - [01-01]: migration_primary_key set at repo config level (not per-migration) for universal UUID binary_id inheritance
+- [Phase 01-02]: Path.expand two-argument form mandated for SQLite DB paths for CWD-independent server/mega_planner_dev.db placement
+- [Phase 01-02]: DATABASE_PATH replaces DATABASE_URL in production runtime config for SQLite volume mount
+- [Phase 01-02]: pool_size: 5 standardized across all environments (down from 10) for SQLite single-writer constraints
 
 ### Pending Todos
 
@@ -62,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08
-Stopped at: Completed 01-01-PLAN.md — adapter swap complete, ready for 01-02 (env-specific database path config)
+Last session: 2026-03-08T02:00:49.004Z
+Stopped at: Completed 01-02-PLAN.md — all three per-env config files migrated to SQLite3, mix ecto.create confirmed working
 Resume file: None

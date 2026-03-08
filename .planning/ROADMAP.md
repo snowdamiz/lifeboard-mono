@@ -12,7 +12,7 @@ This roadmap migrates the Lifeboard Phoenix/Elixir app from a managed PostgreSQL
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Dependency & Config** - Swap ecto_sqlite3 for postgrex in mix.exs and update all Ecto config files
+- [x] **Phase 1: Dependency & Config** - Swap ecto_sqlite3 for postgrex in mix.exs and update all Ecto config files (completed 2026-03-08)
 - [ ] **Phase 2: Migration Rewrites** - Rewrite PostgreSQL-specific migration files and verify clean `mix ecto.migrate` on SQLite
 - [ ] **Phase 3: Application Code Fixes** - Remove all SQLite-incompatible Ecto calls so the app boots and serves requests without runtime errors
 - [ ] **Phase 4: Data Migration Pipeline** - Build and run the export-import-verify pipeline that moves all production data from PostgreSQL to SQLite
@@ -88,7 +88,7 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Dependency & Config | 1/2 | In Progress | - |
+| 1. Dependency & Config | 2/2 | Complete   | 2026-03-08 |
 | 2. Migration Rewrites | 0/? | Not started | - |
 | 3. Application Code Fixes | 0/? | Not started | - |
 | 4. Data Migration Pipeline | 0/? | Not started | - |
