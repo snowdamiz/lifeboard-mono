@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md — all three per-env config files migrated to SQLite3, mix ecto.create confirmed working
-last_updated: "2026-03-08T02:04:42.369Z"
+stopped_at: Completed 02-02-PLAN.md — migration 13 PL/pgSQL DO block replaced with Elixir execute fn -> using Ecto.UUID.generate() and repo().query!/2
+last_updated: "2026-03-08T02:25:41.431Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 5
+  completed_plans: 4
   percent: 100
 ---
 
@@ -51,6 +51,8 @@ Progress: [██████████] 100%
 
 *Updated after each plan completion*
 | Phase 01-dependency-config P02 | 2 | 2 tasks | 3 files |
+| Phase 02-migration-rewrites P01 | 2 | 2 tasks | 2 files |
+| Phase 02-migration-rewrites P02 | 1 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -69,6 +71,11 @@ Recent decisions affecting current work:
 - [Phase 01-02]: Path.expand two-argument form mandated for SQLite DB paths for CWD-independent server/mega_planner_dev.db placement
 - [Phase 01-02]: DATABASE_PATH replaces DATABASE_URL in production runtime config for SQLite volume mount
 - [Phase 01-02]: pool_size: 5 standardized across all environments (down from 10) for SQLite single-writer constraints
+- [Phase 02-migration-rewrites]: SQLite partial unique index requires raw SQL execute with WHERE purchased = 0 (integer boolean); Ecto DSL where: option is PostgreSQL-specific
+- [Phase 02-migration-rewrites]: Migration 04 converted to def up/def down because raw execute SQL cannot be auto-reversed by Ecto
+- [Phase 02-migration-rewrites]: ecto_sqlite3 JSON column defaults must use Elixir values ([], %{}) not JSON strings; string form stores literal characters bypassing serialization
+- [Phase 02-02]: execute fn -> pattern established: repo().query/2 for SELECT, repo().query!/2 for INSERT/UPDATE in Ecto migration data back-fills
+- [Phase 02-02]: ? positional params used throughout SQLite migration SQL (not $1 PostgreSQL style)
 
 ### Pending Todos
 
@@ -82,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:00:49.004Z
-Stopped at: Completed 01-02-PLAN.md — all three per-env config files migrated to SQLite3, mix ecto.create confirmed working
+Last session: 2026-03-08T02:25:41.426Z
+Stopped at: Completed 02-02-PLAN.md — migration 13 PL/pgSQL DO block replaced with Elixir execute fn -> using Ecto.UUID.generate() and repo().query!/2
 Resume file: None

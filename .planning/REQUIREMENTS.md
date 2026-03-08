@@ -15,9 +15,9 @@
 
 ### Migration Rewrites
 
-- [ ] **MIGR-01**: Rewrite migration `20260101000013` — replace the PL/pgSQL `DO $$ DECLARE ... gen_random_uuid() ... END $$;` block with Elixir using `repo().query!/2` and `Ecto.UUID.generate/0`
-- [ ] **MIGR-02**: Rewrite migration `20260101000017` — change `:jsonb` to `{:array, :map}` for `dashboard_widgets` and `:map` for `settings`
-- [ ] **MIGR-03**: Rewrite the partial unique index in the inventory migration — replace Ecto DSL `:where` option with a raw `execute` SQL statement using `WHERE purchased = 0` (SQLite boolean is integer)
+- [x] **MIGR-01**: Rewrite migration `20260101000013` — replace the PL/pgSQL `DO $$ DECLARE ... gen_random_uuid() ... END $$;` block with Elixir using `repo().query!/2` and `Ecto.UUID.generate/0`
+- [x] **MIGR-02**: Rewrite migration `20260101000017` — change `:jsonb` to `{:array, :map}` for `dashboard_widgets` and `:map` for `settings`
+- [x] **MIGR-03**: Rewrite the partial unique index in the inventory migration — replace Ecto DSL `:where` option with a raw `execute` SQL statement using `WHERE purchased = 0` (SQLite boolean is integer)
 - [ ] **MIGR-04**: Run `mix ecto.migrate` against a fresh SQLite database and confirm all migrations complete without errors
 
 ### Application Code Fixes
@@ -77,9 +77,9 @@
 | DEPS-03 | Phase 1 | Complete |
 | DEPS-04 | Phase 1 | Complete |
 | DEPS-05 | Phase 1 | Complete |
-| MIGR-01 | Phase 2 | Pending |
-| MIGR-02 | Phase 2 | Pending |
-| MIGR-03 | Phase 2 | Pending |
+| MIGR-01 | Phase 2 | Complete |
+| MIGR-02 | Phase 2 | Complete |
+| MIGR-03 | Phase 2 | Complete |
 | MIGR-04 | Phase 2 | Pending |
 | CODE-01 | Phase 3 | Pending |
 | CODE-02 | Phase 3 | Pending |
