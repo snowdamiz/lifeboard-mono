@@ -33,6 +33,7 @@ defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
       purchased BOOLEAN DEFAULT FALSE,
       inventory_item_id BLOB REFERENCES inventory_items(id) ON DELETE CASCADE,
       user_id BLOB NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      household_id BLOB REFERENCES households(id) ON DELETE CASCADE,
       shopping_list_id BLOB REFERENCES shopping_lists(id) ON DELETE CASCADE,
       name VARCHAR(255),
       inserted_at DATETIME NOT NULL,
@@ -42,8 +43,8 @@ defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
 
     execute """
     INSERT INTO shopping_list_items_new
-      (id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at)
-    SELECT id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at
+      (id, quantity_needed, purchased, inventory_item_id, user_id, household_id, inserted_at, updated_at)
+    SELECT id, quantity_needed, purchased, inventory_item_id, user_id, household_id, inserted_at, updated_at
     FROM shopping_list_items
     """
 
@@ -75,7 +76,7 @@ defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
     drop_if_exists index(:shopping_list_items, [:inventory_item_id])
     drop_if_exists index(:shopping_list_items, [:user_id])
 
-    # Rebuild shopping_list_items back to original structure (inventory_item_id NOT NULL)
+    # Rebuild shopping_list_items back to original structure (inventory_item_id NOT NULL, keep household_id from migration 13)
     execute """
     CREATE TABLE shopping_list_items_orig (
       id BLOB NOT NULL PRIMARY KEY,
@@ -83,6 +84,7 @@ defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
       purchased BOOLEAN DEFAULT FALSE,
       inventory_item_id BLOB NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
       user_id BLOB NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      household_id BLOB REFERENCES households(id) ON DELETE CASCADE,
       inserted_at DATETIME NOT NULL,
       updated_at DATETIME NOT NULL
     )
@@ -90,8 +92,8 @@ defmodule MegaPlanner.Repo.Migrations.CreateShoppingLists do
 
     execute """
     INSERT INTO shopping_list_items_orig
-      (id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at)
-    SELECT id, quantity_needed, purchased, inventory_item_id, user_id, inserted_at, updated_at
+      (id, quantity_needed, purchased, inventory_item_id, user_id, household_id, inserted_at, updated_at)
+    SELECT id, quantity_needed, purchased, inventory_item_id, user_id, household_id, inserted_at, updated_at
     FROM shopping_list_items
     WHERE inventory_item_id IS NOT NULL
     """
