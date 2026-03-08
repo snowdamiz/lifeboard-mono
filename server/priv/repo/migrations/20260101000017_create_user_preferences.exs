@@ -10,13 +10,13 @@ defmodule MegaPlanner.Repo.Migrations.CreateUserPreferences do
       add :nav_order, {:array, :string}, default: []
 
       # Dashboard preferences
-      add :dashboard_widgets, :jsonb, default: "[]"
+      add :dashboard_widgets, {:array, :map}, default: []
 
       # Theme preferences
       add :theme, :string, default: "system"
 
       # Other preferences can be added to this JSONB field
-      add :settings, :jsonb, default: "{}"
+      add :settings, :map, default: %{}
 
       timestamps(type: :utc_datetime)
     end
