@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. `mix compile` succeeds with no warnings about unknown adapter modules
   3. `config/dev.exs`, `config/prod.exs`, `config/runtime.exs`, and `config/test.exs` all reference `Ecto.Adapters.SQLite3` — no PostgreSQL adapter references remain
   4. `DATABASE_PATH` env var is used in prod/runtime configs; `DATABASE_URL` references are removed
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Swap postgrex for ecto_sqlite3 in mix.exs, change Repo adapter, add migration_primary_key config
+- [ ] 01-02-PLAN.md — Replace PostgreSQL connection blocks in dev.exs, test.exs, and runtime.exs with SQLite3 equivalents
 
 ### Phase 2: Migration Rewrites
 **Goal**: All Ecto migration files are SQLite-compatible so `mix ecto.migrate` runs from scratch against a fresh SQLite file without errors
@@ -84,7 +88,7 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Dependency & Config | 0/? | Not started | - |
+| 1. Dependency & Config | 0/2 | Not started | - |
 | 2. Migration Rewrites | 0/? | Not started | - |
 | 3. Application Code Fixes | 0/? | Not started | - |
 | 4. Data Migration Pipeline | 0/? | Not started | - |
