@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 02-03-PLAN.md — all 60 migrations green via mix ecto.reset; 7 additional PostgreSQL-specific migrations fixed (ALTER COLUMN, ADD/DROP CONSTRAINT, EXTRACT, ::cast syntax)"
-last_updated: "2026-03-08T02:40:50.295Z"
+stopped_at: Completed 03-01-PLAN.md — 31 ilike->like replacements across 5 modules; DataCase + AccountsFixtures test infrastructure created
+last_updated: "2026-03-08T03:21:19.766Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 9
+  completed_plans: 6
   percent: 100
 ---
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 | Phase 02-migration-rewrites P01 | 2 | 2 tasks | 2 files |
 | Phase 02-migration-rewrites P02 | 1 | 1 tasks | 1 files |
 | Phase 02-migration-rewrites P03 | 7 | 1 tasks | 7 files |
+| Phase 03-application-code-fixes P01 | 3 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [Phase 02-migration-rewrites]: ALTER TABLE ADD/DROP CONSTRAINT (fix_cascade_deletes migration): all 20 calls removed as no-ops for SQLite — FK cascade behavior is defined at table creation and cannot be altered after the fact
 - [Phase 02-migration-rewrites]: integer→decimal type changes (change_quantity_to_decimal, change_corrected_quantity_to_decimal) are no-ops for SQLite via dynamic typing — numeric affinity stores decimals in integer-declared columns without any ALTER
 - [Phase 02-migration-rewrites]: EXTRACT(HOUR/MINUTE/SECOND FROM col) replaced by CAST(strftime('%H/%M/%S', col) AS INTEGER) in SQLite for trip-start repair migrations; ::date/::text PostgreSQL casts replaced by Elixir String.slice/0 in execute fn -> blocks
+- [Phase 03-application-code-fixes]: like/2 replaces ilike/2 everywhere: ecto_sqlite3 sets case_sensitive_like=OFF by default, making SQLite LIKE case-insensitive for ASCII equivalent to PostgreSQL ILIKE
+- [Phase 03-application-code-fixes]: DataCase does not set async: on CaseTemplate — tests default to sync (async: false) required for DB sandbox correctness
 
 ### Pending Todos
 
@@ -94,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:36:06.660Z
-Stopped at: Completed 02-03-PLAN.md — all 60 migrations green via mix ecto.reset; 7 additional PostgreSQL-specific migrations fixed (ALTER COLUMN, ADD/DROP CONSTRAINT, EXTRACT, ::cast syntax)
+Last session: 2026-03-08T03:21:19.761Z
+Stopped at: Completed 03-01-PLAN.md — 31 ilike->like replacements across 5 modules; DataCase + AccountsFixtures test infrastructure created
 Resume file: None
