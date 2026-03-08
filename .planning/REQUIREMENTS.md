@@ -7,8 +7,8 @@
 
 ### Dependency & Config
 
-- [ ] **DEPS-01**: Replace `postgrex` with `ecto_sqlite3 ~> 0.22` in mix.exs and remove the postgrex dependency
-- [ ] **DEPS-02**: Upgrade `ecto_sql` from `~> 3.10` to `~> 3.13` (required by ecto_sqlite3 0.22.x)
+- [x] **DEPS-01**: Replace `postgrex` with `ecto_sqlite3 ~> 0.22` in mix.exs and remove the postgrex dependency
+- [x] **DEPS-02**: Upgrade `ecto_sql` from `~> 3.10` to `~> 3.13` (required by ecto_sqlite3 0.22.x)
 - [ ] **DEPS-03**: Update `config/dev.exs` to use `Ecto.Adapters.SQLite3` with a local `.db` file path
 - [ ] **DEPS-04**: Update `config/prod.exs` and `config/runtime.exs` to use `Ecto.Adapters.SQLite3` with `DATABASE_PATH` env var (replaces `DATABASE_URL`)
 - [ ] **DEPS-05**: Update `config/test.exs` to use `Ecto.Adapters.SQLite3` with a temp `.db` file for tests
@@ -72,8 +72,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEPS-01 | Phase 1 | Pending |
-| DEPS-02 | Phase 1 | Pending |
+| DEPS-01 | Phase 1 | Complete |
+| DEPS-02 | Phase 1 | Complete |
 | DEPS-03 | Phase 1 | Pending |
 | DEPS-04 | Phase 1 | Pending |
 | DEPS-05 | Phase 1 | Pending |

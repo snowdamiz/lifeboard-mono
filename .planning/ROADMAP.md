@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Swap postgrex for ecto_sqlite3 in mix.exs, change Repo adapter, add migration_primary_key config
+- [x] 01-01-PLAN.md — Swap postgrex for ecto_sqlite3 in mix.exs, change Repo adapter, add migration_primary_key config
 - [ ] 01-02-PLAN.md — Replace PostgreSQL connection blocks in dev.exs, test.exs, and runtime.exs with SQLite3 equivalents
 
 ### Phase 2: Migration Rewrites
@@ -88,7 +88,7 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Dependency & Config | 0/2 | Not started | - |
+| 1. Dependency & Config | 1/2 | In Progress | - |
 | 2. Migration Rewrites | 0/? | Not started | - |
 | 3. Application Code Fixes | 0/? | Not started | - |
 | 4. Data Migration Pipeline | 0/? | Not started | - |

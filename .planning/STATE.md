@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 1 of 5 (Dependency & Config)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-07 — Roadmap created; requirements defined and all 27 v1 requirements mapped to 5 phases
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 3 min
+- Total execution time: 0.05 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-dependency-config | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 3 min
+- Trend: establishing baseline
 
 *Updated after each plan completion*
 
@@ -47,6 +47,8 @@ Recent decisions affecting current work:
 - [Init]: Export via Elixir Mix tasks (not pg_dump) for correct UUID encoding and type coercion
 - [Init]: Single Fly.io volume (not LiteFS) — personal household app, single-writer is sufficient
 - [Init]: Migrations run in `Application.start/2` — `release_command` in fly.toml has no volume access
+- [01-01]: postgrex removed entirely (not kept optional) to prevent stale Postgres compile-time references
+- [01-01]: migration_primary_key set at repo config level (not per-migration) for universal UUID binary_id inheritance
 
 ### Pending Todos
 
@@ -60,6 +62,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07
-Stopped at: Roadmap created, STATE.md initialized. Ready to begin Phase 1 planning.
+Last session: 2026-03-08
+Stopped at: Completed 01-01-PLAN.md — adapter swap complete, ready for 01-02 (env-specific database path config)
 Resume file: None
