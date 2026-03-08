@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-02-PLAN.md — migrate.import and migrate.verify Mix tasks implemented and compiled
-last_updated: "2026-03-08T04:52:48.590Z"
+stopped_at: Completed 05-01-PLAN.md — Dockerfile SQLite libs, fly.toml volume mount, and Application.start/2 migration wiring
+last_updated: "2026-03-08T07:10:01.181Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 16
+  completed_plans: 14
   percent: 100
 ---
 
@@ -61,6 +61,7 @@ Progress: [██████████] 100%
 | Phase 03-application-code-fixes P04 | 15 | 3 tasks | 1 files |
 | Phase 04-data-migration-pipeline P01 | 4 | 2 tasks | 2 files |
 | Phase 04-data-migration-pipeline P02 | 4 | 2 tasks | 2 files |
+| Phase 05-fly-io-deployment-cutover P01 | 1 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Recent decisions affecting current work:
 - [Phase 04-data-migration-pipeline]: serialize/1 6-clause pattern: NaiveDateTime/DateTime/Decimal/list/map/passthrough for JSON-safe type coercion
 - [Phase 04-02]: PRAGMA foreign_keys = OFF placed inside Repo.transaction callback — not before it — to guarantee same-connection scoping
 - [Phase 04-02]: ~s[...] bracket sigil used for SQL interpolation inside try/rescue blocks to avoid Elixir MismatchedDelimiterError with ~s(...) paren sigil
+- [Phase 05-fly-io-deployment-cutover]: release_command removed from fly.toml: release VMs have no volume access, migrations run in Application.start/2 instead
+- [Phase 05-fly-io-deployment-cutover]: DATABASE_PATH set as plain [env] in fly.toml (not secret): /data/lifeboard.db is a filesystem path, not a credential
+- [Phase 05-fly-io-deployment-cutover]: Both libsqlite3-dev (build) and libsqlite3-0 (runtime) required in Dockerfile for exqlite NIF compile and load lifecycle
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T04:33:11.435Z
-Stopped at: Completed 04-02-PLAN.md — migrate.import and migrate.verify Mix tasks implemented and compiled
+Last session: 2026-03-08T07:10:01.176Z
+Stopped at: Completed 05-01-PLAN.md — Dockerfile SQLite libs, fly.toml volume mount, and Application.start/2 migration wiring
 Resume file: None

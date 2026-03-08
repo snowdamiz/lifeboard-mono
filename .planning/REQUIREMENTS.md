@@ -38,9 +38,9 @@
 ### Fly.io Deployment
 
 - [ ] **DEPL-01**: Create a persistent Fly.io volume for the SQLite database file (e.g., `lifeboard_data`, mounted at `/data`)
-- [ ] **DEPL-02**: Update `fly.toml` — remove `release_command` (has no volume access), add volume mount configuration
-- [ ] **DEPL-03**: Update `Dockerfile` — add SQLite system library (`libsqlite3-dev` / equivalent), remove any PostgreSQL client tooling
-- [ ] **DEPL-04**: Move database migration execution from `release_command` to `Application.start/2` via a `Release.migrate()` call
+- [x] **DEPL-02**: Update `fly.toml` — remove `release_command` (has no volume access), add volume mount configuration
+- [x] **DEPL-03**: Update `Dockerfile` — add SQLite system library (`libsqlite3-dev` / equivalent), remove any PostgreSQL client tooling
+- [x] **DEPL-04**: Move database migration execution from `release_command` to `Application.start/2` via a `Release.migrate()` call
 - [ ] **DEPL-05**: Upload the verified SQLite `.db` file to the Fly volume via `fly sftp` before deploying
 - [ ] **DEPL-06**: Deploy to Fly.io and confirm the app starts, migrations do not re-run, and the volume-mounted database is used
 
@@ -91,9 +91,9 @@
 | DATA-04 | Phase 4 | Pending |
 | DATA-05 | Phase 4 | Pending |
 | DEPL-01 | Phase 5 | Pending |
-| DEPL-02 | Phase 5 | Pending |
-| DEPL-03 | Phase 5 | Pending |
-| DEPL-04 | Phase 5 | Pending |
+| DEPL-02 | Phase 5 | Complete |
+| DEPL-03 | Phase 5 | Complete |
+| DEPL-04 | Phase 5 | Complete |
 | DEPL-05 | Phase 5 | Pending |
 | DEPL-06 | Phase 5 | Pending |
 | VRFY-01 | Phase 5 | Pending |

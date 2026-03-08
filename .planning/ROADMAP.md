@@ -114,4 +114,4 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 | 2. Migration Rewrites | 0/3 | Not started | - |
 | 3. Application Code Fixes | 4/4 | Complete   | 2026-03-08 |
 | 4. Data Migration Pipeline | 2/4 | In Progress|  |
-| 5. Fly.io Deployment & Cutover | 0/3 | Not started | - |
+| 5. Fly.io Deployment & Cutover | 1/3 | In Progress|  |
