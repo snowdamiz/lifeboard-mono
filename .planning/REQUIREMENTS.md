@@ -25,7 +25,7 @@
 - [x] **CODE-01**: Replace all `ilike/2` calls with `like/2` across all Ecto query files (35+ occurrences in `search.ex`, `inventory.ex`, `receipts.ex`, `goals.ex`, `templates.ex`)
 - [x] **CODE-02**: Set `async: false` on all ExUnit test cases that use database connections (SQLite's single-writer model is incompatible with async sandbox)
 - [x] **CODE-03**: Audit all `foreign_key_constraint/3` calls in changesets and replace with `validate_change/3` pre-validation checks that query for the referenced record's existence before insert
-- [ ] **CODE-04**: Audit Ecto query fragments for any JSONB operators (`->`, `->>`, `@>`, `?`) that exist in context modules and replace or remove them
+- [x] **CODE-04**: Audit Ecto query fragments for any JSONB operators (`->`, `->>`, `@>`, `?`) that exist in context modules and replace or remove them
 
 ### Data Migration Pipeline
 
@@ -84,7 +84,7 @@
 | CODE-01 | Phase 3 | Complete |
 | CODE-02 | Phase 3 | Complete |
 | CODE-03 | Phase 3 | Complete |
-| CODE-04 | Phase 3 | Pending |
+| CODE-04 | Phase 3 | Complete |
 | DATA-01 | Phase 4 | Pending |
 | DATA-02 | Phase 4 | Pending |
 | DATA-03 | Phase 4 | Pending |

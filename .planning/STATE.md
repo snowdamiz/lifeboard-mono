@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md — 27 foreign_key_constraint calls replaced with validate_change/3 across 15 schema files in inventory, accounts, budget, notes, notifications, households, and tags domains
-last_updated: "2026-03-08T03:32:00.419Z"
+stopped_at: Completed 03-04 Tasks 1-2 — checkpoint awaiting human verification of Phase 3 integration gate
+last_updated: "2026-03-08T03:38:34.878Z"
 last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 100
 ---
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 03-application-code-fixes P01 | 3 | 2 tasks | 9 files |
 | Phase 03-application-code-fixes P02 | 7 | 2 tasks | 16 files |
 | Phase 03-application-code-fixes P03 | 2 | 2 tasks | 15 files |
+| Phase 03-application-code-fixes P04 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,7 @@ Recent decisions affecting current work:
 - [Phase 03-application-code-fixes]: validate_change/3 replaces foreign_key_constraint/3 everywhere: ecto_sqlite3 returns [foreign_key: nil] causing unhandled Ecto.ConstraintError (500) instead of changeset validation errors
 - [Phase 03-application-code-fixes]: Self-referential FKs (parent_task_id, parent_id) use __MODULE__ as Repo.get target in validate_change/3 blocks
 - [Phase 03-application-code-fixes]: CODE-03 sweep complete: validate_change/3 with Repo.get/2 now replaces all foreign_key_constraint/3 calls across inventory, accounts, budget, notes, notifications, households, and tags schema files
+- [Phase 03-application-code-fixes]: Migration 20260101000018 table-rebuild bug fixed: shopping_list_items_new CREATE TABLE must include household_id (added by migration 13) to avoid no-such-column errors
 
 ### Pending Todos
 
@@ -102,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T03:32:00.415Z
-Stopped at: Completed 03-03-PLAN.md — 27 foreign_key_constraint calls replaced with validate_change/3 across 15 schema files in inventory, accounts, budget, notes, notifications, households, and tags domains
+Last session: 2026-03-08T03:38:34.874Z
+Stopped at: Completed 03-04 Tasks 1-2 — checkpoint awaiting human verification of Phase 3 integration gate
 Resume file: None
