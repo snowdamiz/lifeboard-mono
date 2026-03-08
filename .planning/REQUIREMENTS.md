@@ -30,8 +30,8 @@
 ### Data Migration Pipeline
 
 - [x] **DATA-01**: Create `mix migrate.export` Mix task — connects to PostgreSQL via Ecto and exports all table data to a JSON file, serializing arrays and maps correctly
-- [ ] **DATA-02**: Create `mix migrate.import` Mix task — reads the JSON export and inserts all records into SQLite, respecting foreign key ordering and handling the tasks self-referential FK (`parent_task_id`) with a two-pass insert
-- [ ] **DATA-03**: Create `mix migrate.verify` Mix task — compares record counts between PostgreSQL and SQLite for every table and reports any discrepancies
+- [x] **DATA-02**: Create `mix migrate.import` Mix task — reads the JSON export and inserts all records into SQLite, respecting foreign key ordering and handling the tasks self-referential FK (`parent_task_id`) with a two-pass insert
+- [x] **DATA-03**: Create `mix migrate.verify` Mix task — compares record counts between PostgreSQL and SQLite for every table and reports any discrepancies
 - [ ] **DATA-04**: Run export against live production PostgreSQL database and produce a verified export file
 - [ ] **DATA-05**: Run import against local SQLite database and confirm `mix migrate.verify` shows zero discrepancies
 
@@ -86,8 +86,8 @@
 | CODE-03 | Phase 3 | Complete |
 | CODE-04 | Phase 3 | Complete |
 | DATA-01 | Phase 4 | Complete |
-| DATA-02 | Phase 4 | Pending |
-| DATA-03 | Phase 4 | Pending |
+| DATA-02 | Phase 4 | Complete |
+| DATA-03 | Phase 4 | Complete |
 | DATA-04 | Phase 4 | Pending |
 | DATA-05 | Phase 4 | Pending |
 | DEPL-01 | Phase 5 | Pending |
