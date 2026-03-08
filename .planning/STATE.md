@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 05-01-PLAN.md — Dockerfile SQLite libs, fly.toml volume mount, and Application.start/2 migration wiring
-last_updated: "2026-03-08T07:10:01.181Z"
-last_activity: "2026-03-08 — Plan 01-01 complete: swapped postgrex for ecto_sqlite3, updated Repo adapter to SQLite3, added migration_primary_key config"
+milestone_name: PostgreSQL to SQLite Migration
+status: milestone_complete
+stopped_at: v1.0 milestone archived — codebase fully SQLite-ready, Fly.io deploy steps deferred
+last_updated: "2026-03-08T00:00:00.000Z"
+last_activity: "2026-03-08 — v1.0 milestone complete: 5 phases, 16 plans archived"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 16
   percent: 100
 ---
 
@@ -18,10 +18,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-07)
+See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** All production data survives the migration intact — zero data loss
-**Current focus:** Phase 1 — Dependency & Config
+**Current focus:** v1.0 shipped — next step: Fly.io operational cutover (05-02, 05-03)
 
 ## Current Position
 

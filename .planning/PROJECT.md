@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Lifeboard is a Phoenix/Elixir + Vue 3 household management app currently backed by PostgreSQL on Fly.io. This project migrates the entire data layer from PostgreSQL to SQLite (single Fly.io volume), preserving all production data. The goal is to eliminate the managed PostgreSQL dependency, simplify deployment, and reduce hosting costs while keeping the app fully functional.
+Lifeboard is a Phoenix/Elixir + Vue 3 household management app. This project migrated the entire data layer from PostgreSQL to SQLite (single Fly.io volume), preserving all production data. The adapter swap, migration rewrites, application code fixes, data pipeline, and production infrastructure are complete. The remaining step is the Fly.io operational cutover (volume creation, SQLite file upload, deploy, and smoke testing).
 
 ## Core Value
 
@@ -16,21 +16,26 @@ All production data survives the migration intact — zero data loss is the non-
 - ✓ Household-based multi-tenant data model — existing
 - ✓ JWT authentication via Guardian/Ueberauth — existing
 - ✓ Fly.io deployment via Docker — existing
+- ✓ Replace postgrex with ecto_sqlite3 0.22.0 across mix.exs and Repo — v1.0
+- ✓ Update all Ecto config files (dev, test, prod, runtime) for SQLite adapter — v1.0
+- ✓ Audit and rewrite all 60 migrations to be SQLite-compatible — v1.0
+- ✓ Audit all schemas; arrays/JSONB stored as JSON text, no incompatible field types — v1.0
+- ✓ Replace all PostgreSQL-specific Ecto calls in application code (ilike, foreign_key_constraint, JSONB ops) — v1.0
+- ✓ Build mix migrate.export/import/verify pipeline covering all 48 tables — v1.0
+- ✓ Export all 48 production tables from live PostgreSQL via Fly proxy tunnel — v1.0
+- ✓ Import all data into local SQLite; mix migrate.verify reports zero discrepancies — v1.0
+- ✓ Update Dockerfile with SQLite NIF libraries (libsqlite3-dev + libsqlite3-0) — v1.0
+- ✓ Update fly.toml — remove release_command, add volume mount, add DATABASE_PATH env — v1.0
+- ✓ Wire Application.start/2 to call Release.migrate() before supervisor starts — v1.0
 
 ### Active
 
-- [ ] Audit all migrations and schemas for PostgreSQL-specific types (arrays, jsonb, maps, raw SQL)
-- [ ] Replace `postgrex` driver with `ecto_sqlite3` (or `exqlite`)
-- [ ] Update all Ecto config files (dev, prod, runtime) for SQLite adapter
-- [ ] Rewrite migrations to be SQLite-compatible (array → JSON text, jsonb → :text, gen_random_uuid → Ecto-managed UUIDs)
-- [ ] Update Ecto schemas where array/jsonb types are declared
-- [ ] Export all production data from PostgreSQL
-- [ ] Transform and import data into SQLite (handle UUID encoding, JSON serialization of arrays)
-- [ ] Configure Fly.io persistent volume for SQLite file
-- [ ] Update fly.toml and Dockerfile for SQLite deployment
-- [ ] Verify application functions correctly against SQLite in development
-- [ ] Run full migration against production data, validate record counts and integrity
-- [ ] Deploy to Fly.io and smoke test
+- [ ] Create persistent Fly.io volume (lifeboard_data, mounted at /data)
+- [ ] Upload verified SQLite file to Fly volume via fly sftp
+- [ ] Deploy to Fly.io and confirm app starts with SQLite on volume
+- [ ] Smoke test all major features in production (auth, tasks, budget, inventory, goals, habits)
+- [ ] Confirm SQLite file persists across app restarts (volume correctly mounted)
+- [ ] Decommission PostgreSQL cluster after 48-hour rollback window
 
 ### Out of Scope
 
@@ -38,39 +43,35 @@ All production data survives the migration intact — zero data loss is the non-
 - Turso / libSQL — adding a managed service defeats the simplification goal
 - Changing application features — this is a database swap, not a feature change
 - Moving away from Fly.io — deployment target stays the same
+- Database backup tooling (SQLite snapshot to S3/R2) — deferred to v2.0
 
 ## Context
 
-**Schema complexity:** ~30 tables across domains: users, households, tasks, budget, inventory, goals, habits, notes, shopping lists, stores, trips, purchases, notifications, tags. All use UUID primary keys.
+**Current state (v1.0):** Codebase fully SQLite-ready. 107 files modified. ~260K LOC Elixir total.
 
-**PostgreSQL-specific issues identified:**
-- `{:array, :string}` — `default_steps` (task_templates), `nav_order` (user_preferences), `tags` (budget)
-- `{:array, :integer}` — `days_of_week` (habits)
-- `{:array, :binary_id}` — `linked_task_ids` (goals), `linked_inventory_ids` (habits), `default_tags` (brands)
-- `:jsonb` — `dashboard_widgets`, `settings` (user_preferences)
-- `:map` — `recurrence_rule` (tasks, budget), `push_subscription`, `data` (notifications), `columns`, `custom_fields` (inventory), `preference_notes`, etc.
-- Raw `gen_random_uuid()` SQL call in migration `20260101000013_add_household_id_to_data_tables.exs`
+**Tech stack:** Phoenix/Elixir, Ecto + ecto_sqlite3 0.22.0, exqlite 0.35.0 NIF, Vue 3, Fly.io Docker deployment.
 
-**Data migration approach:** Export via `pg_dump` or Ecto scripts → transform → import to SQLite. Arrays and maps stored as JSON text in SQLite. UUID values remain as strings.
+**Migration decisions validated:**
+- export via Elixir Mix tasks (not pg_dump) correctly handled UUID encoding, Date/Time/Decimal type coercion
+- Two-pass FK insert pattern handled 3 circular/self-referential cases (tasks.parent_task_id, goal_categories.parent_id, purchases↔budget_entries)
+- ecto_sqlite3 default case_sensitive_like=OFF makes `like/2` equivalent to PostgreSQL `ilike/2` for ASCII
 
-**Fly.io deployment:** Switch from `DATABASE_URL` pointing to PostgreSQL to a mounted volume path. SQLite file lives at `/data/lifeboard.db` on a persistent Fly volume.
-
-## Constraints
-
-- **Data**: Zero data loss — production data must migrate completely and verifiably
-- **Downtime**: Migration will require a brief maintenance window (coordinated cutover)
-- **Ecto**: Must use `ecto_sqlite3` (actively maintained Ecto adapter for SQLite3) — not `exqlite` directly
-- **SQLite**: Arrays and JSONB must be stored as JSON text; application query code that uses array containment operators won't work and must be replaced with alternative logic
-- **Fly.io**: SQLite file must be on a persistent volume — cannot use ephemeral storage
+**Known issues / technical debt:**
+- pool_size: 5 in production config — PITFALLS.md recommends 1 for SQLite. Validate under real production load after cutover.
+- `{:array, :binary_id}` coercion in ecto_sqlite3 v0.22 — validate during smoke test that linked_task_ids/linked_inventory_ids read back correctly.
+- 54 foreign_key_constraint→validate_change replacements do Repo.get pre-checks instead of constraint-level enforcement. FK integrity depends on app logic only (SQLite FK pragma is enabled but error surfacing differs).
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Single Fly volume (not LiteFS) | Personal household app, single-writer is fine, LiteFS adds significant ops complexity | — Pending |
-| `ecto_sqlite3` adapter | Most actively maintained SQLite adapter for Ecto, good community support | — Pending |
-| Arrays → JSON text | SQLite has no native array type; JSON text is the standard workaround in Ecto SQLite | — Pending |
-| Export via Elixir scripts (not pg_dump) | Elixir scripts give full control over UUID encoding and type coercion for SQLite | — Pending |
+| Single Fly volume (not LiteFS) | Personal household app, single-writer is fine, LiteFS adds significant ops complexity | ✓ Good — implemented in fly.toml, volume mount at /data |
+| `ecto_sqlite3` adapter | Most actively maintained SQLite adapter for Ecto, good community support | ✓ Good — all 60 migrations and app code compatible after rewrites |
+| Arrays → JSON text / Elixir maps | SQLite has no native array type; JSON text is the standard workaround in Ecto SQLite | ✓ Good — worked seamlessly; ecto_sqlite3 serializes Elixir values, not JSON strings |
+| Export via Elixir scripts (not pg_dump) | Elixir scripts give full control over UUID encoding and type coercion for SQLite | ✓ Good — serialize/1 6-clause pattern handled all PostgreSQL types correctly |
+| Migrations run in Application.start/2 | release_command VMs have no volume access; app process has /data mounted | ✓ Good — idempotent via schema_migrations table; confirmed safe pattern |
+| ? positional params throughout migration SQL | SQLite uses ? not $1 PostgreSQL positional syntax | ✓ Good — used consistently via execute fn -> / repo().query!/2 pattern |
+| validate_change/3 replaces foreign_key_constraint/3 | ecto_sqlite3 returns [foreign_key: nil] causing unhandled ConstraintError 500 instead of changeset errors | ✓ Good — eliminates 500s; pre-insert Repo.get checks enforce FK integrity at app layer |
 
 ---
-*Last updated: 2026-03-07 after initialization*
+*Last updated: 2026-03-08 after v1.0 milestone*
