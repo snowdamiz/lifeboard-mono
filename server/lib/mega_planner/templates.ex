@@ -23,7 +23,7 @@ defmodule MegaPlanner.Templates do
     # If query is provided, filter by it
     filtered_query = if query && String.trim(query) != "" do
       search_pattern = "%#{query}%"
-      from(t in base_query, where: ilike(t.value, ^search_pattern))
+      from(t in base_query, where: like(t.value, ^search_pattern))
     else
       base_query
     end

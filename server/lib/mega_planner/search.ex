@@ -51,7 +51,7 @@ defmodule MegaPlanner.Search do
     # First, find tasks matching title/description
     direct_matches = from(t in Task,
       where: t.household_id == ^household_id and
-        (ilike(t.title, ^search_term) or ilike(t.description, ^search_term)),
+        (like(t.title, ^search_term) or like(t.description, ^search_term)),
       select: t.id
     )
     |> Repo.all()
@@ -59,7 +59,7 @@ defmodule MegaPlanner.Search do
     # Also find tasks that have matching step content
     step_matches = from(s in TaskStep,
       join: t in Task, on: s.task_id == t.id,
-      where: t.household_id == ^household_id and ilike(s.content, ^search_term),
+      where: t.household_id == ^household_id and like(s.content, ^search_term),
       select: t.id
     )
     |> Repo.all()
@@ -101,7 +101,7 @@ defmodule MegaPlanner.Search do
   defp search_inventory(household_id, search_term) do
     from(i in Item,
       join: s in Sheet, on: i.sheet_id == s.id,
-      where: s.household_id == ^household_id and ilike(i.name, ^search_term),
+      where: s.household_id == ^household_id and like(i.name, ^search_term),
       limit: 10,
       select: %{id: i.id, name: i.name, sheet_name: s.name, quantity: i.quantity}
     )
@@ -116,7 +116,7 @@ defmodule MegaPlanner.Search do
 
   defp search_budget(household_id, search_term) do
     from(s in Source,
-      where: s.household_id == ^household_id and ilike(s.name, ^search_term),
+      where: s.household_id == ^household_id and like(s.name, ^search_term),
       limit: 10,
       order_by: [desc: s.updated_at]
     )
@@ -133,7 +133,7 @@ defmodule MegaPlanner.Search do
     from(p in Page,
       join: n in MegaPlanner.Notes.Notebook, on: p.notebook_id == n.id,
       where: n.household_id == ^household_id and
-        (ilike(p.title, ^search_term) or ilike(p.content, ^search_term)),
+        (like(p.title, ^search_term) or like(p.content, ^search_term)),
       limit: 10,
       order_by: [desc: p.updated_at]
     )
@@ -150,9 +150,9 @@ defmodule MegaPlanner.Search do
     # Find goals matching title/description directly
     direct_matches = from(g in Goal,
       where: g.household_id == ^household_id and
-        (ilike(g.title, ^search_term) or
-         (not is_nil(g.description) and ilike(g.description, ^search_term)) or
-         (not is_nil(g.category) and ilike(g.category, ^search_term))),
+        (like(g.title, ^search_term) or
+         (not is_nil(g.description) and like(g.description, ^search_term)) or
+         (not is_nil(g.category) and like(g.category, ^search_term))),
       select: g.id
     )
     |> Repo.all()
@@ -160,7 +160,7 @@ defmodule MegaPlanner.Search do
     # Also find goals that have matching milestone titles
     milestone_matches = from(m in Milestone,
       join: g in Goal, on: m.goal_id == g.id,
-      where: g.household_id == ^household_id and ilike(m.title, ^search_term),
+      where: g.household_id == ^household_id and like(m.title, ^search_term),
       select: g.id
     )
     |> Repo.all()
@@ -202,7 +202,7 @@ defmodule MegaPlanner.Search do
   defp search_habits(household_id, search_term) do
     from(h in Habit,
       where: h.household_id == ^household_id and
-        (ilike(h.name, ^search_term) or (not is_nil(h.description) and ilike(h.description, ^search_term))),
+        (like(h.name, ^search_term) or (not is_nil(h.description) and like(h.description, ^search_term))),
       limit: 10,
       order_by: [desc: h.updated_at]
     )

@@ -567,8 +567,8 @@ defmodule MegaPlanner.Inventory do
         existing_item = existing_item || Repo.one(
           from i in Item,
             where: i.sheet_id == ^purchases_sheet.id and 
-                   ilike(i.brand, ^search_brand) and 
-                   ilike(i.name, ^search_item) and
+                   like(i.brand, ^search_brand) and
+                   like(i.name, ^search_item) and
                    i.stop_id == ^purchase.stop_id,
             limit: 1
         )
@@ -736,8 +736,8 @@ defmodule MegaPlanner.Inventory do
       join: s in assoc(i, :sheet),
       where: s.household_id == ^household_id and 
              s.name != "Purchases" and
-             ilike(i.brand, ^search_brand) and 
-             ilike(i.name, ^search_name),
+             like(i.brand, ^search_brand) and
+             like(i.name, ^search_name),
       preload: [:sheet, :tags]
     )
     |> Repo.all()

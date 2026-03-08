@@ -646,7 +646,7 @@ defmodule MegaPlanner.Receipts do
     case Keyword.get(opts, :search) do
       nil -> query
       "" -> query
-      search -> from b in query, where: ilike(b.name, ^"%#{search}%")
+      search -> from b in query, where: like(b.name, ^"%#{search}%")
     end
   end
 
@@ -662,7 +662,7 @@ defmodule MegaPlanner.Receipts do
   """
   def search_brands(household_id, query) do
     from(b in Brand,
-      where: b.household_id == ^household_id and ilike(b.name, ^"%#{query}%"),
+      where: b.household_id == ^household_id and like(b.name, ^"%#{query}%"),
       order_by: [asc: b.name],
       limit: 10
     )
@@ -772,7 +772,7 @@ defmodule MegaPlanner.Receipts do
   defp filter_purchases_by_brand(query, opts) do
     case Keyword.get(opts, :brand) do
       nil -> query
-      brand -> from p in query, where: ilike(p.brand, ^"%#{brand}%")
+      brand -> from p in query, where: like(p.brand, ^"%#{brand}%")
     end
   end
 
@@ -1025,7 +1025,7 @@ defmodule MegaPlanner.Receipts do
   def suggest_for_brand(household_id, brand_name, opts \\ []) do
     # Get brand if it exists
     brand = from(b in Brand,
-      where: b.household_id == ^household_id and ilike(b.name, ^brand_name),
+      where: b.household_id == ^household_id and like(b.name, ^brand_name),
       limit: 1
     ) |> Repo.one()
 
@@ -1033,7 +1033,7 @@ defmodule MegaPlanner.Receipts do
     store_id = Keyword.get(opts, :store_id)
     
     query = from(p in Purchase,
-      where: p.household_id == ^household_id and ilike(p.brand, ^brand_name),
+      where: p.household_id == ^household_id and like(p.brand, ^brand_name),
       order_by: [desc: p.inserted_at],
       limit: 5,
       preload: [:tags]
@@ -1092,7 +1092,7 @@ defmodule MegaPlanner.Receipts do
   """
   def suggest_for_item(household_id, item_name) do
     from(p in Purchase,
-      where: p.household_id == ^household_id and ilike(p.item, ^"%#{item_name}%"),
+      where: p.household_id == ^household_id and like(p.item, ^"%#{item_name}%"),
       order_by: [desc: p.inserted_at],
       limit: 10,
       preload: [:tags],
@@ -1191,7 +1191,7 @@ defmodule MegaPlanner.Receipts do
   """
   def search_stores(household_id, query) do
     from(s in Store,
-      where: s.household_id == ^household_id and (ilike(s.name, ^"%#{query}%") or ilike(s.store_code, ^"%#{query}%")),
+      where: s.household_id == ^household_id and (like(s.name, ^"%#{query}%") or like(s.store_code, ^"%#{query}%")),
       order_by: [asc: s.name],
       limit: 10
     )
@@ -1203,7 +1203,7 @@ defmodule MegaPlanner.Receipts do
   """
   def suggest_store_codes(household_id, query) do
     purchases_codes = from(p in Purchase,
-      where: p.household_id == ^household_id and not is_nil(p.store_code) and ilike(p.store_code, ^"%#{query}%"),
+      where: p.household_id == ^household_id and not is_nil(p.store_code) and like(p.store_code, ^"%#{query}%"),
       select: p.store_code,
       distinct: true,
       order_by: [asc: p.store_code],
@@ -1213,7 +1213,7 @@ defmodule MegaPlanner.Receipts do
 
     inventory_codes = from(i in MegaPlanner.Inventory.Item,
       join: s in assoc(i, :sheet),
-      where: s.household_id == ^household_id and not is_nil(i.store_code) and ilike(i.store_code, ^"%#{query}%"),
+      where: s.household_id == ^household_id and not is_nil(i.store_code) and like(i.store_code, ^"%#{query}%"),
       select: i.store_code,
       distinct: true,
       order_by: [asc: i.store_code],
@@ -1232,7 +1232,7 @@ defmodule MegaPlanner.Receipts do
   """
   def suggest_receipt_item_names(household_id, query) do
     purchase_names = from(p in Purchase,
-      where: p.household_id == ^household_id and not is_nil(p.item_name) and ilike(p.item_name, ^"%#{query}%"),
+      where: p.household_id == ^household_id and not is_nil(p.item_name) and like(p.item_name, ^"%#{query}%"),
       select: p.item_name,
       distinct: true,
       order_by: [asc: p.item_name],
@@ -1242,7 +1242,7 @@ defmodule MegaPlanner.Receipts do
 
     inventory_names = from(i in MegaPlanner.Inventory.Item,
       join: s in assoc(i, :sheet),
-      where: s.household_id == ^household_id and not is_nil(i.item_name) and ilike(i.item_name, ^"%#{query}%"),
+      where: s.household_id == ^household_id and not is_nil(i.item_name) and like(i.item_name, ^"%#{query}%"),
       select: i.item_name,
       distinct: true,
       order_by: [asc: i.item_name],
@@ -1261,7 +1261,7 @@ defmodule MegaPlanner.Receipts do
   """
   def suggest_names(household_id, query) do
     purchases = from(p in Purchase,
-      where: p.household_id == ^household_id and ilike(p.item, ^"%#{query}%"),
+      where: p.household_id == ^household_id and like(p.item, ^"%#{query}%"),
       select: p.item,
       distinct: true,
       order_by: [asc: p.item],
@@ -1271,7 +1271,7 @@ defmodule MegaPlanner.Receipts do
 
     inventory = from(i in MegaPlanner.Inventory.Item,
       join: s in assoc(i, :sheet),
-      where: s.household_id == ^household_id and ilike(i.name, ^"%#{query}%"),
+      where: s.household_id == ^household_id and like(i.name, ^"%#{query}%"),
       select: i.name,
       distinct: true,
       order_by: [asc: i.name],

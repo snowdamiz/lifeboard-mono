@@ -815,7 +815,7 @@ defmodule MegaPlanner.Goals do
   """
   def suggest_titles(household_id, query) do
     from(g in Goal,
-      where: g.household_id == ^household_id and ilike(g.title, ^"%#{query}%"),
+      where: g.household_id == ^household_id and like(g.title, ^"%#{query}%"),
       select: g.title,
       distinct: true,
       order_by: [asc: g.title],
@@ -833,13 +833,13 @@ defmodule MegaPlanner.Goals do
     # Query for existing milestones used in goals
     milestones_query = from(m in Milestone,
       join: g in assoc(m, :goal),
-      where: g.household_id == ^household_id and ilike(m.title, ^"%#{query}%"),
+      where: g.household_id == ^household_id and like(m.title, ^"%#{query}%"),
       select: m.title
     )
 
     # Query for saved templates
     templates_query = from(t in MilestoneTemplate,
-      where: t.household_id == ^household_id and ilike(t.title, ^"%#{query}%"),
+      where: t.household_id == ^household_id and like(t.title, ^"%#{query}%"),
       select: t.title
     )
 
