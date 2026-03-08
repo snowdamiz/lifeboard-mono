@@ -73,12 +73,18 @@ Plans:
 **Depends on**: Phase 3
 **Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05
 **Success Criteria** (what must be TRUE):
-  1. `mix migrate.export` runs against production PostgreSQL and produces a complete JSON export covering all ~30 tables with no missing records or serialization errors
-  2. `mix migrate.import` inserts all exported rows into the local SQLite database, including the two-pass insert for the self-referential `tasks.parent_task_id` column
+  1. `mix migrate.export` runs against production PostgreSQL and produces a complete JSON export covering all 48 tables with no missing records or serialization errors
+  2. `mix migrate.import` inserts all exported rows into the local SQLite database, including the two-pass insert for self-referential FKs (tasks.parent_task_id, goal_categories.parent_id) and circular FKs (purchases <-> budget_entries)
   3. `mix migrate.verify` reports zero discrepancies across all table record counts
-  4. Spot checks on `goals.linked_task_ids`, `habits.linked_inventory_ids`, and `brands.default_tags` confirm UUID values are stored as readable strings (not binary blobs)
+  4. Spot checks on `goals.linked_task_ids`, `habit_inventories.linked_inventory_ids`, and `brands.default_tags` confirm UUID values are stored as readable strings (not binary blobs)
   5. `PRAGMA foreign_key_check` on the SQLite file returns zero rows
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Add postgrex dev dep to mix.exs; implement mix migrate.export task with serialize/1 type coercion
+- [ ] 04-02-PLAN.md — Implement mix migrate.import (two-pass FK handling) and mix migrate.verify tasks
+- [ ] 04-03-PLAN.md — Run production export via fly proxy tunnel (human-action checkpoint)
+- [ ] 04-04-PLAN.md — Run import + verify against local SQLite; Phase 4 integration gate
 
 ### Phase 5: Fly.io Deployment & Cutover
 **Goal**: The app is running in production on SQLite with data persisting across restarts, and the PostgreSQL cluster is decommissioned after a 48-hour rollback window
@@ -102,5 +108,5 @@ Phases execute in strict numeric order. Each phase is a prerequisite for the nex
 | 1. Dependency & Config | 2/2 | Complete   | 2026-03-08 |
 | 2. Migration Rewrites | 0/3 | Not started | - |
 | 3. Application Code Fixes | 4/4 | Complete   | 2026-03-08 |
-| 4. Data Migration Pipeline | 0/? | Not started | - |
+| 4. Data Migration Pipeline | 0/4 | Not started | - |
 | 5. Fly.io Deployment & Cutover | 0/? | Not started | - |
