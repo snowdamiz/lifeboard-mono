@@ -39,6 +39,7 @@ defmodule MegaPlannerWeb.Router do
     pipe_through :api
 
     get "/health", HealthController, :index
+    get "/health/diagnostics", HealthController, :diagnostics
 
     # iCal feed (public with token auth)
     get "/ical/feed", IcalController, :feed
