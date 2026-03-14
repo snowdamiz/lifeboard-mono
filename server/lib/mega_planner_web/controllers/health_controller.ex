@@ -19,9 +19,9 @@ defmodule MegaPlannerWeb.HealthController do
       e -> Map.put(diag, :db_connected, %{error: Exception.message(e)})
     end
 
-    # List tables
+    # List tables (SQLite version)
     diag = try do
-      {:ok, result} = Repo.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")
+      {:ok, result} = Repo.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
       tables = Enum.map(result.rows, fn [name] -> name end)
       diag
       |> Map.put(:tables, tables)
@@ -31,19 +31,19 @@ defmodule MegaPlannerWeb.HealthController do
       e -> Map.put(diag, :tables_error, Exception.message(e))
     end
 
-    # Check tasks table columns
+    # Check tasks table columns (SQLite version)
     diag = try do
-      {:ok, result} = Repo.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'tasks' ORDER BY ordinal_position")
-      columns = Enum.map(result.rows, fn [name, type] -> %{name: name, type: type} end)
+      {:ok, result} = Repo.query("PRAGMA table_info(tasks)")
+      columns = Enum.map(result.rows, fn [_id, name, type, _notnull, _dflt, _pk] -> %{name: name, type: type} end)
       Map.put(diag, :tasks_columns, columns)
     rescue
       e -> Map.put(diag, :tasks_columns_error, Exception.message(e))
     end
 
-    # Check text_templates table columns
+    # Check text_templates table columns (SQLite version)
     diag = try do
-      {:ok, result} = Repo.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'text_templates' ORDER BY ordinal_position")
-      columns = Enum.map(result.rows, fn [name, type] -> %{name: name, type: type} end)
+      {:ok, result} = Repo.query("PRAGMA table_info(text_templates)")
+      columns = Enum.map(result.rows, fn [_id, name, type, _notnull, _dflt, _pk] -> %{name: name, type: type} end)
       Map.put(diag, :text_templates_columns, columns)
     rescue
       e -> Map.put(diag, :text_templates_columns_error, Exception.message(e))
@@ -56,6 +56,18 @@ defmodule MegaPlannerWeb.HealthController do
       Map.put(diag, :latest_migrations, versions)
     rescue
       e -> Map.put(diag, :migrations_error, Exception.message(e))
+    end
+
+    # Test write permissions
+    diag = try do
+      # Try to create and delete a dummy table to verify write access
+      Repo.query!("CREATE TABLE IF NOT EXISTS _write_test (id INTEGER PRIMARY KEY)")
+      Repo.query!("INSERT INTO _write_test (id) VALUES (1)")
+      Repo.query!("DELETE FROM _write_test WHERE id = 1")
+      Repo.query!("DROP TABLE _write_test")
+      Map.put(diag, :write_access, "ok")
+    rescue
+      e -> Map.put(diag, :write_access, %{error: Exception.message(e)})
     end
 
     json(conn, diag)
