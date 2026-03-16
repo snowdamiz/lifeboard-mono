@@ -8,6 +8,8 @@ defmodule MegaPlanner.Budget do
   alias MegaPlanner.Budget.{Source, Entry}
   alias MegaPlanner.Tags.Tag
 
+  @entry_preloads [:source, :tags, purchase: [stop: :store]]
+
   # Sources
 
   @doc """
@@ -206,7 +208,7 @@ defmodule MegaPlanner.Budget do
   def get_entry(id) do
     Entry
     |> Repo.get(id)
-    |> Repo.preload([:source, :tags])
+    |> Repo.preload(@entry_preloads)
   end
 
   @doc """
@@ -215,7 +217,7 @@ defmodule MegaPlanner.Budget do
   def get_household_entry(household_id, id) do
     Entry
     |> Repo.get_by(id: id, household_id: household_id)
-    |> Repo.preload([:source, :tags])
+    |> Repo.preload(@entry_preloads)
   end
 
   @doc """
@@ -230,7 +232,7 @@ defmodule MegaPlanner.Budget do
     |> case do
       {:ok, entry} ->
         entry = update_entry_tags(entry, tag_ids)
-        {:ok, Repo.preload(entry, [:source, :tags])}
+        {:ok, Repo.preload(entry, @entry_preloads, force: true)}
 
       error ->
         error
@@ -249,7 +251,7 @@ defmodule MegaPlanner.Budget do
     |> case do
       {:ok, entry} ->
         entry = if tag_ids != nil, do: update_entry_tags(entry, tag_ids), else: entry
-        {:ok, Repo.preload(entry, [:source, :tags], force: true)}
+        {:ok, Repo.preload(entry, @entry_preloads, force: true)}
 
       error ->
         error

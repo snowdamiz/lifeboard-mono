@@ -132,28 +132,26 @@ defmodule MegaPlanner.Receipts do
 
     # 2. Fetch recent unique purchases for this store
     receipt_items =
-      from(p in Purchase,
-        join: s in assoc(p, :stop),
-        where: s.store_id == ^store.id,
-        # We want distinct items, ideally the most recent one
-        # Postgres DISTINCT ON is perfect here
-        distinct: [p.brand, p.item],
-        order_by: [asc: p.brand, asc: p.item, desc: p.inserted_at],
-        select: %{
-          id: p.id,
-          source: "receipt",
-          brand: p.brand,
-          name: p.item,
-          unit: p.unit_measurement,
-          price: p.price_per_unit,
-          date: p.inserted_at
-        }
-      )
+      Purchase
+      |> join(:inner, [p], s in assoc(p, :stop))
+      |> where([p, s], s.store_id == ^store.id)
+      |> order_by([p], desc: p.inserted_at)
+      |> limit(100)
+      |> select([p], %{
+        id: p.id,
+        source: "receipt",
+        brand: p.brand,
+        name: p.item,
+        unit: p.unit_measurement,
+        price: p.price_per_unit,
+        date: p.inserted_at
+      })
       |> Repo.all()
+      |> Enum.uniq_by(&{&1.brand, &1.name})
 
     # Combine and sort
     (manual_items ++ receipt_items)
-    |> Enum.sort_by(& &1.date, {:desc, Date})
+    |> Enum.sort_by(&DateTime.to_unix(&1.date, :microsecond), :desc)
   end
 
   def update_store_inventory_item(store_id, item_id, source, attrs, propagate \\ false) do
@@ -1219,20 +1217,25 @@ defmodule MegaPlanner.Receipts do
   Returns suggestions for auto-populate based on item name.
   """
   def suggest_for_item(household_id, item_name) do
-    from(p in Purchase,
-      where: p.household_id == ^household_id and like(p.item, ^"%#{item_name}%"),
-      order_by: [desc: p.inserted_at],
-      limit: 10,
-      preload: [:tags],
-      distinct: p.brand
-    )
+    Purchase
+    |> where([p], p.household_id == ^household_id and like(p.item, ^"%#{item_name}%"))
+    |> order_by([p], desc: p.inserted_at)
+    |> limit(50)
+    |> preload([:tags])
     |> Repo.all()
     |> Enum.group_by(& &1.brand)
+    |> Enum.sort_by(
+      fn {_brand, purchases} ->
+        purchases
+        |> Enum.max_by(&DateTime.to_unix(&1.inserted_at, :microsecond))
+        |> Map.fetch!(:inserted_at)
+        |> DateTime.to_unix(:microsecond)
+      end,
+      :desc
+    )
+    |> Enum.take(10)
     |> Enum.map(fn {brand, purchases} ->
-      %{
-        brand: %{name: brand},
-        recent_purchases: purchases
-      }
+      %{brand: %{name: brand}, recent_purchases: purchases}
     end)
   end
 

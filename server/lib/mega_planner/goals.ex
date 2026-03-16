@@ -237,8 +237,12 @@ defmodule MegaPlanner.Goals do
     status_changes =
       from(sc in GoalStatusChange,
         where: sc.goal_id == ^goal_id,
-        preload: [:user],
-        select: %{
+        order_by: [desc: sc.inserted_at],
+        preload: [:user]
+      )
+      |> Repo.all()
+      |> Enum.map(fn sc ->
+        %{
           type: "status_change",
           id: sc.id,
           from_status: sc.from_status,
@@ -247,8 +251,7 @@ defmodule MegaPlanner.Goals do
           user: sc.user,
           timestamp: sc.inserted_at
         }
-      )
-      |> Repo.all()
+      end)
 
     # Get milestone completions
     milestone_completions =

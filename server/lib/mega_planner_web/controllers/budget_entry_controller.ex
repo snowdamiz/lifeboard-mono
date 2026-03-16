@@ -29,10 +29,16 @@ defmodule MegaPlannerWeb.BudgetEntryController do
     json(conn, %{data: json_data})
   end
 
-  # Safely extract tags, handling NotLoaded
-  defp safe_tags(%Ecto.Association.NotLoaded{}), do: []
-  defp safe_tags(nil), do: []
-  defp safe_tags(tags) when is_list(tags), do: tags
+  defp loaded_assoc(%Ecto.Association.NotLoaded{}), do: nil
+  defp loaded_assoc(nil), do: nil
+  defp loaded_assoc(value), do: value
+
+  defp loaded_list(%Ecto.Association.NotLoaded{}), do: []
+  defp loaded_list(nil), do: []
+  defp loaded_list(values) when is_list(values), do: values
+
+  # Safely extract tags, handling NotLoaded.
+  defp safe_tags(tags), do: loaded_list(tags)
 
   defp aggregate_entries(nil), do: []
   defp aggregate_entries([]), do: []
@@ -40,11 +46,13 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   defp aggregate_entries(entries) when is_list(entries) do
     {singles, stops} =
       Enum.reduce(entries, {[], %{}}, fn entry, {singles, stops} ->
+        purchase = loaded_assoc(entry.purchase)
+        stop = purchase && loaded_assoc(purchase.stop)
+
         cond do
-          entry.purchase && entry.purchase.stop_id && entry.purchase.stop ->
+          purchase && purchase.stop_id && stop ->
             # This is a trip purchase with a loaded stop, aggregate it
-            stop_id = entry.purchase.stop_id
-            stop = entry.purchase.stop
+            stop_id = purchase.stop_id
 
             stops =
               Map.update(stops, stop_id, init_stop_group(entry, stop), fn group ->
@@ -95,10 +103,12 @@ defmodule MegaPlannerWeb.BudgetEntryController do
 
   # Get source from entry if linked, otherwise derive from stop
   defp get_entry_source(entry, stop) do
-    if entry.source do
+    source = loaded_assoc(entry.source)
+
+    if source do
       %{
-        id: entry.source.id,
-        name: entry.source.name
+        id: source.id,
+        name: source.name
       }
     else
       get_stop_source(stop)
@@ -106,8 +116,10 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   end
 
   defp get_stop_source(stop) do
+    store = loaded_assoc(stop.store)
+
     name =
-      if stop.store, do: stop.store.name, else: stop.store_name || "Unknown Store"
+      if store, do: store.name, else: stop.store_name || "Unknown Store"
 
     %{
       id: if(stop.store_id, do: stop.store_id, else: "stop-store-#{stop.id}"),
@@ -137,11 +149,13 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   end
 
   defp stop_to_json(stop) do
+    store = loaded_assoc(stop.store)
+
     %{
       id: stop.id,
-      store_name: if(stop.store, do: stop.store.name, else: stop.store_name),
+      store_name: if(store, do: store.name, else: stop.store_name),
       notes: stop.notes,
-      purchases: Enum.map(stop.purchases || [], &purchase_to_json/1)
+      purchases: Enum.map(loaded_list(stop.purchases), &purchase_to_json/1)
     }
   end
 
@@ -238,25 +252,37 @@ defmodule MegaPlannerWeb.BudgetEntryController do
   defp maybe_add_list(opts, _key, _value), do: opts
 
   defp entry_to_json(entry) do
+    source = loaded_assoc(entry.source)
+    purchase = loaded_assoc(entry.purchase)
+    stop = purchase && loaded_assoc(purchase.stop)
+    store = stop && loaded_assoc(stop.store)
+
     source_name =
       cond do
-        entry.source ->
-          entry.source.name
+        source ->
+          source.name
 
-        entry.purchase ->
-          if entry.purchase.stop && entry.purchase.stop.store do
-            entry.purchase.stop.store.name
+        purchase ->
+          if store do
+            store.name
           else
-            "Purchase: #{entry.purchase.brand} - #{entry.purchase.item}"
+            "Purchase: #{purchase.brand} - #{purchase.item}"
           end
 
         true ->
           nil
       end
 
+    source_identifier =
+      cond do
+        source -> entry.source_id
+        purchase -> "purchase-#{purchase.id}"
+        true -> nil
+      end
+
     source_obj =
       if source_name,
-        do: %{id: entry.source_id || "purchase-#{entry.purchase.id}", name: source_name},
+        do: %{id: source_identifier, name: source_name},
         else: nil
 
     %{
