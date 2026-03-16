@@ -54,11 +54,12 @@ defmodule MegaPlannerWeb.IcalController do
     opts = [start_date: start_date, end_date: end_date]
 
     # Filter by type if specified
-    opts = case params["type"] do
-      "timed" -> Keyword.put(opts, :task_type, "timed")
-      "todo" -> Keyword.put(opts, :task_type, "todo")
-      _ -> opts
-    end
+    opts =
+      case params["type"] do
+        "timed" -> Keyword.put(opts, :task_type, "timed")
+        "todo" -> Keyword.put(opts, :task_type, "todo")
+        _ -> opts
+      end
 
     tasks = Calendar.list_tasks(household_id, opts)
 
@@ -88,34 +89,37 @@ defmodule MegaPlannerWeb.IcalController do
     uid = "#{task.id}@megaplanner"
     dtstamp = format_datetime(task.inserted_at)
 
-    {dtstart, dtend} = case {task.date, task.start_time, task.duration_minutes} do
-      {date, time, duration} when not is_nil(date) and not is_nil(time) and not is_nil(duration) ->
-        # Timed task with duration
-        start_dt = combine_date_time(date, time)
-        end_dt = DateTime.add(start_dt, duration * 60, :second)
-        {format_datetime(start_dt), format_datetime(end_dt)}
+    {dtstart, dtend} =
+      case {task.date, task.start_time, task.duration_minutes} do
+        {date, time, duration}
+        when not is_nil(date) and not is_nil(time) and not is_nil(duration) ->
+          # Timed task with duration
+          start_dt = combine_date_time(date, time)
+          end_dt = DateTime.add(start_dt, duration * 60, :second)
+          {format_datetime(start_dt), format_datetime(end_dt)}
 
-      {date, time, _} when not is_nil(date) and not is_nil(time) ->
-        # Timed task without duration (default 30 min)
-        start_dt = combine_date_time(date, time)
-        end_dt = DateTime.add(start_dt, 30 * 60, :second)
-        {format_datetime(start_dt), format_datetime(end_dt)}
+        {date, time, _} when not is_nil(date) and not is_nil(time) ->
+          # Timed task without duration (default 30 min)
+          start_dt = combine_date_time(date, time)
+          end_dt = DateTime.add(start_dt, 30 * 60, :second)
+          {format_datetime(start_dt), format_datetime(end_dt)}
 
-      {date, _, _} when not is_nil(date) ->
-        # All-day task
-        {format_date(date), format_date(Date.add(date, 1))}
+        {date, _, _} when not is_nil(date) ->
+          # All-day task
+          {format_date(date), format_date(Date.add(date, 1))}
 
-      _ ->
-        # No date - skip
-        {nil, nil}
-    end
+        _ ->
+          # No date - skip
+          {nil, nil}
+      end
 
     if dtstart do
-      status = case task.status do
-        "completed" -> "COMPLETED"
-        "in_progress" -> "IN-PROCESS"
-        _ -> "NEEDS-ACTION"
-      end
+      status =
+        case task.status do
+          "completed" -> "COMPLETED"
+          "in_progress" -> "IN-PROCESS"
+          _ -> "NEEDS-ACTION"
+        end
 
       description = task.description || ""
       description = description |> String.replace("\n", "\\n") |> String.replace(",", "\\,")
@@ -163,6 +167,7 @@ defmodule MegaPlannerWeb.IcalController do
     |> String.replace(";", "\\;")
     |> String.replace("\n", "\\n")
   end
+
   defp escape_ical(_), do: ""
 
   # Token functions - using simple HMAC for feed tokens
@@ -180,7 +185,8 @@ defmodule MegaPlannerWeb.IcalController do
     with {:ok, decoded} <- Base.url_decode64(token, padding: false),
          [user_id, _timestamp, signature] <- String.split(decoded, ":"),
          expected_data <- "#{user_id}:#{String.split(decoded, ":") |> Enum.at(1)}",
-         expected_sig <- :crypto.mac(:hmac, :sha256, secret, expected_data) |> Base.url_encode64(padding: false),
+         expected_sig <-
+           :crypto.mac(:hmac, :sha256, secret, expected_data) |> Base.url_encode64(padding: false),
          true <- Plug.Crypto.secure_compare(signature, expected_sig) do
       {:ok, user_id}
     else

@@ -47,10 +47,13 @@ defmodule MegaPlannerWeb.Plugs.TestModeAuth do
   defp bypass_auth(conn) do
     # Load first user from database for test mode
     query = from u in MegaPlanner.Accounts.User, limit: 1
+
     case MegaPlanner.Repo.all(query) do
       [user | _] ->
         Logger.debug("TEST_MODE: Using existing user #{user.email}")
+
         conn
+        |> Guardian.Plug.sign_in(MegaPlanner.Guardian, user)
         |> assign(:current_user, user)
         |> Guardian.Plug.put_current_resource(user)
 
@@ -79,6 +82,7 @@ defmodule MegaPlannerWeb.Plugs.TestModeAuth do
         Logger.info("Created test user: #{user.email}")
 
         conn
+        |> Guardian.Plug.sign_in(MegaPlanner.Guardian, user)
         |> assign(:current_user, user)
         |> Guardian.Plug.put_current_resource(user)
 
@@ -94,6 +98,7 @@ defmodule MegaPlannerWeb.Plugs.TestModeAuth do
     alias MegaPlanner.Repo
 
     query = from h in Household, limit: 1
+
     case Repo.all(query) do
       [household | _] ->
         household

@@ -38,11 +38,11 @@ defmodule Mix.Tasks.Migrate.Verify do
         try do
           pg_count =
             Postgrex.query!(pg, ~s[SELECT COUNT(*) FROM "#{table}"], [])
-            |> then(& &1.rows |> hd() |> hd())
+            |> then(&(&1.rows |> hd() |> hd()))
 
           sqlite_count =
             MegaPlanner.Repo.query!(~s[SELECT COUNT(*) FROM "#{table}"])
-            |> then(& &1.rows |> hd() |> hd())
+            |> then(&(&1.rows |> hd() |> hd()))
 
           if pg_count != sqlite_count do
             IO.puts("MISMATCH #{table}: pg=#{pg_count} sqlite=#{sqlite_count}")

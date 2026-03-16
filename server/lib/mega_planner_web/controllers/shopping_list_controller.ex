@@ -10,19 +10,24 @@ defmodule MegaPlannerWeb.ShoppingListController do
 
   def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    tag_ids = case params["tag_ids"] do
-      nil -> nil
-      "" -> nil
-      ids when is_binary(ids) -> String.split(ids, ",")
-      ids when is_list(ids) -> ids
-    end
+
+    tag_ids =
+      case params["tag_ids"] do
+        nil -> nil
+        "" -> nil
+        ids when is_binary(ids) -> String.split(ids, ",")
+        ids when is_list(ids) -> ids
+      end
+
     lists = Inventory.list_shopping_lists(user.household_id, tag_ids)
     json(conn, %{data: Enum.map(lists, &list_to_json/1)})
   end
 
   def create(conn, %{"list" => list_params}) do
     user = Guardian.Plug.current_resource(conn)
-    list_params = list_params
+
+    list_params =
+      list_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
@@ -45,8 +50,10 @@ defmodule MegaPlannerWeb.ShoppingListController do
   def update_list(conn, %{"id" => id, "list" => list_params}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, id),
-         {:ok, %ShoppingList{} = updated_list} <- Inventory.update_shopping_list(list, list_params) do
+    with list when not is_nil(list) <-
+           Inventory.get_household_shopping_list(user.household_id, id),
+         {:ok, %ShoppingList{} = updated_list} <-
+           Inventory.update_shopping_list(list, list_params) do
       json(conn, %{data: list_to_json(updated_list)})
     else
       nil -> {:error, :not_found}
@@ -57,7 +64,8 @@ defmodule MegaPlannerWeb.ShoppingListController do
   def delete(conn, %{"id" => id}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, id),
+    with list when not is_nil(list) <-
+           Inventory.get_household_shopping_list(user.household_id, id),
          {:ok, _} <- Inventory.delete_shopping_list(list) do
       send_resp(conn, :no_content, "")
     else
@@ -77,8 +85,10 @@ defmodule MegaPlannerWeb.ShoppingListController do
   def create_item(conn, %{"shopping_list_id" => list_id, "item" => item_params}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, list_id) do
-      item_params = item_params
+    with list when not is_nil(list) <-
+           Inventory.get_household_shopping_list(user.household_id, list_id) do
+      item_params =
+        item_params
         |> Map.put("shopping_list_id", list.id)
         |> Map.put("user_id", user.id)
         |> Map.put("household_id", user.household_id)
@@ -88,6 +98,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
           conn
           |> put_status(:created)
           |> json(%{data: item_to_json(item)})
+
         error ->
           error
       end
@@ -99,15 +110,16 @@ defmodule MegaPlannerWeb.ShoppingListController do
   def update_item(conn, %{"shopping_list_id" => list_id, "id" => id, "item" => item_params}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, list_id),
+    with list when not is_nil(list) <-
+           Inventory.get_household_shopping_list(user.household_id, list_id),
          item when not is_nil(item) <- Inventory.get_shopping_item(id),
          true <- item.shopping_list_id == list.id do
-
       # If marking as purchased, use the special function
       if item_params["purchased"] == true do
         case Inventory.mark_purchased(item) do
           {:ok, updated_item} ->
             json(conn, %{data: item_to_json(updated_item)})
+
           {:error, reason} ->
             {:error, reason}
         end
@@ -115,6 +127,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
         case Inventory.update_shopping_item(item, item_params) do
           {:ok, updated_item} ->
             json(conn, %{data: item_to_json(updated_item)})
+
           error ->
             error
         end
@@ -128,7 +141,8 @@ defmodule MegaPlannerWeb.ShoppingListController do
   def delete_item(conn, %{"shopping_list_id" => list_id, "id" => id}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with list when not is_nil(list) <- Inventory.get_household_shopping_list(user.household_id, list_id),
+    with list when not is_nil(list) <-
+           Inventory.get_household_shopping_list(user.household_id, list_id),
          item when not is_nil(item) <- Inventory.get_shopping_item(id),
          true <- item.shopping_list_id == list.id,
          {:ok, _} <- Inventory.delete_shopping_item(item) do
@@ -149,6 +163,7 @@ defmodule MegaPlannerWeb.ShoppingListController do
 
   defp list_to_json(list) do
     items = list.items || []
+
     %{
       id: list.id,
       name: list.name,

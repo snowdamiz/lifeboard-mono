@@ -22,6 +22,7 @@ end)
 
 # Test 2: Verify changeset accepts new fields
 IO.puts("\nTest 2: Changeset validation")
+
 test_attrs = %{
   "name" => "Test Inventory",
   "household_id" => Ecto.UUID.generate(),
@@ -43,12 +44,15 @@ end
 IO.puts("\nTest 3: Coverage mode validation")
 
 valid_modes = ["whole_day", "partial_day"]
+
 Enum.each(valid_modes, fn mode ->
-  cs = HabitInventory.changeset(%HabitInventory{}, %{
-    "name" => "Test",
-    "household_id" => Ecto.UUID.generate(),
-    "coverage_mode" => mode
-  })
+  cs =
+    HabitInventory.changeset(%HabitInventory{}, %{
+      "name" => "Test",
+      "household_id" => Ecto.UUID.generate(),
+      "coverage_mode" => mode
+    })
+
   if cs.valid? do
     IO.puts("  ✓ Mode '#{mode}' is valid")
   else
@@ -57,11 +61,13 @@ Enum.each(valid_modes, fn mode ->
 end)
 
 # Test invalid mode
-invalid_cs = HabitInventory.changeset(%HabitInventory{}, %{
-  "name" => "Test",
-  "household_id" => Ecto.UUID.generate(),
-  "coverage_mode" => "invalid_mode"
-})
+invalid_cs =
+  HabitInventory.changeset(%HabitInventory{}, %{
+    "name" => "Test",
+    "household_id" => Ecto.UUID.generate(),
+    "coverage_mode" => "invalid_mode"
+  })
+
 if not invalid_cs.valid? do
   IO.puts("  ✓ Invalid mode 'invalid_mode' correctly rejected")
 else
@@ -70,10 +76,12 @@ end
 
 # Test 4: Verify default values
 IO.puts("\nTest 4: Default values")
-default_cs = HabitInventory.changeset(%HabitInventory{}, %{
-  "name" => "Default Test",
-  "household_id" => Ecto.UUID.generate()
-})
+
+default_cs =
+  HabitInventory.changeset(%HabitInventory{}, %{
+    "name" => "Default Test",
+    "household_id" => Ecto.UUID.generate()
+  })
 
 changes = default_cs.changes
 schema_defaults = %HabitInventory{}
@@ -83,10 +91,13 @@ IO.puts("  Default linked_inventory_ids: #{inspect(schema_defaults.linked_invent
 
 # Test 5: Check database column existence
 IO.puts("\nTest 5: Database column check")
+
 try do
-  query = from i in HabitInventory, 
-    select: {i.coverage_mode, i.linked_inventory_ids, i.day_start_time, i.day_end_time},
-    limit: 1
+  query =
+    from i in HabitInventory,
+      select: {i.coverage_mode, i.linked_inventory_ids, i.day_start_time, i.day_end_time},
+      limit: 1
+
   Repo.all(query)
   IO.puts("  ✓ Query with new columns executed successfully")
 rescue

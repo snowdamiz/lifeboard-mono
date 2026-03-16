@@ -17,14 +17,15 @@ defmodule MegaPlanner.Inventory do
   def list_sheets(household_id, tag_ids \\ nil) do
     query = from(s in Sheet, where: s.household_id == ^household_id, order_by: [asc: s.name])
 
-    query = if tag_ids && length(tag_ids) > 0 do
-      from s in query,
-        join: t in assoc(s, :tags),
-        where: t.id in ^tag_ids,
-        distinct: true
-    else
-      query
-    end
+    query =
+      if tag_ids && length(tag_ids) > 0 do
+        from s in query,
+          join: t in assoc(s, :tags),
+          where: t.id in ^tag_ids,
+          distinct: true
+      else
+        query
+      end
 
     query
     |> Repo.all()
@@ -66,6 +67,7 @@ defmodule MegaPlanner.Inventory do
       {:ok, sheet} ->
         sheet = update_sheet_tags(sheet, tag_ids)
         {:ok, Repo.preload(sheet, :tags, force: true)}
+
       error ->
         error
     end
@@ -86,6 +88,7 @@ defmodule MegaPlanner.Inventory do
       {:ok, sheet} ->
         sheet = if tag_ids != nil, do: update_sheet_tags(sheet, tag_ids), else: sheet
         {:ok, Repo.preload(sheet, :tags, force: true)}
+
       error ->
         error
     end
@@ -93,6 +96,7 @@ defmodule MegaPlanner.Inventory do
 
   defp update_sheet_tags(sheet, tag_ids) when is_list(tag_ids) do
     tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+
     sheet
     |> Repo.preload(:tags)
     |> Sheet.tags_changeset(tags)
@@ -135,6 +139,7 @@ defmodule MegaPlanner.Inventory do
       {:ok, item} ->
         item = update_item_tags(item, tag_ids)
         {:ok, Repo.preload(item, :tags, force: true)}
+
       error ->
         error
     end
@@ -163,7 +168,8 @@ defmodule MegaPlanner.Inventory do
 
           # Update all other inventory items with same brand+name in the household
           from(i in Item,
-            join: s in MegaPlanner.Inventory.Sheet, on: i.sheet_id == s.id,
+            join: s in MegaPlanner.Inventory.Sheet,
+            on: i.sheet_id == s.id,
             where: s.household_id == ^household_id,
             where: i.id != ^item.id,
             where: fragment("LOWER(?) = LOWER(?)", i.brand, ^item.brand),
@@ -181,6 +187,7 @@ defmodule MegaPlanner.Inventory do
         end
 
         {:ok, Repo.preload(item, :tags, force: true)}
+
       error ->
         error
     end
@@ -188,6 +195,7 @@ defmodule MegaPlanner.Inventory do
 
   defp update_item_tags(item, tag_ids) when is_list(tag_ids) do
     tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+
     item
     |> Repo.preload(:tags)
     |> Ecto.Changeset.change()
@@ -209,7 +217,9 @@ defmodule MegaPlanner.Inventory do
     if cascade && item.purchase_id do
       Repo.transaction(fn ->
         case Repo.get(MegaPlanner.Receipts.Purchase, item.purchase_id) do
-          nil -> :ok
+          nil ->
+            :ok
+
           purchase ->
             # Unlink this item from the purchase first (avoid FK violation)
             item
@@ -222,7 +232,8 @@ defmodule MegaPlanner.Inventory do
 
         # Re-fetch the item in case it was modified above
         case Repo.get(Item, item.id) do
-          nil -> :ok  # Already cleaned up
+          # Already cleaned up
+          nil -> :ok
           fresh_item -> Repo.delete!(fresh_item)
         end
       end)
@@ -241,19 +252,21 @@ defmodule MegaPlanner.Inventory do
   Returns all shopping lists for a household, optionally filtered by tags.
   """
   def list_shopping_lists(household_id, tag_ids \\ nil) do
-    query = from(l in ShoppingList,
-      where: l.household_id == ^household_id,
-      order_by: [desc: l.is_auto_generated, asc: l.name]
-    )
+    query =
+      from(l in ShoppingList,
+        where: l.household_id == ^household_id,
+        order_by: [desc: l.is_auto_generated, asc: l.name]
+      )
 
-    query = if tag_ids && length(tag_ids) > 0 do
-      from l in query,
-        join: t in assoc(l, :tags),
-        where: t.id in ^tag_ids,
-        distinct: true
-    else
-      query
-    end
+    query =
+      if tag_ids && length(tag_ids) > 0 do
+        from l in query,
+          join: t in assoc(l, :tags),
+          where: t.id in ^tag_ids,
+          distinct: true
+      else
+        query
+      end
 
     query
     |> Repo.all()
@@ -286,13 +299,16 @@ defmodule MegaPlanner.Inventory do
   def get_or_create_auto_list(household_id, user_id) do
     case Repo.get_by(ShoppingList, household_id: household_id, is_auto_generated: true) do
       nil ->
-        {:ok, list} = create_shopping_list(%{
-          name: "Auto-Generated",
-          is_auto_generated: true,
-          household_id: household_id,
-          user_id: user_id
-        })
+        {:ok, list} =
+          create_shopping_list(%{
+            name: "Auto-Generated",
+            is_auto_generated: true,
+            household_id: household_id,
+            user_id: user_id
+          })
+
         list
+
       list ->
         Repo.preload(list, [:tags, items: [inventory_item: :sheet]])
     end
@@ -311,7 +327,9 @@ defmodule MegaPlanner.Inventory do
       {:ok, list} ->
         list = update_list_tags(list, tag_ids)
         {:ok, Repo.preload(list, [:tags, items: [inventory_item: :sheet]])}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -328,12 +346,15 @@ defmodule MegaPlanner.Inventory do
       {:ok, list} ->
         list = if tag_ids != nil, do: update_list_tags(list, tag_ids), else: list
         {:ok, Repo.preload(list, [:tags, items: [inventory_item: :sheet]], force: true)}
-      error -> error
+
+      error ->
+        error
     end
   end
 
   defp update_list_tags(list, tag_ids) when is_list(tag_ids) do
     tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+
     list
     |> Repo.preload(:tags)
     |> ShoppingList.tags_changeset(tags)
@@ -350,6 +371,7 @@ defmodule MegaPlanner.Inventory do
     try do
       # Preload and clear tags first just in case
       list = Repo.preload(list, :tags)
+
       list
       |> Ecto.Changeset.change()
       |> Ecto.Changeset.put_assoc(:tags, [])
@@ -419,8 +441,11 @@ defmodule MegaPlanner.Inventory do
     |> ShoppingListItem.changeset(attrs)
     |> Repo.update()
     |> case do
-      {:ok, item} -> {:ok, Repo.preload(item, [:shopping_list, inventory_item: :sheet], force: true)}
-      error -> error
+      {:ok, item} ->
+        {:ok, Repo.preload(item, [:shopping_list, inventory_item: :sheet], force: true)}
+
+      error ->
+        error
     end
   end
 
@@ -441,7 +466,8 @@ defmodule MegaPlanner.Inventory do
     # Get all items below minimum quantity that are necessities
     items_needing_replenishment =
       from(i in Item,
-        join: s in Sheet, on: i.sheet_id == s.id,
+        join: s in Sheet,
+        on: i.sheet_id == s.id,
         where: s.household_id == ^household_id and i.quantity < i.min_quantity,
         select: %{id: i.id, quantity: i.quantity, min_quantity: i.min_quantity}
       )
@@ -454,9 +480,10 @@ defmodule MegaPlanner.Inventory do
       # Check if an unpurchased item already exists in the auto-generated list
       existing =
         from(s in ShoppingListItem,
-          where: s.shopping_list_id == ^auto_list.id and
-                 s.inventory_item_id == ^item.id and
-                 s.purchased == false
+          where:
+            s.shopping_list_id == ^auto_list.id and
+              s.inventory_item_id == ^item.id and
+              s.purchased == false
         )
         |> Repo.one()
 
@@ -518,21 +545,23 @@ defmodule MegaPlanner.Inventory do
     IO.puts("[create_item_from_purchase] Starting for purchase ID: #{purchase.id}")
     purchase = Repo.preload(purchase, [:budget_entry, stop: :store])
     household_id = purchase.household_id
-    
+
     # Determine quantity - this represents the per-container amount for count-mode items
     # For "By Count" items: quantity = amount per container (e.g., 8 tea bags per box)
     # If purchase has both count and units, compute per-container: units / count
     purchase_count = purchase.count || Decimal.new(0)
     purchase_units = purchase.units || Decimal.new(0)
-    
-    quantity_per_container = 
+
+    quantity_per_container =
       cond do
         Decimal.gt?(purchase_units, Decimal.new(0)) && Decimal.gt?(purchase_count, Decimal.new(1)) ->
           # Multiple containers: compute per-container amount
           Decimal.div(purchase_units, purchase_count)
+
         Decimal.gt?(purchase_units, Decimal.new(0)) ->
           # Single container or no count: use units directly
           purchase_units
+
         true ->
           Decimal.new(1)
       end
@@ -544,55 +573,65 @@ defmodule MegaPlanner.Inventory do
     search_item = String.trim(purchase.item || "")
 
     # Determine purchase store name for matching (kept for potential future use)
-    _store_name = if purchase.stop && purchase.stop.store, do: String.trim(purchase.stop.store.name), else: nil
+    _store_name =
+      if purchase.stop && purchase.stop.store,
+        do: String.trim(purchase.stop.store.name),
+        else: nil
 
     # 1. Identify/Create the staging sheet
     user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
-    
+
     case get_or_create_purchases_sheet(household_id, user_id) do
       {:ok, purchases_sheet} ->
         IO.puts("[create_item_from_purchase] Purchases sheet ID: #{purchases_sheet.id}")
 
         # 2. Try to find matching item in Purchases sheet FOR THIS SPECIFIC STOP
         # Priority: Store Code -> (Brand + Name + Stop)
-        existing_item = 
+        existing_item =
           if purchase.store_code do
-            Repo.one(from i in Item, 
-              where: i.sheet_id == ^purchases_sheet.id and 
-                     i.store_code == ^purchase.store_code and 
-                     i.stop_id == ^purchase.stop_id)
+            Repo.one(
+              from i in Item,
+                where:
+                  i.sheet_id == ^purchases_sheet.id and
+                    i.store_code == ^purchase.store_code and
+                    i.stop_id == ^purchase.stop_id
+            )
           end
 
         # Fallback to Name + Brand + Stop if no store code match found
-        existing_item = existing_item || Repo.one(
-          from i in Item,
-            where: i.sheet_id == ^purchases_sheet.id and 
-                   like(i.brand, ^search_brand) and
-                   like(i.name, ^search_item) and
-                   i.stop_id == ^purchase.stop_id,
-            limit: 1
-        )
+        existing_item =
+          existing_item ||
+            Repo.one(
+              from i in Item,
+                where:
+                  i.sheet_id == ^purchases_sheet.id and
+                    like(i.brand, ^search_brand) and
+                    like(i.name, ^search_item) and
+                    i.stop_id == ^purchase.stop_id,
+                limit: 1
+            )
 
         IO.puts("[create_item_from_purchase] Existing item: #{inspect(existing_item)}")
 
-        result = case existing_item do
-          nil ->
-            IO.puts("[create_item_from_purchase] Creating new inventory item")
-            # Create new item in Purchases sheet
-            create_new_inventory_item(purchase, quantity_per_container)
-          
-          item ->
-            IO.puts("[create_item_from_purchase] Updating existing inventory item")
-            # Update existing item in Purchases sheet
-            # In count mode, only add to count (not quantity)
-            if item.usage_mode == "count" do
-              count_to_add = purchase.count || Decimal.new(1)
-              existing_count = item.count || Decimal.new(0)
-              update_item(item, %{count: Decimal.add(existing_count, count_to_add)})
-            else
-              update_item(item, %{quantity: Decimal.add(item.quantity, quantity_per_container)})
-            end
-        end
+        result =
+          case existing_item do
+            nil ->
+              IO.puts("[create_item_from_purchase] Creating new inventory item")
+              # Create new item in Purchases sheet
+              create_new_inventory_item(purchase, quantity_per_container)
+
+            item ->
+              IO.puts("[create_item_from_purchase] Updating existing inventory item")
+              # Update existing item in Purchases sheet
+              # In count mode, only add to count (not quantity)
+              if item.usage_mode == "count" do
+                count_to_add = purchase.count || Decimal.new(1)
+                existing_count = item.count || Decimal.new(0)
+                update_item(item, %{count: Decimal.add(existing_count, count_to_add)})
+              else
+                update_item(item, %{quantity: Decimal.add(item.quantity, quantity_per_container)})
+              end
+          end
 
         IO.puts("[create_item_from_purchase] Result: #{inspect(result)}")
 
@@ -600,67 +639,81 @@ defmodule MegaPlanner.Inventory do
         complete_shopping_list_items_for_purchase(purchase)
 
         result
-      
+
       error ->
-        IO.puts("[create_item_from_purchase] ✗ Failed to get/create purchases sheet: #{inspect(error)}")
+        IO.puts(
+          "[create_item_from_purchase] ✗ Failed to get/create purchases sheet: #{inspect(error)}"
+        )
+
         error
     end
   end
 
   defp create_new_inventory_item(purchase, quantity) do
-    Logger.info("[create_new_inventory_item] Starting for purchase ID: #{purchase.id}, quantity: #{quantity}")
+    Logger.info(
+      "[create_new_inventory_item] Starting for purchase ID: #{purchase.id}, quantity: #{quantity}"
+    )
+
     # We need a user to assign the sheet to. 
     user_id = if purchase.budget_entry, do: purchase.budget_entry.user_id, else: nil
 
     case get_or_create_purchases_sheet(purchase.household_id, user_id) do
-       {:ok, sheet} ->
-          store_name = if purchase.stop && purchase.stop.store, do: purchase.stop.store.name, else: nil
-          trip_id = if purchase.stop, do: purchase.stop.trip_id, else: nil
-          stop_id = purchase.stop_id
-          
-          attrs = %{
-            name: purchase.item,
-            brand: purchase.brand,
-            store: store_name,
-            store_code: purchase.store_code,
-            quantity: quantity,
-            unit_of_measure: purchase.unit_measurement,
-            price_per_unit: purchase.price_per_unit,
-            price_per_count: purchase.price_per_count,
-            total_price: purchase.total_price,
-            purchase_id: purchase.id,
-            trip_id: trip_id,
-            stop_id: stop_id,
-            purchase_date: purchase.inserted_at,
-            sheet_id: sheet.id,
-            count: purchase.count,
-            count_unit: purchase.count_unit,
-            item_name: purchase.item_name,
-            taxable: purchase.taxable,
-            usage_mode: purchase.usage_mode || "count",
-          }
-          
-          Logger.info("[create_new_inventory_item] Creating item with attrs: #{inspect(attrs)}")
-          result = create_item(attrs)
-          Logger.info("[create_new_inventory_item] Create result: #{inspect(result)}")
-          result
-       error -> 
-          Logger.error("[create_new_inventory_item] Failed to get purchases sheet: #{inspect(error)}")
-          error
+      {:ok, sheet} ->
+        store_name =
+          if purchase.stop && purchase.stop.store, do: purchase.stop.store.name, else: nil
+
+        trip_id = if purchase.stop, do: purchase.stop.trip_id, else: nil
+        stop_id = purchase.stop_id
+
+        attrs = %{
+          name: purchase.item,
+          brand: purchase.brand,
+          store: store_name,
+          store_code: purchase.store_code,
+          quantity: quantity,
+          unit_of_measure: purchase.unit_measurement,
+          price_per_unit: purchase.price_per_unit,
+          price_per_count: purchase.price_per_count,
+          total_price: purchase.total_price,
+          purchase_id: purchase.id,
+          trip_id: trip_id,
+          stop_id: stop_id,
+          purchase_date: purchase.inserted_at,
+          sheet_id: sheet.id,
+          count: purchase.count,
+          count_unit: purchase.count_unit,
+          item_name: purchase.item_name,
+          taxable: purchase.taxable,
+          usage_mode: purchase.usage_mode || "count"
+        }
+
+        Logger.info("[create_new_inventory_item] Creating item with attrs: #{inspect(attrs)}")
+        result = create_item(attrs)
+        Logger.info("[create_new_inventory_item] Create result: #{inspect(result)}")
+        result
+
+      error ->
+        Logger.error(
+          "[create_new_inventory_item] Failed to get purchases sheet: #{inspect(error)}"
+        )
+
+        error
     end
   end
 
   defp get_or_create_purchases_sheet(household_id, user_id) do
     # Try to find common purchases sheet
     case Repo.get_by(Sheet, household_id: household_id, name: "Purchases") do
-      nil -> 
+      nil ->
         # Create one owned by the purchaser
         create_sheet(%{
-          household_id: household_id, 
-          name: "Purchases", 
+          household_id: household_id,
+          name: "Purchases",
           user_id: user_id
         })
-      sheet -> {:ok, sheet}
+
+      sheet ->
+        {:ok, sheet}
     end
   end
 
@@ -672,7 +725,9 @@ defmodule MegaPlanner.Inventory do
   """
   def list_trip_receipts(household_id) do
     case Repo.get_by(Sheet, household_id: household_id, name: "Purchases") do
-      nil -> []
+      nil ->
+        []
+
       sheet ->
         from(i in Item,
           where: i.sheet_id == ^sheet.id and not is_nil(i.stop_id),
@@ -680,15 +735,15 @@ defmodule MegaPlanner.Inventory do
           order_by: [desc: i.purchase_date]
         )
         |> Repo.all()
-        |> Enum.group_by(&(&1.stop_id))
+        |> Enum.group_by(& &1.stop_id)
         |> Enum.map(fn {_stop_id, items} ->
           first_item = List.first(items)
           stop = first_item.stop
-          
+
           # Build the correct display datetime using trip date + stop's time_arrived
           # This preserves the local receipt time (e.g., 14:26) without timezone issues
           trip_start = compute_trip_display_time(stop)
-          
+
           %{
             id: stop.id,
             trip_id: stop.trip && stop.trip.id,
@@ -701,7 +756,7 @@ defmodule MegaPlanner.Inventory do
         |> Enum.sort_by(& &1.date, {:desc, DateTime})
     end
   end
-  
+
   # Compute the correct display time for a trip by combining trip date with stop's time_arrived
   # Returns an ISO-formatted string without timezone suffix so frontend interprets as local time
   defp compute_trip_display_time(stop) do
@@ -714,11 +769,11 @@ defmodule MegaPlanner.Inventory do
         date_str = Date.to_iso8601(trip_date)
         time_str = Time.to_iso8601(stop.time_arrived)
         "#{date_str}T#{time_str}"
-        
+
       # Fall back to trip_start if no stop time
       stop.trip && stop.trip.trip_start ->
         DateTime.to_iso8601(stop.trip.trip_start)
-        
+
       # No trip info available
       true ->
         nil
@@ -731,13 +786,14 @@ defmodule MegaPlanner.Inventory do
   def find_matching_items(household_id, brand, name) do
     search_brand = brand || ""
     search_name = name || ""
-    
+
     from(i in Item,
       join: s in assoc(i, :sheet),
-      where: s.household_id == ^household_id and 
-             s.name != "Purchases" and
-             like(i.brand, ^search_brand) and
-             like(i.name, ^search_name),
+      where:
+        s.household_id == ^household_id and
+          s.name != "Purchases" and
+          like(i.brand, ^search_brand) and
+          like(i.name, ^search_name),
       preload: [:sheet, :tags]
     )
     |> Repo.all()
@@ -747,7 +803,7 @@ defmodule MegaPlanner.Inventory do
   Transfers quantity from source item to target sheet.
   Creates new item in target if none exists, otherwise adds to existing.
   Transferred items become regular inventory (no purchase linkage).
-  
+
   When the source item's usage_mode is "count" and it has a count field,
   the `amount` parameter represents a count of containers and the function
   transfers proportional quantity. Otherwise `amount` is raw quantity.
@@ -755,7 +811,7 @@ defmodule MegaPlanner.Inventory do
   def transfer_item(source_item_id, target_sheet_id, amount, usage_mode \\ "count") do
     Repo.transaction(fn ->
       source = get_item(source_item_id)
-      
+
       if source == nil do
         Repo.rollback(:item_not_found)
       end
@@ -763,69 +819,79 @@ defmodule MegaPlanner.Inventory do
       # Use the frontend-supplied usage_mode to determine transfer behavior
       # 'count' -> amount is # of containers, proportional qty moves with it
       # 'quantity' -> amount is raw quantity
-      use_count_mode = usage_mode == "count" && source.count != nil && 
-                       Decimal.compare(source.count || Decimal.new(0), Decimal.new(0)) == :gt
+      use_count_mode =
+        usage_mode == "count" && source.count != nil &&
+          Decimal.compare(source.count || Decimal.new(0), Decimal.new(0)) == :gt
 
       # Determine the actual quantity to transfer and what to deduct based on mode
-      {transfer_qty, should_delete} = if use_count_mode do
-        source_count = source.count
-        source_qty = source.quantity || Decimal.new(0)
-        
-        # Validate we have enough count
-        if Decimal.lt?(source_count, amount) do
-          Repo.rollback(:insufficient_quantity)
-        end
-        
-        new_count = Decimal.sub(source_count, amount)
-        
-        # Calculate proportional quantity to transfer
-        proportional_qty = if Decimal.compare(new_count, 0) != :gt do
-          # Transferring all remaining count -> transfer all remaining quantity
-          source_qty
-        else
-          # Proportional: (amount / source_count) * source_qty
-          if Decimal.compare(source_count, 0) == :gt do
-            Decimal.mult(Decimal.div(amount, source_count), source_qty)
+      {transfer_qty, should_delete} =
+        if use_count_mode do
+          source_count = source.count
+          source_qty = source.quantity || Decimal.new(0)
+
+          # Validate we have enough count
+          if Decimal.lt?(source_count, amount) do
+            Repo.rollback(:insufficient_quantity)
+          end
+
+          new_count = Decimal.sub(source_count, amount)
+
+          # Calculate proportional quantity to transfer
+          proportional_qty =
+            if Decimal.compare(new_count, 0) != :gt do
+              # Transferring all remaining count -> transfer all remaining quantity
+              source_qty
+            else
+              # Proportional: (amount / source_count) * source_qty
+              if Decimal.compare(source_count, 0) == :gt do
+                Decimal.mult(Decimal.div(amount, source_count), source_qty)
+              else
+                source_qty
+              end
+            end
+
+          Logger.info(
+            "Transfer (count mode): count #{source_count} -> #{new_count}, qty #{source_qty}, proportional_qty #{proportional_qty}"
+          )
+
+          if Decimal.compare(new_count, 0) != :gt do
+            {proportional_qty, true}
           else
-            source_qty
+            new_qty = Decimal.sub(source_qty, proportional_qty)
+            {:ok, _} = update_item(source, %{count: new_count, quantity: new_qty})
+            {proportional_qty, false}
+          end
+        else
+          # Quantity-based transfer (original behavior)
+          if Decimal.lt?(source.quantity, amount) do
+            Repo.rollback(:insufficient_quantity)
+          end
+
+          new_quantity = Decimal.sub(source.quantity, amount)
+
+          Logger.info(
+            "Transfer (qty mode): Source ID #{source.id}, Qty #{source.quantity}, Transfer #{amount}, New #{new_quantity}"
+          )
+
+          if Decimal.compare(new_quantity, 0) != :gt do
+            {amount, true}
+          else
+            {:ok, _} = update_item(source, %{quantity: new_quantity})
+            {amount, false}
           end
         end
-        
-        Logger.info("Transfer (count mode): count #{source_count} -> #{new_count}, qty #{source_qty}, proportional_qty #{proportional_qty}")
-        
-        if Decimal.compare(new_count, 0) != :gt do
-          {proportional_qty, true}
-        else
-          new_qty = Decimal.sub(source_qty, proportional_qty)
-          {:ok, _} = update_item(source, %{count: new_count, quantity: new_qty})
-          {proportional_qty, false}
-        end
-      else
-        # Quantity-based transfer (original behavior)
-        if Decimal.lt?(source.quantity, amount) do
-          Repo.rollback(:insufficient_quantity)
-        end
-        
-        new_quantity = Decimal.sub(source.quantity, amount)
-        Logger.info("Transfer (qty mode): Source ID #{source.id}, Qty #{source.quantity}, Transfer #{amount}, New #{new_quantity}")
-        
-        if Decimal.compare(new_quantity, 0) != :gt do
-          {amount, true}
-        else
-          {:ok, _} = update_item(source, %{quantity: new_quantity})
-          {amount, false}
-        end
-      end
-      
+
       # Look for existing matching item in target sheet
-      target_item = Repo.one(
-        from i in Item,
-          where: i.sheet_id == ^target_sheet_id and
-                 i.name == ^source.name and
-                 coalesce(i.brand, "") == ^(source.brand || ""),
-          limit: 1
-      )
-      
+      target_item =
+        Repo.one(
+          from i in Item,
+            where:
+              i.sheet_id == ^target_sheet_id and
+                i.name == ^source.name and
+                coalesce(i.brand, "") == ^(source.brand || ""),
+            limit: 1
+        )
+
       # Update or create target
       case target_item do
         nil ->
@@ -841,25 +907,29 @@ defmodule MegaPlanner.Inventory do
             "usage_mode" => source.usage_mode,
             "count_unit" => source.count_unit
           }
-          
+
           # Set count on the target for both modes
-          target_attrs = if use_count_mode do
-            Map.put(target_attrs, "count", amount)
-          else
-            # Quantity mode: quantity is per-container, count tracks containers
-            Map.put(target_attrs, "count", Decimal.new(1))
-          end
-          
+          target_attrs =
+            if use_count_mode do
+              Map.put(target_attrs, "count", amount)
+            else
+              # Quantity mode: quantity is per-container, count tracks containers
+              Map.put(target_attrs, "count", Decimal.new(1))
+            end
+
           {:ok, _} = create_item(target_attrs)
+
         item ->
           # Add to existing item
           if use_count_mode do
             # Count mode: quantity is per-container (stays the same),
             # only increment count (number of containers)
             existing_count = item.count || Decimal.new(0)
+
             update_attrs = %{
               count: Decimal.add(existing_count, amount)
             }
+
             {:ok, _} = update_item(item, update_attrs)
           else
             # Quantity mode: quantity is per-container (stays the same),
@@ -869,28 +939,30 @@ defmodule MegaPlanner.Inventory do
             {:ok, _} = update_item(item, update_attrs)
           end
       end
-      
+
       # Delete source if fully consumed
       if should_delete do
         Logger.info("Transfer: Deleting source item #{source.id}")
-        
+
         # Unlink from shopping lists before deletion to prevent FK violation
-        shopping_item_ids = from(s in ShoppingListItem, 
-          where: s.inventory_item_id == ^source.id, 
-          select: s.id
-        ) |> Repo.all()
+        shopping_item_ids =
+          from(s in ShoppingListItem,
+            where: s.inventory_item_id == ^source.id,
+            select: s.id
+          )
+          |> Repo.all()
 
         if length(shopping_item_ids) > 0 do
           from(s in ShoppingListItem,
             where: s.id in ^shopping_item_ids,
-            update: [set: [inventory_item_id: nil, name: ^source.name]] 
+            update: [set: [inventory_item_id: nil, name: ^source.name]]
           )
           |> Repo.update_all([])
         end
 
         delete_item(source)
       end
-      
+
       :ok
     end)
   end
@@ -910,36 +982,43 @@ defmodule MegaPlanner.Inventory do
       :noop
     else
       # Build query based on whether purchase has a brand
-      matching_items = if purchase_brand != "" do
-        # Match on both item name AND brand
-        from(sli in ShoppingListItem,
-          left_join: inv in assoc(sli, :inventory_item),
-          where: sli.household_id == ^household_id
-             and sli.purchased == false
-             and is_nil(sli.completed_at)
-             and fragment("LOWER(TRIM(COALESCE(?, ?)))", sli.name, inv.name) == ^purchase_item_name
-             and fragment("LOWER(TRIM(COALESCE(?, '')))", inv.brand) == ^purchase_brand
-        ) |> Repo.all()
-      else
-        # Match on item name only (no brand filter)
-        from(sli in ShoppingListItem,
-          left_join: inv in assoc(sli, :inventory_item),
-          where: sli.household_id == ^household_id
-             and sli.purchased == false
-             and is_nil(sli.completed_at)
-             and fragment("LOWER(TRIM(COALESCE(?, ?)))", sli.name, inv.name) == ^purchase_item_name
-        ) |> Repo.all()
-      end
+      matching_items =
+        if purchase_brand != "" do
+          # Match on both item name AND brand
+          from(sli in ShoppingListItem,
+            left_join: inv in assoc(sli, :inventory_item),
+            where:
+              sli.household_id == ^household_id and
+                sli.purchased == false and
+                is_nil(sli.completed_at) and
+                fragment("LOWER(TRIM(COALESCE(?, ?)))", sli.name, inv.name) == ^purchase_item_name and
+                fragment("LOWER(TRIM(COALESCE(?, '')))", inv.brand) == ^purchase_brand
+          )
+          |> Repo.all()
+        else
+          # Match on item name only (no brand filter)
+          from(sli in ShoppingListItem,
+            left_join: inv in assoc(sli, :inventory_item),
+            where:
+              sli.household_id == ^household_id and
+                sli.purchased == false and
+                is_nil(sli.completed_at) and
+                fragment("LOWER(TRIM(COALESCE(?, ?)))", sli.name, inv.name) == ^purchase_item_name
+          )
+          |> Repo.all()
+        end
 
       now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-      affected_list_ids = Enum.map(matching_items, fn item ->
-        item
-        |> ShoppingListItem.changeset(%{completed_at: now})
-        |> Repo.update!()
-        item.shopping_list_id
-      end)
-      |> Enum.uniq()
+      affected_list_ids =
+        Enum.map(matching_items, fn item ->
+          item
+          |> ShoppingListItem.changeset(%{completed_at: now})
+          |> Repo.update!()
+
+          item.shopping_list_id
+        end)
+        |> Enum.uniq()
 
       # Check if any affected lists are now fully completed
       Enum.each(affected_list_ids, &maybe_complete_list/1)
@@ -950,15 +1029,19 @@ defmodule MegaPlanner.Inventory do
 
   defp maybe_complete_list(list_id) do
     # Count items not yet completed (no completed_at and not purchased)
-    remaining = from(sli in ShoppingListItem,
-      where: sli.shopping_list_id == ^list_id
-         and sli.purchased == false
-         and is_nil(sli.completed_at),
-      select: count(sli.id)
-    ) |> Repo.one()
+    remaining =
+      from(sli in ShoppingListItem,
+        where:
+          sli.shopping_list_id == ^list_id and
+            sli.purchased == false and
+            is_nil(sli.completed_at),
+        select: count(sli.id)
+      )
+      |> Repo.one()
 
     if remaining == 0 do
       list = Repo.get!(ShoppingList, list_id)
+
       list
       |> ShoppingList.changeset(%{status: "completed"})
       |> Repo.update!()

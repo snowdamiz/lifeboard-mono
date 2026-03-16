@@ -33,9 +33,23 @@ defmodule MegaPlanner.Receipts.Purchase do
   def changeset(purchase, attrs) do
     purchase
     |> cast(attrs, [
-      :brand, :item, :unit_measurement, :count, :count_unit, :price_per_count,
-      :units, :price_per_unit, :taxable, :tax_rate, :total_price, :store_code, :usage_mode,
-      :item_name, :household_id, :stop_id, :budget_entry_id
+      :brand,
+      :item,
+      :unit_measurement,
+      :count,
+      :count_unit,
+      :price_per_count,
+      :units,
+      :price_per_unit,
+      :taxable,
+      :tax_rate,
+      :total_price,
+      :store_code,
+      :usage_mode,
+      :item_name,
+      :household_id,
+      :stop_id,
+      :budget_entry_id
     ])
     |> validate_required([:brand, :item, :total_price, :household_id, :budget_entry_id])
     |> validate_number(:count, greater_than_or_equal_to: 0)
@@ -44,20 +58,20 @@ defmodule MegaPlanner.Receipts.Purchase do
     |> validate_number(:price_per_unit, greater_than_or_equal_to: 0)
     |> validate_number(:total_price, greater_than_or_equal_to: 0)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     |> validate_change(:stop_id, fn :stop_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Receipts.Stop, id),
-           do: [],
-           else: [stop_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Receipts.Stop, id),
+        do: [],
+        else: [stop_id: "does not exist"]
+    end)
     |> validate_change(:budget_entry_id, fn :budget_entry_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Budget.Entry, id),
-           do: [],
-           else: [budget_entry_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Budget.Entry, id),
+        do: [],
+        else: [budget_entry_id: "does not exist"]
+    end)
   end
 
   def tags_changeset(purchase, tags) do

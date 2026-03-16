@@ -20,26 +20,29 @@ household = Repo.one(from h in Household, limit: 1)
 IO.inspect(household && household.id, label: "Household ID")
 
 if household do
-  IO.puts "Testing query with ILIKE..."
+  IO.puts("Testing query with ILIKE...")
   query_str = "T"
   search_pattern = "%#{query_str}%"
-  
-  query = from t in TextTemplate,
-    where: t.household_id == ^household.id and t.field_type == "task_title" and ilike(t.value, ^search_pattern),
-    select: t.value,
-    limit: 10
+
+  query =
+    from t in TextTemplate,
+      where:
+        t.household_id == ^household.id and t.field_type == "task_title" and
+          ilike(t.value, ^search_pattern),
+      select: t.value,
+      limit: 10
 
   {sql, params} = Ecto.Adapters.SQL.to_sql(:all, Repo, query)
-  IO.puts "GENERATED SQL:"
-  IO.puts sql
+  IO.puts("GENERATED SQL:")
+  IO.puts(sql)
   IO.inspect(params, label: "PARAMS")
 
   try do
     result = Repo.all(query)
     IO.inspect(result, label: "Query Result")
   rescue
-    e -> 
-      IO.puts "ERROR CAUGHT:"
+    e ->
+      IO.puts("ERROR CAUGHT:")
       IO.inspect(e)
   end
 end

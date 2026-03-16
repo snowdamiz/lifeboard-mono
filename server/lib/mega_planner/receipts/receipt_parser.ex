@@ -12,7 +12,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
   @doc """
   Parses a receipt image and returns structured data.
-  
+
   ## Parameters
     - image_data: Base64 encoded image data (with or without data URL prefix)
     - household_id: The household ID for matching existing stores/brands
@@ -45,11 +45,11 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
   defp clean_image_data(image_data) do
     # Remove data URL prefix if present
-    clean = 
+    clean =
       image_data
       |> String.replace(~r/^data:image\/[^;]+;base64,/, "")
       |> String.trim()
-    
+
     {:ok, clean}
   end
 
@@ -57,7 +57,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     # Detect mime type from base64 header or default to jpeg
     mime_type = detect_mime_type(image_base64)
     data_url = "data:#{mime_type};base64,#{image_base64}"
-    
+
     body = %{
       model: @model,
       messages: [
@@ -93,22 +93,26 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     case Finch.request(request, MegaPlanner.Finch, receive_timeout: 60_000) do
       {:ok, %Finch.Response{status: 200, body: response_body}} ->
         {:ok, response_body}
-      
+
       {:ok, %Finch.Response{status: 429, body: _response_body}} when retry_count < 3 ->
         # Rate limited - wait and retry with exponential backoff
-        wait_time = :math.pow(2, retry_count) * 1000 |> round()
-        Logger.warning("OpenRouter API rate limited (429), retrying in #{wait_time}ms (attempt #{retry_count + 1}/3)")
+        wait_time = (:math.pow(2, retry_count) * 1000) |> round()
+
+        Logger.warning(
+          "OpenRouter API rate limited (429), retrying in #{wait_time}ms (attempt #{retry_count + 1}/3)"
+        )
+
         :timer.sleep(wait_time)
         call_openrouter_api(api_key, image_base64, retry_count + 1)
-      
+
       {:ok, %Finch.Response{status: 429, body: response_body}} ->
         Logger.error("OpenRouter API rate limit exceeded after 3 retries: #{response_body}")
         {:error, "Rate limit exceeded. Please wait a moment and try again."}
-      
+
       {:ok, %Finch.Response{status: status, body: response_body}} ->
         Logger.error("OpenRouter API error: #{status} - #{response_body}")
         {:error, "OpenRouter API returned status #{status}"}
-      
+
       {:error, reason} ->
         Logger.error("OpenRouter API request failed: #{inspect(reason)}")
         {:error, "Failed to connect to OpenRouter API: #{inspect(reason)}"}
@@ -122,14 +126,15 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
       String.starts_with?(base64_data, "iVBOR") -> "image/png"
       String.starts_with?(base64_data, "R0lGO") -> "image/gif"
       String.starts_with?(base64_data, "UklGR") -> "image/webp"
-      true -> "image/jpeg"  # Default to JPEG
+      # Default to JPEG
+      true -> "image/jpeg"
     end
   end
 
   defp build_extraction_prompt do
     """
     Analyze this receipt image and extract structured data. Return a JSON object with this exact structure:
-    
+
     {
       "store": {
         "name": "Store name from receipt header (e.g., 'Walmart', 'Costco')",
@@ -169,7 +174,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
         }
       ]
     }
-    
+
     Rules:
     - Extract as much information as possible from the receipt
     - For items without clear brands, leave brand empty or use store brand name
@@ -198,34 +203,36 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
   defp parse_api_response(response_body) do
     Logger.info("Parsing OpenRouter API response...")
-    
+
     with {:ok, response} <- Jason.decode(response_body) do
       Logger.info("Response decoded, checking structure...")
-      
+
       case response do
         # OpenAI-compatible format from OpenRouter
         %{"choices" => [%{"message" => %{"content" => json_text}} | _]} ->
           Logger.info("Found content in response, parsing JSON...")
           # The content might be the JSON directly or wrapped in markdown code blocks
-          cleaned_json = json_text
+          cleaned_json =
+            json_text
             |> String.replace(~r/```json\n?/, "")
             |> String.replace(~r/```\n?/, "")
             |> String.trim()
-          
+
           case Jason.decode(cleaned_json) do
             {:ok, parsed_data} ->
               Logger.info("JSON parsed successfully")
               {:ok, normalize_parsed_data(parsed_data)}
+
             {:error, decode_error} ->
               Logger.error("Failed to decode extracted JSON: #{inspect(decode_error)}")
               Logger.error("JSON text was: #{String.slice(cleaned_json, 0, 500)}")
               {:error, "Failed to decode receipt JSON from AI"}
           end
-        
+
         %{"error" => error_details} ->
           Logger.error("OpenRouter API returned error: #{inspect(error_details)}")
           {:error, "OpenRouter API error: #{inspect(error_details)}"}
-        
+
         other ->
           Logger.error("Unexpected response structure: #{inspect(other)}")
           {:error, "Unexpected response structure from AI"}
@@ -241,7 +248,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     items = data["items"] || []
     normalized_items = Enum.map(items, &normalize_item/1)
     combined_items = combine_duplicate_items(normalized_items)
-    
+
     %{
       store: normalize_store(data["store"] || %{}),
       transaction: normalize_transaction(data["transaction"] || %{}),
@@ -252,95 +259,119 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
   # Combine items with the same brand+item combination, summing quantities and prices
   defp combine_duplicate_items(items) do
     Logger.info("combine_duplicate_items: Starting with #{length(items)} items")
-    
-    grouped = items
-    |> Enum.group_by(fn item -> 
-      key = {String.downcase(item.brand || ""), String.downcase(item.item || "")}
-      Logger.debug("Item key: #{inspect(key)} for brand=#{item.brand}, item=#{item.item}")
-      key
-    end)
-    
-    Logger.info("combine_duplicate_items: Grouped into #{map_size(grouped)} unique brand+item combinations")
-    
-    result = grouped
-    |> Enum.map(fn {key, group} -> 
-      Logger.info("Merging group #{inspect(key)} with #{length(group)} items")
-      merge_item_group(group) 
-    end)
-    
+
+    grouped =
+      items
+      |> Enum.group_by(fn item ->
+        key = {String.downcase(item.brand || ""), String.downcase(item.item || "")}
+        Logger.debug("Item key: #{inspect(key)} for brand=#{item.brand}, item=#{item.item}")
+        key
+      end)
+
+    Logger.info(
+      "combine_duplicate_items: Grouped into #{map_size(grouped)} unique brand+item combinations"
+    )
+
+    result =
+      grouped
+      |> Enum.map(fn {key, group} ->
+        Logger.info("Merging group #{inspect(key)} with #{length(group)} items")
+        merge_item_group(group)
+      end)
+
     Logger.info("combine_duplicate_items: Returning #{length(result)} combined items")
     result
   end
 
   defp merge_item_group([single_item]), do: single_item
+
   defp merge_item_group(items) do
     Logger.info("merge_item_group: Merging #{length(items)} items together")
     # Take the first item as base and combine quantities/prices from others
     base = hd(items)
-    
-    total_quantity = items
-    |> Enum.map(fn item -> 
-      qty = item.quantity || 1
-      Logger.info("  - Item quantity: #{qty}")
-      qty
-    end)
-    |> Enum.sum()
-    
+
+    total_quantity =
+      items
+      |> Enum.map(fn item ->
+        qty = item.quantity || 1
+        Logger.info("  - Item quantity: #{qty}")
+        qty
+      end)
+      |> Enum.sum()
+
     Logger.info("  Total quantity: #{total_quantity}")
-    
-    total_price = items
-    |> Enum.map(fn item -> 
-      case item.total_price do
-        nil -> 0
-        "" -> 0
-        price when is_binary(price) -> 
-          case Float.parse(price) do
-            {val, _} -> val
-            :error -> 0
-          end
-        price when is_number(price) -> price
-      end
-    end)
-    |> Enum.sum()
-    
-    total_tax = items
-    |> Enum.map(fn item -> 
-      case item.tax_amount do
-        nil -> 0
-        "" -> 0
-        tax when is_binary(tax) -> 
-          case Float.parse(tax) do
-            {val, _} -> val
-            :error -> 0
-          end
-        tax when is_number(tax) -> tax
-      end
-    end)
-    |> Enum.sum()
-    
+
+    total_price =
+      items
+      |> Enum.map(fn item ->
+        case item.total_price do
+          nil ->
+            0
+
+          "" ->
+            0
+
+          price when is_binary(price) ->
+            case Float.parse(price) do
+              {val, _} -> val
+              :error -> 0
+            end
+
+          price when is_number(price) ->
+            price
+        end
+      end)
+      |> Enum.sum()
+
+    total_tax =
+      items
+      |> Enum.map(fn item ->
+        case item.tax_amount do
+          nil ->
+            0
+
+          "" ->
+            0
+
+          tax when is_binary(tax) ->
+            case Float.parse(tax) do
+              {val, _} -> val
+              :error -> 0
+            end
+
+          tax when is_number(tax) ->
+            tax
+        end
+      end)
+      |> Enum.sum()
+
     # Combine raw_text from all items
-    combined_raw = items
-    |> Enum.map(fn item -> item.raw_text end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" | ")
-    
-    %{base | 
-      quantity: total_quantity,
-      total_price: :erlang.float_to_binary(total_price, decimals: 2),
-      tax_amount: if(total_tax > 0, do: :erlang.float_to_binary(total_tax, decimals: 2), else: nil),
-      raw_text: if(combined_raw != "", do: combined_raw, else: base.raw_text)
+    combined_raw =
+      items
+      |> Enum.map(fn item -> item.raw_text end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" | ")
+
+    %{
+      base
+      | quantity: total_quantity,
+        total_price: :erlang.float_to_binary(total_price, decimals: 2),
+        tax_amount:
+          if(total_tax > 0, do: :erlang.float_to_binary(total_tax, decimals: 2), else: nil),
+        raw_text: if(combined_raw != "", do: combined_raw, else: base.raw_text)
     }
   end
 
   defp normalize_store(store) do
     # Use store_code if present, otherwise fall back to store_id
     # The AI typically puts the store number in store_id, and store_code is often nil
-    store_code = case store["store_code"] do
-      nil -> store["store_id"]
-      "" -> store["store_id"]
-      code -> code
-    end
-    
+    store_code =
+      case store["store_code"] do
+        nil -> store["store_id"]
+        "" -> store["store_id"]
+        code -> code
+      end
+
     %{
       name: store["name"],
       store_id: store["store_id"],
@@ -362,10 +393,10 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     city = store["city"]
     state = store["state"]
     zip = store["zip_code"]
-    
+
     if street do
       street_part = if suite && suite != "", do: "#{street} #{suite}", else: street
-      
+
       # Build address as: Street, City, State, ZIP (all comma-separated)
       [street_part, city, state, zip]
       |> Enum.reject(&(is_nil(&1) || &1 == ""))
@@ -414,6 +445,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
   """
   def to_title_case(nil), do: ""
   def to_title_case(""), do: ""
+
   def to_title_case(text) when is_binary(text) do
     text
     |> String.split(~r/\s+/)
@@ -423,6 +455,7 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
   defp format_word(word) do
     upper_word = String.upcase(word)
+
     if upper_word in @acronyms do
       upper_word
     else
@@ -436,7 +469,6 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     end
   end
 
-
   @doc """
   Enriches parsed data with matches from existing database records.
   Marks stores and brands as new or existing.
@@ -445,34 +477,37 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
   """
   def enrich_with_matches(parsed_data, household_id) do
     alias MegaPlanner.Receipts
-    
+
     # Try to match store
     store_match = find_matching_store(parsed_data.store, household_id)
     store_name = parsed_data.store[:name] || ""
-    
+
     # Try to match brands in items and apply format corrections
-    enriched_items = Enum.map(parsed_data.items, fn item ->
-      brand_match = find_matching_brand(item.brand, household_id)
-      unit_match = find_matching_unit(item.unit, household_id)
-      
-      # Apply any stored format corrections based on raw_text
-      corrected_item = apply_format_correction(item, household_id)
-      
-      # Apply learned tax indicator meanings for this store
-      corrected_item = Receipts.apply_tax_indicator_meaning(corrected_item, household_id, store_name)
-      
-      corrected_item
-      |> Map.put(:brand_is_new, is_nil(brand_match))
-      |> Map.put(:brand_id, brand_match && brand_match.id)
-      |> Map.put(:unit_is_new, is_nil(unit_match))
-      |> Map.put(:unit_id, unit_match && unit_match.id)
-    end)
+    enriched_items =
+      Enum.map(parsed_data.items, fn item ->
+        brand_match = find_matching_brand(item.brand, household_id)
+        unit_match = find_matching_unit(item.unit, household_id)
+
+        # Apply any stored format corrections based on raw_text
+        corrected_item = apply_format_correction(item, household_id)
+
+        # Apply learned tax indicator meanings for this store
+        corrected_item =
+          Receipts.apply_tax_indicator_meaning(corrected_item, household_id, store_name)
+
+        corrected_item
+        |> Map.put(:brand_is_new, is_nil(brand_match))
+        |> Map.put(:brand_id, brand_match && brand_match.id)
+        |> Map.put(:unit_is_new, is_nil(unit_match))
+        |> Map.put(:unit_id, unit_match && unit_match.id)
+      end)
 
     result = %{
-      store: Map.merge(parsed_data.store, %{
-        is_new: is_nil(store_match),
-        id: store_match && store_match.id
-      }),
+      store:
+        Map.merge(parsed_data.store, %{
+          is_new: is_nil(store_match),
+          id: store_match && store_match.id
+        }),
       transaction: parsed_data.transaction,
       items: enriched_items
     }
@@ -482,7 +517,9 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
   defp apply_format_correction(item, household_id) do
     case find_format_correction(item.raw_text, household_id) do
-      nil -> item
+      nil ->
+        item
+
       correction ->
         item
         |> maybe_apply_correction(:brand, correction.corrected_brand)
@@ -494,21 +531,28 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
   end
 
   defp maybe_apply_quantity_correction(item, nil), do: item
-  defp maybe_apply_quantity_correction(item, quantity) when is_integer(quantity) and quantity > 0 do
+
+  defp maybe_apply_quantity_correction(item, quantity)
+       when is_integer(quantity) and quantity > 0 do
     Map.put(item, :quantity, quantity)
   end
+
   defp maybe_apply_quantity_correction(item, _), do: item
 
   defp maybe_apply_unit_quantity_correction(item, nil), do: item
+
   defp maybe_apply_unit_quantity_correction(item, %Decimal{} = unit_quantity) do
     Map.put(item, :unit_quantity, Decimal.to_string(unit_quantity))
   end
+
   defp maybe_apply_unit_quantity_correction(item, unit_quantity) when is_number(unit_quantity) do
     Map.put(item, :unit_quantity, to_string(unit_quantity))
   end
+
   defp maybe_apply_unit_quantity_correction(item, unit_quantity) when is_binary(unit_quantity) do
     Map.put(item, :unit_quantity, unit_quantity)
   end
+
   defp maybe_apply_unit_quantity_correction(item, _), do: item
 
   defp maybe_apply_correction(item, _field, nil), do: item
@@ -517,22 +561,24 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
   defp find_format_correction(nil, _household_id), do: nil
   defp find_format_correction("", _household_id), do: nil
+
   defp find_format_correction(raw_text, household_id) do
     import Ecto.Query
     alias MegaPlanner.Receipts.FormatCorrection
     alias MegaPlanner.Repo
 
-    query = from fc in FormatCorrection,
-      where: fc.household_id == ^household_id,
-      where: fragment("LOWER(?) = LOWER(?)", fc.raw_text, ^raw_text),
-      limit: 1
+    query =
+      from fc in FormatCorrection,
+        where: fc.household_id == ^household_id,
+        where: fragment("LOWER(?) = LOWER(?)", fc.raw_text, ^raw_text),
+        limit: 1
 
     Repo.one(query)
   end
 
-
   defp find_matching_store(%{name: nil}, _household_id), do: nil
   defp find_matching_store(%{name: ""}, _household_id), do: nil
+
   defp find_matching_store(%{name: store_name} = store_data, household_id) do
     import Ecto.Query
     alias MegaPlanner.Receipts.Store
@@ -540,8 +586,13 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
 
     # Priority 1: Match by store_id (most reliable)
     store_id = store_data[:store_id]
+
     if store_id && store_id != "" do
-      case Repo.one(from s in Store, where: s.household_id == ^household_id and s.store_id == ^store_id, limit: 1) do
+      case Repo.one(
+             from s in Store,
+               where: s.household_id == ^household_id and s.store_id == ^store_id,
+               limit: 1
+           ) do
         nil -> find_store_by_name_and_address(store_name, store_data, household_id)
         store -> store
       end
@@ -558,14 +609,16 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     # Priority 2: Match by name + street + city
     street = store_data[:street]
     city = store_data[:city]
-    
+
     if street && street != "" && city && city != "" do
-      case Repo.one(from s in Store, 
-        where: s.household_id == ^household_id,
-        where: fragment("LOWER(?) = LOWER(?)", s.name, ^store_name),
-        where: fragment("LOWER(?) = LOWER(?)", s.street, ^street),
-        where: fragment("LOWER(?) = LOWER(?)", s.city, ^city),
-        limit: 1) do
+      case Repo.one(
+             from s in Store,
+               where: s.household_id == ^household_id,
+               where: fragment("LOWER(?) = LOWER(?)", s.name, ^store_name),
+               where: fragment("LOWER(?) = LOWER(?)", s.street, ^street),
+               where: fragment("LOWER(?) = LOWER(?)", s.city, ^city),
+               limit: 1
+           ) do
         nil -> find_store_by_name_only(store_name, store_data, household_id)
         store -> store
       end
@@ -580,51 +633,62 @@ defmodule MegaPlanner.Receipts.ReceiptParser do
     alias MegaPlanner.Repo
 
     # Priority 3: Match by name only
-    case Repo.one(from s in Store, 
-      where: s.household_id == ^household_id,
-      where: fragment("LOWER(?) = LOWER(?)", s.name, ^store_name),
-      limit: 1) do
+    case Repo.one(
+           from s in Store,
+             where: s.household_id == ^household_id,
+             where: fragment("LOWER(?) = LOWER(?)", s.name, ^store_name),
+             limit: 1
+         ) do
       nil ->
         # Final fallback: Try store_code if available
         store_code = store_data[:store_code]
+
         if store_code && store_code != "" do
-          Repo.one(from s in Store,
-            where: s.household_id == ^household_id,
-            where: s.store_code == ^store_code,
-            limit: 1)
+          Repo.one(
+            from s in Store,
+              where: s.household_id == ^household_id,
+              where: s.store_code == ^store_code,
+              limit: 1
+          )
         else
           nil
         end
-      store -> store
+
+      store ->
+        store
     end
   end
 
   defp find_matching_brand(nil, _household_id), do: nil
   defp find_matching_brand("", _household_id), do: nil
+
   defp find_matching_brand(brand_name, household_id) do
     import Ecto.Query
     alias MegaPlanner.Receipts.Brand
     alias MegaPlanner.Repo
 
-    query = from b in Brand,
-      where: b.household_id == ^household_id,
-      where: fragment("LOWER(?) = LOWER(?)", b.name, ^brand_name),
-      limit: 1
+    query =
+      from b in Brand,
+        where: b.household_id == ^household_id,
+        where: fragment("LOWER(?) = LOWER(?)", b.name, ^brand_name),
+        limit: 1
 
     Repo.one(query)
   end
 
   defp find_matching_unit(nil, _household_id), do: nil
   defp find_matching_unit("", _household_id), do: nil
+
   defp find_matching_unit(unit_name, household_id) do
     import Ecto.Query
     alias MegaPlanner.Receipts.Unit
     alias MegaPlanner.Repo
 
-    query = from u in Unit,
-      where: u.household_id == ^household_id,
-      where: fragment("LOWER(?) = LOWER(?)", u.name, ^unit_name),
-      limit: 1
+    query =
+      from u in Unit,
+        where: u.household_id == ^household_id,
+        where: fragment("LOWER(?) = LOWER(?)", u.name, ^unit_name),
+        limit: 1
 
     Repo.one(query)
   end

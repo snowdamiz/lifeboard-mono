@@ -24,9 +24,9 @@ defmodule MegaPlanner.Accounts.UserPreferences do
     |> validate_inclusion(:theme, ["light", "dark", "system"])
     |> unique_constraint(:user_id)
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
   end
 end

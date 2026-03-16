@@ -1,4 +1,3 @@
-
 # Start dependencies
 {:ok, _} = Application.ensure_all_started(:telemetry)
 {:ok, _} = Application.ensure_all_started(:ecto)
@@ -20,12 +19,14 @@ store = Repo.get_by(Store, name: "1")
 
 if store do
   IO.puts("Updating Store '1' with code 'CODE1'...")
+
   store
   |> change(store_code: "CODE1")
   |> Repo.update()
   |> case do
     {:ok, updated_store} ->
       IO.puts("Success! Store Code is now: #{updated_store.store_code}")
+
     {:error, changeset} ->
       IO.inspect(changeset.errors, label: "Error updating store")
   end

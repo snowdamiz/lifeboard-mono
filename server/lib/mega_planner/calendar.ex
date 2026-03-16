@@ -18,28 +18,42 @@ defmodule MegaPlanner.Calendar do
   """
   def list_tasks(household_id, opts \\ []) do
     Logger.debug("[LIST_TASKS] household=#{household_id} opts=#{inspect(opts)}")
-    query = from t in Task,
-      where: t.household_id == ^household_id,
-      order_by: [asc: t.date, asc: t.start_time, asc: t.priority]
 
-    results = query
-    |> filter_by_date_range(opts)
-    |> filter_by_status(opts)
-    |> filter_by_tags(opts)
-    |> Repo.all()
-    |> Repo.preload(@task_preloads)
+    query =
+      from t in Task,
+        where: t.household_id == ^household_id,
+        order_by: [asc: t.date, asc: t.start_time, asc: t.priority]
+
+    results =
+      query
+      |> filter_by_date_range(opts)
+      |> filter_by_status(opts)
+      |> filter_by_tags(opts)
+      |> Repo.all()
+      |> Repo.preload(@task_preloads)
 
     trip_tasks = Enum.filter(results, & &1.trip_id)
-    Logger.debug("[LIST_TASKS] Found #{length(results)} tasks, #{length(trip_tasks)} with trip_id: #{inspect(Enum.map(trip_tasks, fn t -> %{id: t.id, title: t.title, date: t.date, trip_id: t.trip_id} end))}")
+
+    Logger.debug(
+      "[LIST_TASKS] Found #{length(results)} tasks, #{length(trip_tasks)} with trip_id: #{inspect(Enum.map(trip_tasks, fn t -> %{id: t.id, title: t.title, date: t.date, trip_id: t.trip_id} end))}"
+    )
+
     results
   end
 
   defp filter_by_date_range(query, opts) do
     case {Keyword.get(opts, :start_date), Keyword.get(opts, :end_date)} do
-      {nil, nil} -> query
-      {start_date, nil} -> from t in query, where: t.date >= ^start_date
-      {nil, end_date} -> from t in query, where: t.date <= ^end_date
-      {start_date, end_date} -> from t in query, where: t.date >= ^start_date and t.date <= ^end_date
+      {nil, nil} ->
+        query
+
+      {start_date, nil} ->
+        from t in query, where: t.date >= ^start_date
+
+      {nil, end_date} ->
+        from t in query, where: t.date <= ^end_date
+
+      {start_date, end_date} ->
+        from t in query, where: t.date >= ^start_date and t.date <= ^end_date
     end
   end
 
@@ -53,8 +67,12 @@ defmodule MegaPlanner.Calendar do
 
   defp filter_by_tags(query, opts) do
     case Keyword.get(opts, :tag_ids) do
-      nil -> query
-      [] -> query
+      nil ->
+        query
+
+      [] ->
+        query
+
       tag_ids when is_list(tag_ids) ->
         from t in query,
           join: tag in assoc(t, :tags),
@@ -106,12 +124,17 @@ defmodule MegaPlanner.Calendar do
       {:error, :trip_not_found}
     else
       title = generate_trip_task_title(trip)
-      date = if trip.trip_start, do: DateTime.to_date(trip.trip_start), else: Keyword.get(opts, :date, Date.utc_today())
+
+      date =
+        if trip.trip_start,
+          do: DateTime.to_date(trip.trip_start),
+          else: Keyword.get(opts, :date, Date.utc_today())
 
       case get_task_by_trip_id(trip_id) do
         nil ->
           # No task exists for this trip — create one
           Logger.debug("[ENSURE_TASK] Creating task for trip #{trip_id}: \"#{title}\" on #{date}")
+
           task_attrs = %{
             "title" => title,
             "date" => date && Date.to_iso8601(date),
@@ -121,24 +144,37 @@ defmodule MegaPlanner.Calendar do
             "user_id" => user_id,
             "trip_id" => trip_id
           }
+
           case create_task(task_attrs) do
-            {:ok, task} -> {:ok, task}
+            {:ok, task} ->
+              {:ok, task}
+
             {:error, %Ecto.Changeset{} = changeset} ->
               # If uniqueness violation (same title+date already exists), try with a suffix
               if Keyword.has_key?(changeset.errors, :title) do
                 Logger.debug("[ENSURE_TASK] Title conflict, trying with time suffix")
-                time_suffix = if trip.trip_start, do: Calendar.strftime(trip.trip_start, " (%H:%M)"), else: " (#{:rand.uniform(999)})"
+
+                time_suffix =
+                  if trip.trip_start,
+                    do: Calendar.strftime(trip.trip_start, " (%H:%M)"),
+                    else: " (#{:rand.uniform(999)})"
+
                 create_task(Map.put(task_attrs, "title", title <> time_suffix))
               else
                 {:error, changeset}
               end
-            error -> error
+
+            error ->
+              error
           end
 
         existing_task ->
           # Task already exists — update the title if it changed
           if existing_task.title != title do
-            Logger.debug("[ENSURE_TASK] Updating task #{existing_task.id} title: \"#{existing_task.title}\" -> \"#{title}\"")
+            Logger.debug(
+              "[ENSURE_TASK] Updating task #{existing_task.id} title: \"#{existing_task.title}\" -> \"#{title}\""
+            )
+
             update_task(existing_task, %{"title" => title})
           else
             Logger.debug("[ENSURE_TASK] Task #{existing_task.id} already up to date")
@@ -158,7 +194,8 @@ defmodule MegaPlanner.Calendar do
   - Multiple stores: "Purchases from Walmart, Target"
   """
   def generate_trip_task_title(trip) do
-    stores = (trip.stops || [])
+    stores =
+      (trip.stops || [])
       |> Enum.map(fn stop ->
         cond do
           stop.store_name && stop.store_name != "" -> stop.store_name
@@ -169,9 +206,12 @@ defmodule MegaPlanner.Calendar do
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-    total_purchases = Enum.sum(Enum.map(trip.stops || [], fn s ->
-      length(s.purchases || [])
-    end))
+    total_purchases =
+      Enum.sum(
+        Enum.map(trip.stops || [], fn s ->
+          length(s.purchases || [])
+        end)
+      )
 
     case {stores, total_purchases} do
       {[], _} -> "Shopping Trip"
@@ -194,12 +234,15 @@ defmodule MegaPlanner.Calendar do
 
     case result do
       {:ok, task} ->
-        task = if tag_ids && length(tag_ids) > 0 do
-          update_task_tags_internal(task, tag_ids)
-        else
-          task
-        end
+        task =
+          if tag_ids && length(tag_ids) > 0 do
+            update_task_tags_internal(task, tag_ids)
+          else
+            task
+          end
+
         {:ok, Repo.preload(task, @task_preloads, force: true)}
+
       error ->
         error
     end
@@ -219,18 +262,20 @@ defmodule MegaPlanner.Calendar do
 
     case result do
       {:ok, task} ->
-        task = if tag_ids != nil do
-          update_task_tags_internal(task, tag_ids)
-        else
-          task
-        end
+        task =
+          if tag_ids != nil do
+            update_task_tags_internal(task, tag_ids)
+          else
+            task
+          end
 
         # Propagate date changes to Trip and Budget Entries
         if task.trip_id && (task.date != old_task.date || task.start_time != old_task.start_time) do
-           MegaPlanner.Receipts.update_trip_date(task.trip_id, task.date, task.start_time)
+          MegaPlanner.Receipts.update_trip_date(task.trip_id, task.date, task.start_time)
         end
 
         {:ok, Repo.preload(task, @task_preloads, force: true)}
+
       error ->
         error
     end
@@ -246,7 +291,8 @@ defmodule MegaPlanner.Calendar do
 
   defp update_task_tags_internal(task, tag_ids) when is_list(tag_ids) do
     # Ensure we only fetch tags that belong to the same household as the task
-    tags = Repo.all(from t in Tag, where: t.id in ^tag_ids and t.household_id == ^task.household_id)
+    tags =
+      Repo.all(from t in Tag, where: t.id in ^tag_ids and t.household_id == ^task.household_id)
 
     task
     |> Repo.preload(:tags)

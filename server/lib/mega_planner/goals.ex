@@ -5,7 +5,18 @@ defmodule MegaPlanner.Goals do
 
   import Ecto.Query, warn: false
   alias MegaPlanner.Repo
-  alias MegaPlanner.Goals.{Goal, GoalCategory, GoalStatusChange, Milestone, Habit, HabitCompletion, HabitInventory, MilestoneTemplate}
+
+  alias MegaPlanner.Goals.{
+    Goal,
+    GoalCategory,
+    GoalStatusChange,
+    Milestone,
+    Habit,
+    HabitCompletion,
+    HabitInventory,
+    MilestoneTemplate
+  }
+
   alias MegaPlanner.Tags.Tag
 
   # ============================================================================
@@ -179,11 +190,15 @@ defmodule MegaPlanner.Goals do
       {:ok, updated_goal} ->
         # Track status change if status was modified
         new_status = updated_goal.status
+
         if old_status != new_status do
           record_status_change(goal.id, old_status, new_status, user_id)
         end
+
         {:ok, Repo.preload(updated_goal, @goal_preloads, force: true)}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -287,11 +302,12 @@ defmodule MegaPlanner.Goals do
 
     progress = if total > 0, do: round(completed / total * 100), else: 0
 
-    status = cond do
-      progress == 100 -> "completed"
-      progress > 0 -> "in_progress"
-      true -> goal.status
-    end
+    status =
+      cond do
+        progress == 100 -> "completed"
+        progress > 0 -> "in_progress"
+        true -> goal.status
+      end
 
     update_goal(goal, %{progress: progress, status: status})
   end
@@ -341,6 +357,7 @@ defmodule MegaPlanner.Goals do
         goal = get_goal(goal_id)
         update_goal_progress(goal)
         {:ok, milestone}
+
       error ->
         error
     end
@@ -361,6 +378,7 @@ defmodule MegaPlanner.Goals do
         goal = get_goal(milestone.goal_id)
         update_goal_progress(goal)
         {:ok, updated_milestone}
+
       error ->
         error
     end
@@ -370,11 +388,12 @@ defmodule MegaPlanner.Goals do
   Toggles milestone completion.
   """
   def toggle_milestone(%Milestone{} = milestone) do
-    changeset = if milestone.completed do
-      Milestone.uncomplete_changeset(milestone)
-    else
-      Milestone.complete_changeset(milestone)
-    end
+    changeset =
+      if milestone.completed do
+        Milestone.uncomplete_changeset(milestone)
+      else
+        Milestone.complete_changeset(milestone)
+      end
 
     result = Repo.update(changeset)
 
@@ -383,6 +402,7 @@ defmodule MegaPlanner.Goals do
         goal = get_goal(milestone.goal_id)
         update_goal_progress(goal)
         {:ok, updated_milestone}
+
       error ->
         error
     end
@@ -400,6 +420,7 @@ defmodule MegaPlanner.Goals do
         goal = get_goal(goal_id)
         if goal, do: update_goal_progress(goal)
         result
+
       error ->
         error
     end
@@ -417,10 +438,11 @@ defmodule MegaPlanner.Goals do
   def list_habits(household_id, opts \\ []) do
     tag_ids = Keyword.get(opts, :tag_ids)
 
-    query = from(h in Habit,
-      where: h.household_id == ^household_id,
-      order_by: [desc: h.inserted_at]
-    )
+    query =
+      from(h in Habit,
+        where: h.household_id == ^household_id,
+        order_by: [desc: h.inserted_at]
+      )
 
     query =
       if tag_ids && length(tag_ids) > 0 do
@@ -468,12 +490,15 @@ defmodule MegaPlanner.Goals do
 
     case result do
       {:ok, habit} ->
-        habit = if tag_ids && length(tag_ids) > 0 do
-          update_habit_tags_internal(habit, tag_ids)
-        else
-          habit
-        end
+        habit =
+          if tag_ids && length(tag_ids) > 0 do
+            update_habit_tags_internal(habit, tag_ids)
+          else
+            habit
+          end
+
         {:ok, Repo.preload(habit, @habit_preloads, force: true)}
+
       error ->
         error
     end
@@ -492,12 +517,15 @@ defmodule MegaPlanner.Goals do
 
     case result do
       {:ok, habit} ->
-        habit = if tag_ids != nil do
-          update_habit_tags_internal(habit, tag_ids)
-        else
-          habit
-        end
+        habit =
+          if tag_ids != nil do
+            update_habit_tags_internal(habit, tag_ids)
+          else
+            habit
+          end
+
         {:ok, Repo.preload(habit, @habit_preloads, force: true)}
+
       error ->
         error
     end
@@ -553,11 +581,12 @@ defmodule MegaPlanner.Goals do
           |> Repo.insert()
 
         # Only update streak if completing for today
-        habit = if date == Date.utc_today() do
-          update_habit_streak(habit)
-        else
-          habit
-        end
+        habit =
+          if date == Date.utc_today() do
+            update_habit_streak(habit)
+          else
+            habit
+          end
 
         {completion, habit}
       end)
@@ -573,14 +602,17 @@ defmodule MegaPlanner.Goals do
     case Repo.get_by(HabitCompletion, habit_id: habit.id, date: date) do
       nil ->
         {:error, :not_completed}
+
       completion ->
         Repo.delete(completion)
         # Recalculate streak only if uncompleting today
-        habit = if date == Date.utc_today() do
-          recalculate_habit_streak(habit)
-        else
-          habit
-        end
+        habit =
+          if date == Date.utc_today() do
+            recalculate_habit_streak(habit)
+          else
+            habit
+          end
+
         {:ok, habit}
     end
   end
@@ -618,47 +650,62 @@ defmodule MegaPlanner.Goals do
   Gets analytics data for habits in a date range.
   Returns aggregated data for reporting.
   """
-  def get_habit_analytics(household_id, start_date, end_date, habit_id \\ nil, inventory_id \\ nil, tag_ids \\ nil, status_filter \\ nil) do
+  def get_habit_analytics(
+        household_id,
+        start_date,
+        end_date,
+        habit_id \\ nil,
+        inventory_id \\ nil,
+        tag_ids \\ nil,
+        status_filter \\ nil
+      ) do
     # Base query for completions - using explicit bindings
-    base_query = from c in HabitCompletion,
-      join: h in Habit, on: c.habit_id == h.id,
-      where: h.household_id == ^household_id,
-      where: c.date >= ^start_date and c.date <= ^end_date,
-      preload: [habit: :tags]
+    base_query =
+      from c in HabitCompletion,
+        join: h in Habit,
+        on: c.habit_id == h.id,
+        where: h.household_id == ^household_id,
+        where: c.date >= ^start_date and c.date <= ^end_date,
+        preload: [habit: :tags]
 
     # Filter by specific habit if provided
-    base_query = if habit_id do
-      from [c, h] in base_query, where: c.habit_id == ^habit_id
-    else
-      base_query
-    end
+    base_query =
+      if habit_id do
+        from [c, h] in base_query, where: c.habit_id == ^habit_id
+      else
+        base_query
+      end
 
     # Filter by inventory if provided
-    base_query = if inventory_id do
-      from [c, h] in base_query, where: h.inventory_id == ^inventory_id
-    else
-      base_query
-    end
+    base_query =
+      if inventory_id do
+        from [c, h] in base_query, where: h.inventory_id == ^inventory_id
+      else
+        base_query
+      end
 
     # Filter by tags if provided
-    base_query = if tag_ids && length(tag_ids) > 0 do
-      from [c, h] in base_query,
-        join: t in assoc(h, :tags),
-        where: t.id in ^tag_ids,
-        distinct: true
-    else
-      base_query
-    end
+    base_query =
+      if tag_ids && length(tag_ids) > 0 do
+        from [c, h] in base_query,
+          join: t in assoc(h, :tags),
+          where: t.id in ^tag_ids,
+          distinct: true
+      else
+        base_query
+      end
 
     # Get all completions
     completions = Repo.all(base_query)
 
     # Filter by status if provided
-    completions = case status_filter do
-      "completed" -> Enum.filter(completions, &(&1.status == "completed"))
-      "skipped" -> Enum.filter(completions, &(&1.status == "skipped"))
-      _ -> completions  # nil or "all" returns everything
-    end
+    completions =
+      case status_filter do
+        "completed" -> Enum.filter(completions, &(&1.status == "completed"))
+        "skipped" -> Enum.filter(completions, &(&1.status == "skipped"))
+        # nil or "all" returns everything
+        _ -> completions
+      end
 
     # Calculate metrics
     total_count = length(completions)
@@ -666,37 +713,42 @@ defmodule MegaPlanner.Goals do
     skipped_count = Enum.count(completions, &(&1.status == "skipped"))
 
     # Completion rate by day
-    completions_by_day = Enum.group_by(completions, &(&1.date))
-    |> Enum.map(fn {date, day_completions} ->
-      completed = Enum.count(day_completions, &(&1.status == "completed"))
-      total = length(day_completions)
-      %{
-        date: date,
-        completed: completed,
-        skipped: total - completed,
-        total: total,
-        completion_rate: if(total > 0, do: Float.round(completed / total * 100, 1), else: 0)
-      }
-    end)
-    |> Enum.sort_by(&(&1.date), Date)
+    completions_by_day =
+      Enum.group_by(completions, & &1.date)
+      |> Enum.map(fn {date, day_completions} ->
+        completed = Enum.count(day_completions, &(&1.status == "completed"))
+        total = length(day_completions)
+
+        %{
+          date: date,
+          completed: completed,
+          skipped: total - completed,
+          total: total,
+          completion_rate: if(total > 0, do: Float.round(completed / total * 100, 1), else: 0)
+        }
+      end)
+      |> Enum.sort_by(& &1.date, Date)
 
     # Skip reasons frequency
-    skip_reasons = completions
-    |> Enum.filter(&(&1.status == "skipped"))
-    |> Enum.map(&(&1.not_today_reason))
-    |> Enum.frequencies()
-    |> Enum.map(fn {reason, count} -> %{reason: reason, count: count} end)
-    |> Enum.sort_by(&(&1.count), :desc)
+    skip_reasons =
+      completions
+      |> Enum.filter(&(&1.status == "skipped"))
+      |> Enum.map(& &1.not_today_reason)
+      |> Enum.frequencies()
+      |> Enum.map(fn {reason, count} -> %{reason: reason, count: count} end)
+      |> Enum.sort_by(& &1.count, :desc)
 
     # Habits per day
-    habits_per_day = completions_by_day
-    |> Enum.map(fn day -> %{date: day.date, count: day.completed} end)
+    habits_per_day =
+      completions_by_day
+      |> Enum.map(fn day -> %{date: day.date, count: day.completed} end)
 
     %{
       total_entries: total_count,
       completed_count: completed_count,
       skipped_count: skipped_count,
-      completion_rate: if(total_count > 0, do: Float.round(completed_count / total_count * 100, 1), else: 0),
+      completion_rate:
+        if(total_count > 0, do: Float.round(completed_count / total_count * 100, 1), else: 0),
       completions_by_day: completions_by_day,
       skip_reasons: skip_reasons,
       habits_per_day: habits_per_day
@@ -720,7 +772,8 @@ defmodule MegaPlanner.Goals do
   """
   def get_household_habit_completions(household_id, start_date, end_date) do
     from(c in HabitCompletion,
-      join: h in Habit, on: c.habit_id == h.id,
+      join: h in Habit,
+      on: c.habit_id == h.id,
       where: h.household_id == ^household_id,
       where: c.date >= ^start_date and c.date <= ^end_date,
       order_by: [desc: c.date],
@@ -733,8 +786,9 @@ defmodule MegaPlanner.Goals do
   Checks if a habit is completed for a specific date.
   """
   def habit_completed_on?(habit_id, date) do
-    Repo.exists?(from c in HabitCompletion,
-      where: c.habit_id == ^habit_id and c.date == ^date and c.status == "completed"
+    Repo.exists?(
+      from c in HabitCompletion,
+        where: c.habit_id == ^habit_id and c.date == ^date and c.status == "completed"
     )
   end
 
@@ -747,11 +801,13 @@ defmodule MegaPlanner.Goals do
     # Check if yesterday was completed (or if this is first completion)
     yesterday_completed = habit_completed_on?(habit.id, yesterday)
 
-    new_streak = if yesterday_completed or habit.streak_count == 0 do
-      habit.streak_count + 1
-    else
-      1  # Reset streak
-    end
+    new_streak =
+      if yesterday_completed or habit.streak_count == 0 do
+        habit.streak_count + 1
+      else
+        # Reset streak
+        1
+      end
 
     longest = max(new_streak, habit.longest_streak)
 
@@ -802,6 +858,7 @@ defmodule MegaPlanner.Goals do
     else
       # Allow one day gap for "yesterday" logic
       yesterday = Date.add(date, -1)
+
       if MapSet.member?(dates, yesterday) and count == 0 do
         count_consecutive(dates, yesterday, 0)
       else
@@ -831,25 +888,28 @@ defmodule MegaPlanner.Goals do
   """
   def suggest_milestone_titles(household_id, query) do
     # Query for existing milestones used in goals
-    milestones_query = from(m in Milestone,
-      join: g in assoc(m, :goal),
-      where: g.household_id == ^household_id and like(m.title, ^"%#{query}%"),
-      select: m.title
-    )
+    milestones_query =
+      from(m in Milestone,
+        join: g in assoc(m, :goal),
+        where: g.household_id == ^household_id and like(m.title, ^"%#{query}%"),
+        select: m.title
+      )
 
     # Query for saved templates
-    templates_query = from(t in MilestoneTemplate,
-      where: t.household_id == ^household_id and like(t.title, ^"%#{query}%"),
-      select: t.title
-    )
+    templates_query =
+      from(t in MilestoneTemplate,
+        where: t.household_id == ^household_id and like(t.title, ^"%#{query}%"),
+        select: t.title
+      )
 
     # Union the two queries to get distinct results
-    union_query = from(q in subquery(union(milestones_query, ^templates_query)),
-      select: q.title,
-      distinct: true,
-      order_by: [asc: q.title],
-      limit: 10
-    )
+    union_query =
+      from(q in subquery(union(milestones_query, ^templates_query)),
+        select: q.title,
+        distinct: true,
+        order_by: [asc: q.title],
+        limit: 10
+      )
 
     Repo.all(union_query)
   end
@@ -890,17 +950,20 @@ defmodule MegaPlanner.Goals do
   """
   def create_habit_inventory(attrs \\ %{}) do
     # Get next position
-    position = case attrs["household_id"] do
-      nil -> 0
-      household_id ->
-        from(i in HabitInventory,
-          where: i.household_id == ^household_id,
-          select: max(i.position)
-        )
-        |> Repo.one()
-        |> Kernel.||(0)
-        |> Kernel.+(1)
-    end
+    position =
+      case attrs["household_id"] do
+        nil ->
+          0
+
+        household_id ->
+          from(i in HabitInventory,
+            where: i.household_id == ^household_id,
+            select: max(i.position)
+          )
+          |> Repo.one()
+          |> Kernel.||(0)
+          |> Kernel.+(1)
+      end
 
     attrs = Map.put(attrs, "position", position)
 

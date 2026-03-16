@@ -14,7 +14,11 @@ defmodule MegaPlanner.Budget do
   Returns the list of budget sources for a household.
   """
   def list_sources(household_id) do
-    from(s in Source, where: s.household_id == ^household_id, order_by: [asc: s.name], preload: [:tag_objects])
+    from(s in Source,
+      where: s.household_id == ^household_id,
+      order_by: [asc: s.name],
+      preload: [:tag_objects]
+    )
     |> Repo.all()
   end
 
@@ -53,6 +57,7 @@ defmodule MegaPlanner.Budget do
       {:ok, source} ->
         source = update_source_tags(source, tag_ids)
         {:ok, Repo.preload(source, :tag_objects, force: true)}
+
       error ->
         error
     end
@@ -73,6 +78,7 @@ defmodule MegaPlanner.Budget do
       {:ok, source} ->
         source = if tag_ids != nil, do: update_source_tags(source, tag_ids), else: source
         {:ok, Repo.preload(source, :tag_objects, force: true)}
+
       error ->
         error
     end
@@ -80,6 +86,7 @@ defmodule MegaPlanner.Budget do
 
   defp update_source_tags(source, tag_ids) when is_list(tag_ids) do
     tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+
     source
     |> Repo.preload(:tag_objects)
     |> Ecto.Changeset.change()
@@ -93,11 +100,13 @@ defmodule MegaPlanner.Budget do
   Gets an existing expense source for a store name, or creates one if it doesn't exist.
   This is used to automatically create expense sources when purchases are made at stores.
   """
-  def get_or_create_source_for_store(household_id, user_id, store_name) when is_binary(store_name) and store_name != "" do
+  def get_or_create_source_for_store(household_id, user_id, store_name)
+      when is_binary(store_name) and store_name != "" do
     # Find existing expense source with this store name
-    query = from s in Source,
-      where: s.household_id == ^household_id and s.name == ^store_name and s.type == "expense",
-      limit: 1
+    query =
+      from s in Source,
+        where: s.household_id == ^household_id and s.name == ^store_name and s.type == "expense",
+        limit: 1
 
     case Repo.one(query) do
       nil ->
@@ -109,6 +118,7 @@ defmodule MegaPlanner.Budget do
           "user_id" => user_id,
           "household_id" => household_id
         })
+
       source ->
         {:ok, Repo.preload(source, :tag_objects)}
     end
@@ -129,10 +139,11 @@ defmodule MegaPlanner.Budget do
   Returns the list of budget entries for a household within a date range.
   """
   def list_entries(household_id, opts \\ []) do
-    query = from e in Entry,
-      where: e.household_id == ^household_id,
-      order_by: [asc: e.date],
-      preload: [:source, :tags, purchase: [:tags, stop: [:store, :purchases]]]
+    query =
+      from e in Entry,
+        where: e.household_id == ^household_id,
+        order_by: [asc: e.date],
+        preload: [:source, :tags, purchase: [:tags, stop: [:store, :purchases]]]
 
     query
     |> filter_entries_by_date_range(opts)
@@ -152,8 +163,12 @@ defmodule MegaPlanner.Budget do
 
   defp filter_entries_by_tags(query, opts) do
     case Keyword.get(opts, :tag_ids) do
-      nil -> query
-      [] -> query
+      nil ->
+        query
+
+      [] ->
+        query
+
       tag_ids ->
         from e in query,
           join: t in assoc(e, :tags),
@@ -164,10 +179,17 @@ defmodule MegaPlanner.Budget do
 
   defp filter_entries_by_date_range(query, opts) do
     case {Keyword.get(opts, :start_date), Keyword.get(opts, :end_date)} do
-      {nil, nil} -> query
-      {start_date, nil} -> from e in query, where: e.date >= ^start_date
-      {nil, end_date} -> from e in query, where: e.date <= ^end_date
-      {start_date, end_date} -> from e in query, where: e.date >= ^start_date and e.date <= ^end_date
+      {nil, nil} ->
+        query
+
+      {start_date, nil} ->
+        from e in query, where: e.date >= ^start_date
+
+      {nil, end_date} ->
+        from e in query, where: e.date <= ^end_date
+
+      {start_date, end_date} ->
+        from e in query, where: e.date >= ^start_date and e.date <= ^end_date
     end
   end
 
@@ -209,7 +231,9 @@ defmodule MegaPlanner.Budget do
       {:ok, entry} ->
         entry = update_entry_tags(entry, tag_ids)
         {:ok, Repo.preload(entry, [:source, :tags])}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -226,12 +250,15 @@ defmodule MegaPlanner.Budget do
       {:ok, entry} ->
         entry = if tag_ids != nil, do: update_entry_tags(entry, tag_ids), else: entry
         {:ok, Repo.preload(entry, [:source, :tags], force: true)}
-      error -> error
+
+      error ->
+        error
     end
   end
 
   defp update_entry_tags(entry, tag_ids) when is_list(tag_ids) do
     tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+
     entry
     |> Repo.preload(:tags)
     |> Entry.tags_changeset(tags)
@@ -256,24 +283,27 @@ defmodule MegaPlanner.Budget do
 
     entries = list_entries(household_id, start_date: start_date, end_date: end_date)
 
-    income = entries
+    income =
+      entries
       |> Enum.filter(&(&1.type == "income"))
       |> Enum.reduce(Decimal.new(0), &Decimal.add(&2, &1.amount))
 
-    expense = entries
+    expense =
+      entries
       |> Enum.filter(&(&1.type == "expense"))
       |> Enum.reduce(Decimal.new(0), &Decimal.add(&2, &1.amount))
 
     net = Decimal.sub(income, expense)
 
-    savings_rate = if Decimal.gt?(income, 0) do
-      net
-      |> Decimal.div(income)
-      |> Decimal.mult(100)
-      |> Decimal.round(2)
-    else
-      Decimal.new(0)
-    end
+    savings_rate =
+      if Decimal.gt?(income, 0) do
+        net
+        |> Decimal.div(income)
+        |> Decimal.mult(100)
+        |> Decimal.round(2)
+      else
+        Decimal.new(0)
+      end
 
     %{
       year: year,

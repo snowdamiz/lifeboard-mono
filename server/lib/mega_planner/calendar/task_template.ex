@@ -29,15 +29,27 @@ defmodule MegaPlanner.Calendar.TaskTemplate do
   @doc false
   def changeset(template, attrs) do
     template
-    |> cast(attrs, [:name, :description, :category, :title, :task_description, :duration_minutes, :priority, :task_type, :default_steps, :user_id, :household_id])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :category,
+      :title,
+      :task_description,
+      :duration_minutes,
+      :priority,
+      :task_type,
+      :default_steps,
+      :user_id,
+      :household_id
+    ])
     |> validate_required([:name, :title, :user_id, :household_id])
     |> validate_inclusion(:task_type, @task_types)
     |> validate_number(:priority, greater_than_or_equal_to: 1, less_than_or_equal_to: 5)
     |> validate_number(:duration_minutes, greater_than: 0)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

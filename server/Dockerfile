@@ -57,7 +57,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-  apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libsqlite3-0 \
+  apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libsqlite3-0 gosu \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale
@@ -75,16 +75,15 @@ ENV MIX_ENV="prod"
 
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/mega_planner ./
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Make scripts executable
-RUN chmod +x /app/bin/migrate /app/bin/server
-
-USER nobody
+RUN chmod +x /app/bin/migrate /app/bin/server /usr/local/bin/docker-entrypoint.sh
 
 # If using an environment that doesn't automatically reap zombie processes, it is
 # advised to add an init process such as tini via `apt-get install tini` inside the
 # temporary build stage, and adding an entrypoint. See https://github.com/krallin/tini for details
 # ENTRYPOINT ["/tini", "--"]
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["/app/bin/server"]
-

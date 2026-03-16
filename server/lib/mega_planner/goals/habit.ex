@@ -37,16 +37,29 @@ defmodule MegaPlanner.Goals.Habit do
     attrs = normalize_time_fields(attrs)
 
     habit
-    |> cast(attrs, [:name, :description, :frequency, :days_of_week, :reminder_time, :scheduled_time, :duration_minutes, :color, :is_start_of_day, :inventory_id, :user_id, :household_id])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :frequency,
+      :days_of_week,
+      :reminder_time,
+      :scheduled_time,
+      :duration_minutes,
+      :color,
+      :is_start_of_day,
+      :inventory_id,
+      :user_id,
+      :household_id
+    ])
     |> validate_required([:name, :user_id, :household_id])
     |> validate_inclusion(:frequency, @frequencies)
     |> validate_days_of_week()
     |> validate_duration_minutes()
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 
   # Normalize time fields to add seconds if missing (HH:MM -> HH:MM:SS)
@@ -61,16 +74,22 @@ defmodule MegaPlanner.Goals.Habit do
 
   defp normalize_time_field(attrs, field) do
     case Map.get(attrs, field) do
-      nil -> attrs
+      nil ->
+        attrs
+
       time when is_binary(time) ->
         # If time is in HH:MM format, add :00 for seconds
-        normalized = if String.match?(time, ~r/^\d{2}:\d{2}$/) do
-          time <> ":00"
-        else
-          time
-        end
+        normalized =
+          if String.match?(time, ~r/^\d{2}:\d{2}$/) do
+            time <> ":00"
+          else
+            time
+          end
+
         Map.put(attrs, field, normalized)
-      _ -> attrs
+
+      _ ->
+        attrs
     end
   end
 
@@ -81,14 +100,18 @@ defmodule MegaPlanner.Goals.Habit do
 
   defp validate_days_of_week(changeset) do
     case get_field(changeset, :days_of_week) do
-      nil -> changeset
+      nil ->
+        changeset
+
       days when is_list(days) ->
         if Enum.all?(days, &(&1 >= 0 and &1 <= 6)) do
           changeset
         else
           add_error(changeset, :days_of_week, "must be between 0 (Sunday) and 6 (Saturday)")
         end
-      _ -> add_error(changeset, :days_of_week, "must be a list")
+
+      _ ->
+        add_error(changeset, :days_of_week, "must be a list")
     end
   end
 

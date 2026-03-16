@@ -1,6 +1,7 @@
 defmodule MegaPlanner.Inventory.ShoppingList do
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -14,7 +15,10 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :user, MegaPlanner.Accounts.User
     has_many :items, MegaPlanner.Inventory.ShoppingListItem, on_delete: :delete_all
-    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "shopping_lists_tags", on_replace: :delete
+
+    many_to_many :tags, MegaPlanner.Tags.Tag,
+      join_through: "shopping_lists_tags",
+      on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -27,18 +31,19 @@ defmodule MegaPlanner.Inventory.ShoppingList do
     |> validate_inclusion(:status, ["active", "completed"])
     |> validate_length(:name, min: 1, max: 200)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
-    |> unique_constraint([:household_id, :is_auto_generated],
-        name: :shopping_lists_household_auto_generated_unique,
-        message: "only one auto-generated list per household")
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
+    |> sqlite_compatible_unique_constraint([:household_id, :is_auto_generated],
+      name: :shopping_lists_household_auto_generated_unique,
+      message: "only one auto-generated list per household"
+    )
   end
 
   def tags_changeset(list, tags) do

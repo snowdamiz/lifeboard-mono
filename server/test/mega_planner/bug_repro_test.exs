@@ -10,33 +10,51 @@ defmodule MegaPlanner.BugReproTest do
       household_id = user.household_id
 
       # Setup Source Sheet
-      {:ok, source_sheet} = Inventory.create_sheet(%{"name" => "Purchases", "household_id" => household_id, "user_id" => user.id})
-      
+      {:ok, source_sheet} =
+        Inventory.create_sheet(%{
+          "name" => "Purchases",
+          "household_id" => household_id,
+          "user_id" => user.id
+        })
+
       # Setup Target Sheet
-      {:ok, target_sheet} = Inventory.create_sheet(%{"name" => "Pantry", "household_id" => household_id, "user_id" => user.id})
+      {:ok, target_sheet} =
+        Inventory.create_sheet(%{
+          "name" => "Pantry",
+          "household_id" => household_id,
+          "user_id" => user.id
+        })
 
       # Create Item (Quantity 5)
-      {:ok, item} = Inventory.create_item(%{
-        "name" => "Test Item",
-        "brand" => "TestBrand",
-        "quantity" => 5,
-        "sheet_id" => source_sheet.id,
-        "min_quantity" => 1
-      })
+      {:ok, item} =
+        Inventory.create_item(%{
+          "name" => "Test Item",
+          "brand" => "TestBrand",
+          "quantity" => 5,
+          "sheet_id" => source_sheet.id,
+          "min_quantity" => 1
+        })
 
       # Create linked shopping list item
-      {:ok, list} = Inventory.create_shopping_list(%{"name" => "Test List", "household_id" => household_id, "user_id" => user.id})
-      {:ok, _sli} = Inventory.create_shopping_item(%{
-        "shopping_list_id" => list.id,
-        "inventory_item_id" => item.id,
-        "quantity_needed" => 1,
-        "household_id" => household_id,
-        "user_id" => user.id
-      })
+      {:ok, list} =
+        Inventory.create_shopping_list(%{
+          "name" => "Test List",
+          "household_id" => household_id,
+          "user_id" => user.id
+        })
+
+      {:ok, _sli} =
+        Inventory.create_shopping_item(%{
+          "shopping_list_id" => list.id,
+          "inventory_item_id" => item.id,
+          "quantity_needed" => 1,
+          "household_id" => household_id,
+          "user_id" => user.id
+        })
 
       # 1. Partial Transfer (2)
       assert {:ok, :ok} = Inventory.transfer_item(item.id, target_sheet.id, 2)
-      
+
       item = Inventory.get_item(item.id)
       assert item.quantity == 3
 

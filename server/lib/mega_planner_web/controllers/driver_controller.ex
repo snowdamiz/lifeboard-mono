@@ -14,7 +14,9 @@ defmodule MegaPlannerWeb.DriverController do
 
   def create(conn, %{"driver" => driver_params}) do
     user = Guardian.Plug.current_resource(conn)
-    driver_params = driver_params
+
+    driver_params =
+      driver_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 

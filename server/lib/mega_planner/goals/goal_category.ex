@@ -1,6 +1,7 @@
 defmodule MegaPlanner.Goals.GoalCategory do
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -26,15 +27,17 @@ defmodule MegaPlanner.Goals.GoalCategory do
     |> validate_length(:name, min: 1, max: 100)
     |> validate_format(:color, ~r/^#[0-9a-fA-F]{6}$/, message: "must be a valid hex color")
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     |> validate_change(:parent_id, fn :parent_id, id ->
-         if MegaPlanner.Repo.get(__MODULE__, id),
-           do: [],
-           else: [parent_id: "does not exist"]
-       end)
-    |> unique_constraint([:household_id, :name, :parent_id], name: :goal_categories_household_name_parent_unique)
+      if MegaPlanner.Repo.get(__MODULE__, id),
+        do: [],
+        else: [parent_id: "does not exist"]
+    end)
+    |> sqlite_compatible_unique_constraint([:household_id, :name, :parent_id],
+      name: :goal_categories_household_name_parent_unique
+    )
   end
 end

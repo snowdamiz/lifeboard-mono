@@ -21,6 +21,7 @@ defmodule MegaPlannerWeb.HabitInventoryController do
         conn
         |> put_status(:created)
         |> json(%{data: inventory_to_json(inventory)})
+
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
@@ -34,6 +35,7 @@ defmodule MegaPlannerWeb.HabitInventoryController do
     case Goals.get_household_habit_inventory(user.household_id, id) do
       nil ->
         {:error, :not_found}
+
       inventory ->
         json(conn, %{data: inventory_to_json(inventory)})
     end
@@ -42,8 +44,10 @@ defmodule MegaPlannerWeb.HabitInventoryController do
   def update(conn, %{"id" => id, "habit_inventory" => inventory_params}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with inventory when not is_nil(inventory) <- Goals.get_household_habit_inventory(user.household_id, id),
-         {:ok, %HabitInventory{} = inventory} <- Goals.update_habit_inventory(inventory, inventory_params) do
+    with inventory when not is_nil(inventory) <-
+           Goals.get_household_habit_inventory(user.household_id, id),
+         {:ok, %HabitInventory{} = inventory} <-
+           Goals.update_habit_inventory(inventory, inventory_params) do
       json(conn, %{data: inventory_to_json(inventory)})
     else
       nil -> {:error, :not_found}
@@ -54,7 +58,8 @@ defmodule MegaPlannerWeb.HabitInventoryController do
   def delete(conn, %{"id" => id}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with inventory when not is_nil(inventory) <- Goals.get_household_habit_inventory(user.household_id, id),
+    with inventory when not is_nil(inventory) <-
+           Goals.get_household_habit_inventory(user.household_id, id),
          {:ok, %HabitInventory{}} <- Goals.delete_habit_inventory(inventory) do
       send_resp(conn, :no_content, "")
     else

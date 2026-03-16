@@ -27,15 +27,26 @@ defmodule MegaPlanner.Notifications.Notification do
   @doc false
   def changeset(notification, attrs) do
     notification
-    |> cast(attrs, [:type, :title, :message, :data, :read, :read_at, :link_type, :link_id, :user_id, :household_id])
+    |> cast(attrs, [
+      :type,
+      :title,
+      :message,
+      :data,
+      :read,
+      :read_at,
+      :link_type,
+      :link_id,
+      :user_id,
+      :household_id
+    ])
     |> validate_required([:type, :title, :user_id, :household_id])
     |> validate_inclusion(:type, @notification_types)
     |> validate_inclusion(:link_type, @link_types ++ [nil])
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 
   def mark_read_changeset(notification) do

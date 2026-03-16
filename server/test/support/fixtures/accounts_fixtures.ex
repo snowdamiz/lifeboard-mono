@@ -7,11 +7,13 @@ defmodule MegaPlanner.AccountsFixtures do
       attrs
       |> Enum.into(%{name: "Test Household #{System.unique_integer()}"})
       |> Households.create_household()
+
     household
   end
 
   def user_fixture(attrs \\ %{}) do
     household = household_fixture()
+
     {:ok, user} =
       attrs
       |> Enum.into(%{
@@ -22,6 +24,7 @@ defmodule MegaPlanner.AccountsFixtures do
         household_id: household.id
       })
       |> Accounts.create_user()
+
     user
   end
 end

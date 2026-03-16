@@ -1,6 +1,7 @@
 defmodule MegaPlanner.Calendar.Task do
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -33,9 +34,22 @@ defmodule MegaPlanner.Calendar.Task do
   @doc false
   def changeset(task, attrs) do
     task
-    |> cast(attrs, [:title, :description, :date, :start_time, :duration_minutes,
-                    :priority, :status, :is_recurring, :recurrence_rule, :task_type,
-                    :user_id, :household_id, :parent_task_id, :trip_id])
+    |> cast(attrs, [
+      :title,
+      :description,
+      :date,
+      :start_time,
+      :duration_minutes,
+      :priority,
+      :status,
+      :is_recurring,
+      :recurrence_rule,
+      :task_type,
+      :user_id,
+      :household_id,
+      :parent_task_id,
+      :trip_id
+    ])
     |> validate_required([:title, :user_id, :household_id])
     |> cast_assoc(:steps, with: &MegaPlanner.Calendar.TaskStep.changeset/2, sort_param: :position)
     |> validate_inclusion(:status, @statuses)
@@ -43,22 +57,23 @@ defmodule MegaPlanner.Calendar.Task do
     |> validate_number(:duration_minutes, greater_than: 0)
     |> validate_number(:priority, greater_than_or_equal_to: 0)
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     |> validate_change(:parent_task_id, fn :parent_task_id, id ->
-         if MegaPlanner.Repo.get(__MODULE__, id),
-           do: [],
-           else: [parent_task_id: "does not exist"]
-       end)
-    |> unique_constraint([:title, :date, :household_id],
-       name: :tasks_title_date_household_unique,
-       message: "A task with this title already exists on this date")
+      if MegaPlanner.Repo.get(__MODULE__, id),
+        do: [],
+        else: [parent_task_id: "does not exist"]
+    end)
+    |> sqlite_compatible_unique_constraint([:title, :date, :household_id],
+      name: :tasks_title_date_household_unique,
+      message: "A task with this title already exists on this date"
+    )
   end
 end

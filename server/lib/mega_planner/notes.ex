@@ -55,7 +55,9 @@ defmodule MegaPlanner.Notes do
       {:ok, notebook} ->
         notebook = update_notebook_tags(notebook, tag_ids)
         {:ok, Repo.preload(notebook, :tags)}
-      error -> error
+
+      error ->
+        error
     end
   end
 
@@ -72,12 +74,15 @@ defmodule MegaPlanner.Notes do
       {:ok, notebook} ->
         notebook = if tag_ids != nil, do: update_notebook_tags(notebook, tag_ids), else: notebook
         {:ok, Repo.preload(notebook, :tags, force: true)}
-      error -> error
+
+      error ->
+        error
     end
   end
 
   defp update_notebook_tags(notebook, tag_ids) when is_list(tag_ids) do
     tags = from(t in Tag, where: t.id in ^tag_ids) |> Repo.all()
+
     notebook
     |> Repo.preload(:tags)
     |> Notebook.tags_changeset(tags)
@@ -101,10 +106,11 @@ defmodule MegaPlanner.Notes do
   def list_pages(notebook_id, opts \\ []) do
     tag_ids = Keyword.get(opts, :tag_ids)
 
-    query = from(p in Page,
-      where: p.notebook_id == ^notebook_id,
-      order_by: [desc: p.updated_at]
-    )
+    query =
+      from(p in Page,
+        where: p.notebook_id == ^notebook_id,
+        order_by: [desc: p.updated_at]
+      )
 
     query =
       if tag_ids && length(tag_ids) > 0 do
@@ -135,7 +141,8 @@ defmodule MegaPlanner.Notes do
   """
   def get_household_page(household_id, id) do
     from(p in Page,
-      join: n in Notebook, on: p.notebook_id == n.id,
+      join: n in Notebook,
+      on: p.notebook_id == n.id,
       where: p.id == ^id and n.household_id == ^household_id,
       preload: ^@page_preloads
     )
@@ -155,12 +162,15 @@ defmodule MegaPlanner.Notes do
 
     case result do
       {:ok, page} ->
-        page = if tag_ids && length(tag_ids) > 0 do
-          update_page_tags_internal(page, tag_ids)
-        else
-          page
-        end
+        page =
+          if tag_ids && length(tag_ids) > 0 do
+            update_page_tags_internal(page, tag_ids)
+          else
+            page
+          end
+
         {:ok, Repo.preload(page, @page_preloads, force: true)}
+
       error ->
         error
     end
@@ -179,12 +189,15 @@ defmodule MegaPlanner.Notes do
 
     case result do
       {:ok, page} ->
-        page = if tag_ids != nil do
-          update_page_tags_internal(page, tag_ids)
-        else
-          page
-        end
+        page =
+          if tag_ids != nil do
+            update_page_tags_internal(page, tag_ids)
+          else
+            page
+          end
+
         {:ok, Repo.preload(page, @page_preloads, force: true)}
+
       error ->
         error
     end
@@ -245,7 +258,8 @@ defmodule MegaPlanner.Notes do
   """
   def find_pages_linking_to(link_type, linked_id) do
     from(p in Page,
-      join: l in PageLink, on: l.page_id == p.id,
+      join: l in PageLink,
+      on: l.page_id == p.id,
       where: l.link_type == ^link_type and l.linked_id == ^linked_id
     )
     |> Repo.all()

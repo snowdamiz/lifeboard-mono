@@ -28,15 +28,15 @@ defmodule MegaPlanner.Households.Invitation do
     |> validate_inclusion(:status, @statuses)
     |> unique_constraint(:token)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     |> validate_change(:inviter_id, fn :inviter_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [inviter_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [inviter_id: "does not exist"]
+    end)
   end
 
   @doc false

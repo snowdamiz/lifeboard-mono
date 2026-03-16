@@ -12,17 +12,25 @@ defmodule MegaPlanner.Tags.Tag do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     many_to_many :tasks, MegaPlanner.Calendar.Task, join_through: "tasks_tags"
+
     many_to_many :budget_sources, MegaPlanner.Budget.Source,
       join_through: "budget_sources_tags",
       join_keys: [tag_id: :id, budget_source_id: :id]
+
     many_to_many :inventory_items, MegaPlanner.Inventory.Item,
       join_through: "inventory_items_tags",
       join_keys: [tag_id: :id, inventory_item_id: :id]
+
     many_to_many :goals, MegaPlanner.Goals.Goal, join_through: "goals_tags"
     many_to_many :pages, MegaPlanner.Notes.Page, join_through: "pages_tags"
     many_to_many :habits, MegaPlanner.Goals.Habit, join_through: "habits_tags"
-    many_to_many :inventory_sheets, MegaPlanner.Inventory.Sheet, join_through: "inventory_sheets_tags"
-    many_to_many :shopping_lists, MegaPlanner.Inventory.ShoppingList, join_through: "shopping_lists_tags"
+
+    many_to_many :inventory_sheets, MegaPlanner.Inventory.Sheet,
+      join_through: "inventory_sheets_tags"
+
+    many_to_many :shopping_lists, MegaPlanner.Inventory.ShoppingList,
+      join_through: "shopping_lists_tags"
+
     many_to_many :budget_entries, MegaPlanner.Budget.Entry, join_through: "budget_entries_tags"
     many_to_many :notebooks, MegaPlanner.Notes.Notebook, join_through: "notebooks_tags"
 
@@ -37,14 +45,14 @@ defmodule MegaPlanner.Tags.Tag do
     |> validate_format(:color, ~r/^#[0-9A-Fa-f]{6}$/, message: "must be a valid hex color")
     |> unique_constraint([:household_id, :name])
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

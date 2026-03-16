@@ -59,8 +59,11 @@ defmodule MegaPlanner.Tags do
   """
   def get_tag_with_items(household_id, tag_id) do
     case get_household_tag(household_id, tag_id) do
-      nil -> nil
-      tag -> Repo.preload(tag, [:tasks, :goals, :pages, :habits, :inventory_items, :budget_sources])
+      nil ->
+        nil
+
+      tag ->
+        Repo.preload(tag, [:tasks, :goals, :pages, :habits, :inventory_items, :budget_sources])
     end
   end
 
@@ -72,7 +75,19 @@ defmodule MegaPlanner.Tags do
     tags = list_tags(household_id)
 
     Enum.map(tags, fn tag ->
-    tag = Repo.preload(tag, [:tasks, :goals, :pages, :habits, :inventory_items, :budget_sources, :inventory_sheets, :shopping_lists, :budget_entries, :notebooks])
+      tag =
+        Repo.preload(tag, [
+          :tasks,
+          :goals,
+          :pages,
+          :habits,
+          :inventory_items,
+          :budget_sources,
+          :inventory_sheets,
+          :shopping_lists,
+          :budget_entries,
+          :notebooks
+        ])
 
       usage = %{
         tasks: length(tag.tasks),
@@ -104,11 +119,24 @@ defmodule MegaPlanner.Tags do
   Returns items categorized by type.
   """
   def search_by_tags(household_id, tag_ids, opts \\ []) when is_list(tag_ids) do
-    mode = Keyword.get(opts, :mode, :any) # :any = OR, :all = AND
+    # :any = OR, :all = AND
+    mode = Keyword.get(opts, :mode, :any)
 
-    tags = from(t in Tag, where: t.household_id == ^household_id and t.id in ^tag_ids)
-           |> Repo.all()
-           |> Repo.preload([:tasks, :goals, :pages, :habits, :inventory_items, :budget_sources, :inventory_sheets, :shopping_lists, :budget_entries, :notebooks])
+    tags =
+      from(t in Tag, where: t.household_id == ^household_id and t.id in ^tag_ids)
+      |> Repo.all()
+      |> Repo.preload([
+        :tasks,
+        :goals,
+        :pages,
+        :habits,
+        :inventory_items,
+        :budget_sources,
+        :inventory_sheets,
+        :shopping_lists,
+        :budget_entries,
+        :notebooks
+      ])
 
     if mode == :all do
       # All tags mode - find items that have ALL specified tags
@@ -172,52 +200,59 @@ defmodule MegaPlanner.Tags do
 
     tasks_to_create = []
 
-    tasks_to_create = if :goals in include_types do
-      goal_tasks = Enum.map(items.goals, fn goal ->
-        %{
-          "title" => goal.title,
-          "description" => goal.description,
-          "date" => date,
-          "status" => "not_started",
-          "task_type" => "todo",
-          "user_id" => user_id,
-          "household_id" => household_id,
-          "tag_ids" => tag_ids
-        }
-      end)
-      tasks_to_create ++ goal_tasks
-    else
-      tasks_to_create
-    end
+    tasks_to_create =
+      if :goals in include_types do
+        goal_tasks =
+          Enum.map(items.goals, fn goal ->
+            %{
+              "title" => goal.title,
+              "description" => goal.description,
+              "date" => date,
+              "status" => "not_started",
+              "task_type" => "todo",
+              "user_id" => user_id,
+              "household_id" => household_id,
+              "tag_ids" => tag_ids
+            }
+          end)
 
-    tasks_to_create = if :habits in include_types do
-      habit_tasks = Enum.map(items.habits, fn habit ->
-        %{
-          "title" => habit.name,
-          "description" => habit.description,
-          "date" => date,
-          "status" => "not_started",
-          "task_type" => "todo",
-          "user_id" => user_id,
-          "household_id" => household_id,
-          "tag_ids" => tag_ids
-        }
-      end)
-      tasks_to_create ++ habit_tasks
-    else
-      tasks_to_create
-    end
+        tasks_to_create ++ goal_tasks
+      else
+        tasks_to_create
+      end
+
+    tasks_to_create =
+      if :habits in include_types do
+        habit_tasks =
+          Enum.map(items.habits, fn habit ->
+            %{
+              "title" => habit.name,
+              "description" => habit.description,
+              "date" => date,
+              "status" => "not_started",
+              "task_type" => "todo",
+              "user_id" => user_id,
+              "household_id" => household_id,
+              "tag_ids" => tag_ids
+            }
+          end)
+
+        tasks_to_create ++ habit_tasks
+      else
+        tasks_to_create
+      end
 
     # Create tasks
     alias MegaPlanner.Calendar
 
-    created_tasks = Enum.map(tasks_to_create, fn task_attrs ->
-      case Calendar.create_task(task_attrs) do
-        {:ok, task} -> task
-        {:error, _} -> nil
-      end
-    end)
-    |> Enum.filter(& &1)
+    created_tasks =
+      Enum.map(tasks_to_create, fn task_attrs ->
+        case Calendar.create_task(task_attrs) do
+          {:ok, task} -> task
+          {:error, _} -> nil
+        end
+      end)
+      |> Enum.filter(& &1)
 
     {:ok, created_tasks}
   end

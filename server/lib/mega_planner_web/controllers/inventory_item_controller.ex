@@ -10,7 +10,8 @@ defmodule MegaPlannerWeb.InventoryItemController do
     user = Guardian.Plug.current_resource(conn)
 
     # Verify the sheet belongs to the household
-    with sheet when not is_nil(sheet) <- Inventory.get_household_sheet(user.household_id, item_params["sheet_id"]),
+    with sheet when not is_nil(sheet) <-
+           Inventory.get_household_sheet(user.household_id, item_params["sheet_id"]),
          {:ok, %Item{} = item} <- Inventory.create_item(item_params) do
       conn
       |> put_status(:created)
@@ -97,7 +98,7 @@ defmodule MegaPlannerWeb.InventoryItemController do
     user = Guardian.Plug.current_resource(conn)
     brand = Map.get(params, "brand", "")
     name = Map.get(params, "name", "")
-    
+
     items = Inventory.find_matching_items(user.household_id, brand, name)
     json(conn, %{data: Enum.map(items, &item_with_sheet_to_json/1)})
   end
@@ -112,17 +113,25 @@ defmodule MegaPlannerWeb.InventoryItemController do
 
   # Transfer item between sheets
 
-  def transfer(conn, %{"source_id" => source_id, "target_sheet_id" => target_sheet_id, "quantity" => quantity} = params) do
+  def transfer(
+        conn,
+        %{"source_id" => source_id, "target_sheet_id" => target_sheet_id, "quantity" => quantity} =
+          params
+      ) do
     quantity = if is_binary(quantity), do: Decimal.new(quantity), else: Decimal.new(quantity)
     usage_mode = Map.get(params, "usage_mode", "count")
-    
+
     case Inventory.transfer_item(source_id, target_sheet_id, quantity, usage_mode) do
-      {:ok, :ok} -> json(conn, %{success: true})
-      {:error, :insufficient_quantity} -> 
+      {:ok, :ok} ->
+        json(conn, %{success: true})
+
+      {:error, :insufficient_quantity} ->
         conn |> put_status(400) |> json(%{error: "Insufficient quantity"})
+
       {:error, :item_not_found} ->
         conn |> put_status(404) |> json(%{error: "Item not found"})
-      {:error, reason} -> 
+
+      {:error, reason} ->
         conn |> put_status(400) |> json(%{error: inspect(reason)})
     end
   end

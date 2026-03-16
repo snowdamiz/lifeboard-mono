@@ -9,11 +9,12 @@ defmodule MegaPlannerWeb.PurchaseController do
 
   def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    
-    opts = []
-    |> maybe_add_opt(:stop_id, params["stop_id"])
-    |> maybe_add_opt(:brand, params["brand"])
-    |> maybe_add_opt(:source_id, params["source_id"])
+
+    opts =
+      []
+      |> maybe_add_opt(:stop_id, params["stop_id"])
+      |> maybe_add_opt(:brand, params["brand"])
+      |> maybe_add_opt(:source_id, params["source_id"])
 
     purchases = Receipts.list_purchases(user.household_id, opts)
     json(conn, %{data: Enum.map(purchases, &purchase_to_json/1)})
@@ -21,18 +22,26 @@ defmodule MegaPlannerWeb.PurchaseController do
 
   def create(conn, %{"purchase" => purchase_params}) do
     user = Guardian.Plug.current_resource(conn)
-    purchase_params = purchase_params
+
+    purchase_params =
+      purchase_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
-    Logger.debug("[PURCHASE_CTRL] CREATE params=#{inspect(Map.drop(purchase_params, ["user_id", "household_id"]))}")
+    Logger.debug(
+      "[PURCHASE_CTRL] CREATE params=#{inspect(Map.drop(purchase_params, ["user_id", "household_id"]))}"
+    )
 
     case Receipts.create_purchase(purchase_params) do
       {:ok, purchase} ->
-        Logger.debug("[PURCHASE_CTRL] SUCCESS id=#{purchase.id} stop_id=#{inspect(purchase.stop_id)} budget_entry_id=#{inspect(purchase.budget_entry_id)}")
+        Logger.debug(
+          "[PURCHASE_CTRL] SUCCESS id=#{purchase.id} stop_id=#{inspect(purchase.stop_id)} budget_entry_id=#{inspect(purchase.budget_entry_id)}"
+        )
+
         conn
         |> put_status(:created)
         |> json(%{data: purchase_to_json(purchase)})
+
       {:error, reason} ->
         Logger.debug("[PURCHASE_CTRL] ERROR #{inspect(reason)}")
         {:error, reason}
@@ -68,9 +77,11 @@ defmodule MegaPlannerWeb.PurchaseController do
 
   def suggest_by_brand(conn, %{"brand" => brand} = params) do
     user = Guardian.Plug.current_resource(conn)
-    opts = []
-    |> maybe_add_opt(:store_id, params["store_id"])
-    
+
+    opts =
+      []
+      |> maybe_add_opt(:store_id, params["store_id"])
+
     suggestion = Receipts.suggest_for_brand(user.household_id, brand, opts)
     json(conn, %{data: suggestion_to_json(suggestion)})
   end
@@ -81,7 +92,10 @@ defmodule MegaPlannerWeb.PurchaseController do
     json(conn, %{data: Enum.map(suggestions, &suggestion_to_json/1)})
   end
 
-  def add_to_inventory(conn, %{"purchase_ids" => purchase_ids, "sheet_assignments" => sheet_assignments}) do
+  def add_to_inventory(conn, %{
+        "purchase_ids" => purchase_ids,
+        "sheet_assignments" => sheet_assignments
+      }) do
     with {:ok, _} <- Receipts.add_purchases_to_inventory(purchase_ids, sheet_assignments) do
       send_resp(conn, :no_content, "")
     end
@@ -114,6 +128,7 @@ defmodule MegaPlannerWeb.PurchaseController do
   defp maybe_add_opt(opts, key, value) when is_binary(value) and value != "" do
     Keyword.put(opts, key, value)
   end
+
   defp maybe_add_opt(opts, _key, _value), do: opts
 
   defp purchase_to_json(purchase) do

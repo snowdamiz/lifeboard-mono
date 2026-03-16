@@ -22,15 +22,15 @@ defmodule MegaPlanner.Notes.Notebook do
     |> cast(attrs, [:name, :user_id, :household_id])
     |> validate_required([:name, :user_id, :household_id])
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 
   def tags_changeset(notebook, tags) do

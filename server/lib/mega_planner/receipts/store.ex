@@ -1,6 +1,7 @@
 defmodule MegaPlanner.Receipts.Store do
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -33,24 +34,37 @@ defmodule MegaPlanner.Receipts.Store do
   def changeset(store, attrs) do
     store
     |> cast(attrs, [
-      :name, :address, :street, :city, :state, :zip_code, :suite, :phone,
-      :store_id, :store_code, :tax_rate, :image_url, :household_id
+      :name,
+      :address,
+      :street,
+      :city,
+      :state,
+      :zip_code,
+      :suite,
+      :phone,
+      :store_id,
+      :store_code,
+      :tax_rate,
+      :image_url,
+      :household_id
     ])
     |> validate_required([:name, :household_id])
     |> build_full_address()
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     # Primary unique constraint: household + store_id (when store_id exists)
-    |> unique_constraint([:household_id, :store_id],
-       name: :stores_household_store_id_unique,
-       message: "A store with this ID already exists")
+    |> sqlite_compatible_unique_constraint([:household_id, :store_id],
+      name: :stores_household_store_id_unique,
+      message: "A store with this ID already exists"
+    )
     # Fallback unique constraint: household + name + street + city
-    |> unique_constraint([:household_id, :name, :street, :city],
-       name: :stores_household_name_street_city_unique,
-       message: "A store with this name and address already exists")
+    |> sqlite_compatible_unique_constraint([:household_id, :name, :street, :city],
+      name: :stores_household_name_street_city_unique,
+      message: "A store with this name and address already exists"
+    )
   end
 
   # Build full address from components if not already set
@@ -70,6 +84,7 @@ defmodule MegaPlanner.Receipts.Store do
   end
 
   defp build_address_string(nil, _, _, _, _), do: nil
+
   defp build_address_string(street, suite, city, state, zip) do
     street_part = if suite && suite != "", do: "#{street} #{suite}", else: street
 

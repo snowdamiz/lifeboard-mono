@@ -10,30 +10,32 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
 
   @doc """
   POST /api/receipts/scan
-  
+
   Accepts a receipt image and returns parsed data with AI suggestions.
   The receipt image is not stored - only used for data extraction.
   """
   def scan(conn, %{"image" => image_data}) do
     require Logger
-    
+
     try do
       Logger.info("Receipt scan request received, image size: #{String.length(image_data)} chars")
 
       user = Guardian.Plug.current_resource(conn)
       household_id = user.household_id
-      
+
       Logger.info("User: #{user.id}, Household: #{household_id}")
 
       case ReceiptParser.parse_receipt_image(image_data, household_id) do
         {:ok, parsed_data} ->
           Logger.info("Receipt parsed successfully")
+
           conn
           |> put_status(:ok)
           |> json(%{data: parsed_data})
 
         {:error, reason} ->
           Logger.error("Receipt parsing failed: #{inspect(reason)}")
+
           conn
           |> put_status(:unprocessable_entity)
           |> json(%{error: reason})
@@ -42,6 +44,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       e ->
         Logger.error("Exception in scan: #{Exception.message(e)}")
         Logger.error("Stacktrace: #{Exception.format_stacktrace(__STACKTRACE__)}")
+
         conn
         |> put_status(:internal_server_error)
         |> json(%{error: "Internal server error: #{Exception.message(e)}"})
@@ -51,6 +54,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   def scan(conn, _params) do
     require Logger
     Logger.error("Receipt scan called without image data")
+
     conn
     |> put_status(:bad_request)
     |> json(%{error: "Missing 'image' parameter"})
@@ -58,7 +62,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
 
   @doc """
   POST /api/receipts/confirm
-  
+
   Confirms parsed receipt data and creates entities:
   - Store (if new)
   - Stop (linked to trip if provided)
@@ -68,34 +72,38 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   """
   def confirm(conn, params) do
     require Logger
-    
+
     try do
       user = Guardian.Plug.current_resource(conn)
       household_id = user.household_id
-      
+
       Logger.info("Receipt confirm request - user: #{user.id}, household: #{household_id}")
       Logger.debug("Receipt confirm params: #{inspect(params, limit: 500)}")
 
       with {:ok, result} <- create_receipt_entities(params, user, household_id) do
         Logger.info("Receipt confirm success - created #{result.created_count} purchases")
+
         conn
         |> put_status(:created)
         |> json(%{data: result})
       else
         {:error, reason} when is_binary(reason) ->
           Logger.error("Receipt confirm failed (string error): #{reason}")
+
           conn
           |> put_status(:unprocessable_entity)
           |> json(%{error: reason})
 
         {:error, %Ecto.Changeset{} = changeset} ->
           Logger.error("Receipt confirm failed (changeset): #{inspect(changeset)}")
+
           conn
           |> put_status(:unprocessable_entity)
           |> json(%{errors: format_changeset_errors(changeset)})
 
         {:error, reason} ->
           Logger.error("Receipt confirm failed (other): #{inspect(reason)}")
+
           conn
           |> put_status(:unprocessable_entity)
           |> json(%{error: inspect(reason)})
@@ -104,6 +112,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       e ->
         Logger.error("Exception in confirm: #{Exception.message(e)}")
         Logger.error("Stacktrace: #{Exception.format_stacktrace(__STACKTRACE__)}")
+
         conn
         |> put_status(:internal_server_error)
         |> json(%{error: "Internal server error: #{Exception.message(e)}"})
@@ -113,56 +122,63 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   defp create_receipt_entities(params, user, household_id) do
     alias MegaPlanner.Repo
 
-    result = Repo.transaction(fn ->
-      # 1. Create or get store
-      store = ensure_store(params["store"], household_id)
-      
-      # 2. Create or get trip/stop if trip_id provided
-      stop = if params["trip_id"] do
-        ensure_stop(params["trip_id"], store, params["transaction"], household_id)
-      else
-        nil
-      end
+    result =
+      Repo.transaction(fn ->
+        # 1. Create or get store
+        store = ensure_store(params["store"], household_id)
 
-      # 3. Create purchases with budget entries
-      purchases = create_purchases(
-        params["items"] || [],
-        stop,
-        store,
-        params["transaction"],
-        user,
-        household_id
-      )
+        # 2. Create or get trip/stop if trip_id provided
+        stop =
+          if params["trip_id"] do
+            ensure_stop(params["trip_id"], store, params["transaction"], household_id)
+          else
+            nil
+          end
 
-      %{
-        store: serialize_store(store),
-        stop_id: stop && stop.id,
-        trip_id: params["trip_id"],
-        purchases: Enum.map(purchases, &serialize_purchase/1),
-        created_count: length(purchases)
-      }
-    end)
+        # 3. Create purchases with budget entries
+        purchases =
+          create_purchases(
+            params["items"] || [],
+            stop,
+            store,
+            params["transaction"],
+            user,
+            household_id
+          )
+
+        %{
+          store: serialize_store(store),
+          stop_id: stop && stop.id,
+          trip_id: params["trip_id"],
+          purchases: Enum.map(purchases, &serialize_purchase/1),
+          created_count: length(purchases)
+        }
+      end)
 
     # After transaction succeeds, ensure a calendar task exists for the trip
     case result do
       {:ok, data} when not is_nil(data.trip_id) ->
         Logger.info("[RECEIPT_CONFIRM] Ensuring task for trip #{data.trip_id}")
-        task_result = MegaPlanner.Calendar.ensure_task_for_trip(
-          data.trip_id,
-          household_id,
-          user.id
-        )
-        task_data = case task_result do
-          {:ok, task} -> %{id: task.id, title: task.title, date: task.date}
-          _ -> nil
-        end
+
+        task_result =
+          MegaPlanner.Calendar.ensure_task_for_trip(
+            data.trip_id,
+            household_id,
+            user.id
+          )
+
+        task_data =
+          case task_result do
+            {:ok, task} -> %{id: task.id, title: task.title, date: task.date}
+            _ -> nil
+          end
+
         {:ok, Map.put(data, :task, task_data)}
 
       other ->
         other
     end
   end
-
 
   defp ensure_store(%{"id" => id}, _household_id) when not is_nil(id) and id != "" do
     Receipts.get_store!(id)
@@ -176,8 +192,10 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     }
 
     case Receipts.create_store(attrs) do
-      {:ok, store} -> store
-      {:error, _} -> 
+      {:ok, store} ->
+        store
+
+      {:error, _} ->
         Receipts.find_store_by_name(household_id, "Unknown Store") ||
           raise "Failed to create or find store"
     end
@@ -199,8 +217,10 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     }
 
     case Receipts.create_store(attrs) do
-      {:ok, store} -> store
-      {:error, _} -> 
+      {:ok, store} ->
+        store
+
+      {:error, _} ->
         # Try to find existing store by store_id first, then by name
         find_existing_store(store_params, household_id) ||
           raise "Failed to create or find store"
@@ -209,6 +229,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
 
   defp find_existing_store(store_params, household_id) do
     store_id = store_params["store_id"]
+
     if store_id && store_id != "" do
       Receipts.find_store_by_store_id(household_id, store_id)
     end || Receipts.find_store_by_name(household_id, store_params["name"])
@@ -218,36 +239,48 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     require Logger
     # Parse time from transaction
     time_arrived = parse_time(transaction["time"]) || ~T[12:00:00]
-    
+
     # Get existing trip and update its date if receipt has a different date
     trip = Receipts.get_trip!(trip_id)
-    
+
     # Update trip_start and task date to match receipt date/time if available
     receipt_date = parse_date(transaction["date"])
+
     if receipt_date do
       # Always update trip_start with receipt date+time (fixes midnight default issue)
       new_trip_start = DateTime.new!(receipt_date, time_arrived, "Etc/UTC")
       Receipts.update_trip(trip, %{trip_start: new_trip_start})
-      
+
       # Also update the associated task's date to match receipt date if different
       trip_date = if trip.trip_start, do: DateTime.to_date(trip.trip_start), else: nil
+
       if trip_date != receipt_date do
         case MegaPlanner.Calendar.get_task_by_trip_id(trip_id) do
-          nil -> :ok
+          nil ->
+            :ok
+
           task ->
             task_date = task.date
+
             if task_date != receipt_date do
-              Logger.info("Updating task date from #{task_date} to #{receipt_date} based on receipt")
+              Logger.info(
+                "Updating task date from #{task_date} to #{receipt_date} based on receipt"
+              )
+
               MegaPlanner.Calendar.update_task(task, %{"date" => Date.to_iso8601(receipt_date)})
             end
         end
       end
     end
-    
+
     # Check if a stop already exists at this store on this trip (same-store stacking)
     existing_stop = Enum.find(trip.stops || [], fn s -> s.store_id == store.id end)
+
     if existing_stop do
-      Logger.debug("[ENSURE_STOP] Reusing existing stop #{existing_stop.id} for store #{store.name}")
+      Logger.debug(
+        "[ENSURE_STOP] Reusing existing stop #{existing_stop.id} for store #{store.name}"
+      )
+
       existing_stop
     else
       position = length(trip.stops || []) + 1
@@ -262,10 +295,11 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       }
 
       case Receipts.create_stop(trip_id, attrs) do
-        {:ok, stop} -> 
+        {:ok, stop} ->
           Logger.debug("[ENSURE_STOP] Created new stop #{stop.id} for store #{store.name}")
           stop
-        {:error, reason} -> 
+
+        {:error, reason} ->
           Logger.warning("[ENSURE_STOP] Failed to create stop: #{inspect(reason)}")
           nil
       end
@@ -274,33 +308,42 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
 
   defp parse_time(nil), do: nil
   defp parse_time(""), do: nil
+
   defp parse_time(time_string) do
     require Logger
     # Try parsing as ISO8601 time format (HH:MM or HH:MM:SS)
     # First, normalize the format - if it's "H:MM", pad to "HH:MM"
-    normalized = cond do
-      # Already has seconds
-      String.match?(time_string, ~r/^\d{1,2}:\d{2}:\d{2}$/) ->
-        time_string
-      # Just HH:MM - add seconds
-      String.match?(time_string, ~r/^\d{1,2}:\d{2}$/) ->
-        time_string <> ":00"
-      true ->
-        time_string <> ":00"
-    end
-    
+    normalized =
+      cond do
+        # Already has seconds
+        String.match?(time_string, ~r/^\d{1,2}:\d{2}:\d{2}$/) ->
+          time_string
+
+        # Just HH:MM - add seconds
+        String.match?(time_string, ~r/^\d{1,2}:\d{2}$/) ->
+          time_string <> ":00"
+
+        true ->
+          time_string <> ":00"
+      end
+
     # Pad hours if needed (e.g., "9:30:00" -> "09:30:00")
-    normalized = case String.split(normalized, ":") do
-      [h, m, s] when byte_size(h) == 1 -> "0" <> h <> ":" <> m <> ":" <> s
-      _ -> normalized
-    end
-    
+    normalized =
+      case String.split(normalized, ":") do
+        [h, m, s] when byte_size(h) == 1 -> "0" <> h <> ":" <> m <> ":" <> s
+        _ -> normalized
+      end
+
     case Time.from_iso8601(normalized) do
-      {:ok, time} -> 
+      {:ok, time} ->
         Logger.debug("Parsed time '#{time_string}' -> #{time}")
         time
-      {:error, reason} -> 
-        Logger.warning("Failed to parse time '#{time_string}' (normalized: '#{normalized}'): #{inspect(reason)}")
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to parse time '#{time_string}' (normalized: '#{normalized}'): #{inspect(reason)}"
+        )
+
         nil
     end
   end
@@ -308,79 +351,85 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   defp create_purchases(items, stop, store, transaction, user, household_id) do
     alias MegaPlanner.Repo
     alias MegaPlanner.Receipts.Purchase
-    
+
     date = parse_date(transaction["date"]) || Date.utc_today()
 
     # First pass: create all purchases with raw brand/unit names
     # Don't create brand/unit entities yet - wait until purchase succeeds
-    purchases = Enum.map(items, fn item ->
-      # Save format correction to learn from user edits
-      save_format_correction_if_edited(item, household_id)
+    purchases =
+      Enum.map(items, fn item ->
+        # Save format correction to learn from user edits
+        save_format_correction_if_edited(item, household_id)
 
-      # Create budget entry first
-      {:ok, budget_entry} = create_budget_entry(
-        item,
-        store,
-        date,
-        user,
-        household_id
-      )
+        # Create budget entry first
+        {:ok, budget_entry} =
+          create_budget_entry(
+            item,
+            store,
+            date,
+            user,
+            household_id
+          )
 
-      # Get raw brand/unit names - will create entities after purchase succeeds
-      brand_name = normalize_brand_name(item["brand"])
-      unit_name = item["unit"]
+        # Get raw brand/unit names - will create entities after purchase succeeds
+        brand_name = normalize_brand_name(item["brand"])
+        unit_name = item["unit"]
 
-      # Create purchase with the raw brand/unit name strings
-      # Note: All decimal fields must be converted to string for proper Ecto casting
-      # (Ecto's :decimal type can't cast float numbers like 5.3 directly)
-      
-      purchase_attrs = %{
-        "brand" => brand_name,
-        "item" => item["item"] || item["raw_text"] || "",
-        "unit_measurement" => unit_name,
-        "count" => decimal_to_string(item["quantity"]) || "1",
-        "units" => decimal_to_string(item["unit_quantity"]),
-        "price_per_unit" => decimal_to_string(item["unit_price"]),
-        "total_price" => decimal_to_string(item["total_price"]) || "0",
-        "taxable" => item["taxable"] || false,
-        "store_code" => item["store_code"],
-        "item_name" => item["raw_text"],
-        "usage_mode" => item["usage_mode"] || "count",
-        "stop_id" => stop && stop.id,
-        "budget_entry_id" => budget_entry.id,
-        "household_id" => household_id
-      }
+        # Create purchase with the raw brand/unit name strings
+        # Note: All decimal fields must be converted to string for proper Ecto casting
+        # (Ecto's :decimal type can't cast float numbers like 5.3 directly)
 
-      changeset = Purchase.changeset(%Purchase{}, purchase_attrs)
-      
-      case Repo.insert(changeset) do
-        {:ok, purchase} -> 
-          # Only NOW create brand/unit entities since purchase succeeded
-          # This ensures we only create entities for user-confirmed items
-          ensure_brand_for_confirmed_purchase(brand_name, household_id)
-          if unit_name, do: ensure_unit_for_confirmed_purchase(unit_name, household_id)
-          
-          # Backfill budget entry's purchase_id for bidirectional link
-          # This enables trip aggregation in budget views
-          Budget.Entry.changeset(budget_entry, %{purchase_id: purchase.id})
-          |> Repo.update()
-          
-          # Create the corresponding inventory item in the Purchases sheet
-          MegaPlanner.Inventory.create_item_from_purchase(purchase)
-          
-          purchase
-        {:error, changeset} ->
-          require Logger
-          Logger.error("Failed to create purchase: #{inspect(changeset)}")
-          nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
+        purchase_attrs = %{
+          "brand" => brand_name,
+          "item" => item["item"] || item["raw_text"] || "",
+          "unit_measurement" => unit_name,
+          "count" => decimal_to_string(item["quantity"]) || "1",
+          "units" => decimal_to_string(item["unit_quantity"]),
+          "price_per_unit" => decimal_to_string(item["unit_price"]),
+          "total_price" => decimal_to_string(item["total_price"]) || "0",
+          "taxable" => item["taxable"] || false,
+          "store_code" => item["store_code"],
+          "item_name" => item["raw_text"],
+          "usage_mode" => item["usage_mode"] || "count",
+          "stop_id" => stop && stop.id,
+          "budget_entry_id" => budget_entry.id,
+          "household_id" => household_id
+        }
+
+        changeset = Purchase.changeset(%Purchase{}, purchase_attrs)
+
+        case Repo.insert(changeset) do
+          {:ok, purchase} ->
+            # Only NOW create brand/unit entities since purchase succeeded
+            # This ensures we only create entities for user-confirmed items
+            ensure_brand_for_confirmed_purchase(brand_name, household_id)
+            if unit_name, do: ensure_unit_for_confirmed_purchase(unit_name, household_id)
+
+            # Backfill budget entry's purchase_id for bidirectional link
+            # This enables trip aggregation in budget views
+            Budget.Entry.changeset(budget_entry, %{purchase_id: purchase.id})
+            |> Repo.update()
+
+            # Create the corresponding inventory item in the Purchases sheet
+            MegaPlanner.Inventory.create_item_from_purchase(purchase)
+
+            purchase
+
+          {:error, changeset} ->
+            require Logger
+            Logger.error("Failed to create purchase: #{inspect(changeset)}")
+            nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
 
     # Log what was learned for debugging
     require Logger
-    Logger.info("Receipt confirm: created #{length(purchases)} purchases, saved format corrections for learning")
-    
+
+    Logger.info(
+      "Receipt confirm: created #{length(purchases)} purchases, saved format corrections for learning"
+    )
+
     purchases
   end
 
@@ -398,7 +447,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
     unit = item["unit"]
     quantity = item["quantity"]
     unit_quantity = item["unit_quantity"]
-    
+
     # Skip if no raw_text to learn from
     if is_nil(raw_text) or raw_text == "" do
       :ok
@@ -408,41 +457,47 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
       item_edited = item_name && item_name != "" && !similar_text?(raw_text, item_name)
       unit_edited = unit && unit != ""
       quantity_edited = quantity && is_integer(quantity) && quantity != 1
-      
+
       # unit_quantity can be string "16" or number 16 - check for any meaningful value
       unit_quantity_value = parse_unit_quantity(unit_quantity)
       unit_quantity_has_value = unit_quantity_value != nil
-      
+
       require Logger
       Logger.info("Learning check for raw_text: #{raw_text}")
-      Logger.info("  unit_quantity raw: #{inspect(unit_quantity)}, parsed: #{inspect(unit_quantity_value)}, has_value: #{unit_quantity_has_value}")
-      
+
+      Logger.info(
+        "  unit_quantity raw: #{inspect(unit_quantity)}, parsed: #{inspect(unit_quantity_value)}, has_value: #{unit_quantity_has_value}"
+      )
+
       if brand_edited or item_edited or unit_edited or quantity_edited or unit_quantity_has_value do
-        result = Receipts.upsert_format_correction(%{
-          "household_id" => household_id,
-          "raw_text" => raw_text,
-          "corrected_brand" => if(brand_edited, do: brand, else: nil),
-          "corrected_item" => if(item_edited, do: item_name, else: nil),
-          "corrected_unit" => if(unit_edited, do: unit, else: nil),
-          "corrected_quantity" => if(quantity_edited, do: quantity, else: nil),
-          "corrected_unit_quantity" => unit_quantity_value,
-          "match_type" => "exact"
-        })
+        result =
+          Receipts.upsert_format_correction(%{
+            "household_id" => household_id,
+            "raw_text" => raw_text,
+            "corrected_brand" => if(brand_edited, do: brand, else: nil),
+            "corrected_item" => if(item_edited, do: item_name, else: nil),
+            "corrected_unit" => if(unit_edited, do: unit, else: nil),
+            "corrected_quantity" => if(quantity_edited, do: quantity, else: nil),
+            "corrected_unit_quantity" => unit_quantity_value,
+            "match_type" => "exact"
+          })
+
         Logger.info("  Upsert result: #{inspect(result)}")
         result
       end
     end
   end
 
-
   defp parse_unit_quantity(nil), do: nil
   defp parse_unit_quantity(""), do: nil
+
   defp parse_unit_quantity(value) when is_binary(value) do
     case Decimal.parse(String.trim(value)) do
       {decimal, _} -> decimal
       :error -> nil
     end
   end
+
   defp parse_unit_quantity(value) when is_integer(value), do: Decimal.new(value)
   defp parse_unit_quantity(value) when is_float(value), do: Decimal.from_float(value)
   defp parse_unit_quantity(_), do: nil
@@ -451,7 +506,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   defp similar_text?(text1, text2) do
     t1 = String.downcase(text1 || "") |> String.trim()
     t2 = String.downcase(text2 || "") |> String.trim()
-    
+
     String.contains?(t1, t2) or String.contains?(t2, t1)
   end
 
@@ -471,13 +526,16 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
           "name" => brand_name,
           "household_id" => household_id
         })
-      _brand -> :ok
+
+      _brand ->
+        :ok
     end
   end
 
   # Create unit entity only after purchase is confirmed
   defp ensure_unit_for_confirmed_purchase(nil, _household_id), do: :ok
   defp ensure_unit_for_confirmed_purchase("", _household_id), do: :ok
+
   defp ensure_unit_for_confirmed_purchase(unit_name, household_id) do
     case Receipts.get_unit_by_name(household_id, unit_name) do
       nil ->
@@ -485,17 +543,20 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
           "name" => unit_name,
           "household_id" => household_id
         })
-      _unit -> :ok
+
+      _unit ->
+        :ok
     end
   end
 
   defp create_budget_entry(item, store, date, user, household_id) do
     # Get or create expense source for store
-    {:ok, source} = Budget.get_or_create_source_for_store(
-      household_id,
-      user.id,
-      store.name
-    )
+    {:ok, source} =
+      Budget.get_or_create_source_for_store(
+        household_id,
+        user.id,
+        store.name
+      )
 
     Budget.create_entry(%{
       "date" => Date.to_iso8601(date),
@@ -509,6 +570,7 @@ defmodule MegaPlannerWeb.ReceiptUploadController do
   end
 
   defp parse_date(nil), do: nil
+
   defp parse_date(date_string) do
     case Date.from_iso8601(date_string) do
       {:ok, date} -> date

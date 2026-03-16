@@ -30,4 +30,3 @@ defmodule MegaPlannerWeb.PreferencesController do
     }
   end
 end
-

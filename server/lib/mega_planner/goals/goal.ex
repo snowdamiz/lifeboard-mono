@@ -29,20 +29,31 @@ defmodule MegaPlanner.Goals.Goal do
   @doc false
   def changeset(goal, attrs) do
     goal
-    |> cast(attrs, [:title, :description, :target_date, :status, :category, :progress, :linked_task_ids, :user_id, :household_id, :goal_category_id])
+    |> cast(attrs, [
+      :title,
+      :description,
+      :target_date,
+      :status,
+      :category,
+      :progress,
+      :linked_task_ids,
+      :user_id,
+      :household_id,
+      :goal_category_id
+    ])
     |> validate_required([:title, :user_id, :household_id])
     |> validate_inclusion(:status, @statuses)
     |> validate_number(:progress, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
     |> validate_change(:goal_category_id, fn :goal_category_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Goals.GoalCategory, id),
-           do: [],
-           else: [goal_category_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Goals.GoalCategory, id),
+        do: [],
+        else: [goal_category_id: "does not exist"]
+    end)
   end
 
   @doc """

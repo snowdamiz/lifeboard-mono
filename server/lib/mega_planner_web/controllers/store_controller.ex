@@ -76,14 +76,17 @@ defmodule MegaPlannerWeb.StoreController do
 
     # Verify store access first
     with store when not is_nil(store) <- Receipts.get_household_store(user.household_id, store_id),
-         {:ok, _result} <- Receipts.update_store_inventory_item(store.id, item_id, source, attrs, propagate) do
-      
+         {:ok, _result} <-
+           Receipts.update_store_inventory_item(store.id, item_id, source, attrs, propagate) do
       # Return updated inventory list so UI can refresh
       inventory = Receipts.list_store_inventory(store)
       json(conn, %{data: inventory})
     else
-      nil -> {:error, :not_found}
-      {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "Failed to update item"})
+      nil ->
+        {:error, :not_found}
+
+      {:error, _} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "Failed to update item"})
     end
   end
 

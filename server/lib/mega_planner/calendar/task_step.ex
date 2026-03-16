@@ -21,9 +21,9 @@ defmodule MegaPlanner.Calendar.TaskStep do
     |> cast(attrs, [:content, :completed, :position, :task_id])
     |> validate_required([:content])
     |> validate_change(:task_id, fn :task_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Calendar.Task, id),
-           do: [],
-           else: [task_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Calendar.Task, id),
+        do: [],
+        else: [task_id: "does not exist"]
+    end)
   end
 end

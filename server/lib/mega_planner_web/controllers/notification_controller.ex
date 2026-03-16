@@ -9,8 +9,14 @@ defmodule MegaPlannerWeb.NotificationController do
     user = Guardian.Plug.current_resource(conn)
 
     opts = []
-    opts = if params["unread_only"] == "true", do: Keyword.put(opts, :unread_only, true), else: opts
-    opts = if limit = params["limit"], do: Keyword.put(opts, :limit, String.to_integer(limit)), else: opts
+
+    opts =
+      if params["unread_only"] == "true", do: Keyword.put(opts, :unread_only, true), else: opts
+
+    opts =
+      if limit = params["limit"],
+        do: Keyword.put(opts, :limit, String.to_integer(limit)),
+        else: opts
 
     notifications = Notifications.list_notifications(user.id, opts)
     unread_count = Notifications.unread_count(user.id)

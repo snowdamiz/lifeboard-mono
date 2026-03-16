@@ -14,6 +14,7 @@ defmodule MegaPlannerWeb.HouseholdController do
     case Households.get_household_with_members(user.household_id) do
       nil ->
         {:error, :not_found}
+
       household ->
         json(conn, %{data: household_to_json(household)})
     end
@@ -43,6 +44,7 @@ defmodule MegaPlannerWeb.HouseholdController do
 
     with {:ok, invitation} <- Households.send_invitation(user, email) do
       invitation = Households.get_invitation(invitation.id)
+
       conn
       |> put_status(:created)
       |> json(%{data: invitation_to_json(invitation)})
@@ -111,6 +113,7 @@ defmodule MegaPlannerWeb.HouseholdController do
     case Households.leave_household(user) do
       {:ok, updated_user} ->
         household = Households.get_household_with_members(updated_user.household_id)
+
         json(conn, %{
           data: household_to_json(household),
           message: "You have left your household and created a new personal one"
@@ -137,6 +140,7 @@ defmodule MegaPlannerWeb.HouseholdController do
          true <- String.downcase(invitation.email) == String.downcase(user.email),
          {:ok, updated_user} <- Households.accept_invitation(invitation, user) do
       household = Households.get_household_with_members(updated_user.household_id)
+
       json(conn, %{
         data: household_to_json(household),
         message: "Welcome to the household!"
@@ -228,10 +232,11 @@ defmodule MegaPlannerWeb.HouseholdController do
       email: invitation.email,
       status: invitation.status,
       expires_at: invitation.expires_at,
-      inviter: if(Ecto.assoc_loaded?(invitation.inviter),
-        do: %{id: invitation.inviter.id, name: invitation.inviter.name},
-        else: nil
-      ),
+      inviter:
+        if(Ecto.assoc_loaded?(invitation.inviter),
+          do: %{id: invitation.inviter.id, name: invitation.inviter.name},
+          else: nil
+        ),
       inserted_at: invitation.inserted_at
     }
   end
@@ -241,14 +246,20 @@ defmodule MegaPlannerWeb.HouseholdController do
       id: invitation.id,
       status: invitation.status,
       expires_at: invitation.expires_at,
-      household: if(Ecto.assoc_loaded?(invitation.household),
-        do: %{id: invitation.household.id, name: invitation.household.name},
-        else: nil
-      ),
-      inviter: if(Ecto.assoc_loaded?(invitation.inviter),
-        do: %{id: invitation.inviter.id, name: invitation.inviter.name, email: invitation.inviter.email},
-        else: nil
-      ),
+      household:
+        if(Ecto.assoc_loaded?(invitation.household),
+          do: %{id: invitation.household.id, name: invitation.household.name},
+          else: nil
+        ),
+      inviter:
+        if(Ecto.assoc_loaded?(invitation.inviter),
+          do: %{
+            id: invitation.inviter.id,
+            name: invitation.inviter.name,
+            email: invitation.inviter.email
+          },
+          else: nil
+        ),
       inserted_at: invitation.inserted_at
     }
   end

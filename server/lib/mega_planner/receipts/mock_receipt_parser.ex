@@ -1,7 +1,7 @@
 defmodule MegaPlanner.Receipts.MockReceiptParser do
   @moduledoc """
   Mock receipt parser for testing. Provides deterministic responses without calling external APIs.
-  
+
   Includes fixtures with intentionally scrambled text to simulate:
   - OCR errors (misread characters)
   - Partial data (missing fields)
@@ -13,7 +13,7 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
 
   @doc """
   Parse a "receipt" without calling any external API.
-  
+
   ## Options
   - `:fixture` - Which fixture to return (default: :partial_scramble)
     - `:clean` - Perfect OCR, all fields present
@@ -26,12 +26,13 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
   """
   def parse_receipt(_image_data, household_id, opts \\ []) do
     fixture = Keyword.get(opts, :fixture, :partial_scramble)
-    
+
     Logger.info("[MockReceiptParser] Using fixture: #{fixture}")
-    
-    data = get_fixture(fixture)
-    |> maybe_enrich_with_household(household_id)
-    
+
+    data =
+      get_fixture(fixture)
+      |> maybe_enrich_with_household(household_id)
+
     {:ok, data}
   end
 
@@ -101,24 +102,35 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
   defp get_fixture(:partial_scramble) do
     %{
       store: %{
-        name: "W@LM*RT Superc3nter",  # OCR errors in name
-        store_id: "234l",              # 'l' instead of '1'
-        address: "123 Main Str33t, Anytown, MI 48l01",  # Some errors
-        phone: nil                     # Missing
+        # OCR errors in name
+        name: "W@LM*RT Superc3nter",
+        # 'l' instead of '1'
+        store_id: "234l",
+        # Some errors
+        address: "123 Main Str33t, Anytown, MI 48l01",
+        # Missing
+        phone: nil
       },
       summary: %{
-        subtotal: "45.9B",            # 'B' instead of '8'
+        # 'B' instead of '8'
+        subtotal: "45.9B",
         tax: "3.79",
-        total: "49.7?",               # Uncertain digit
-        tax_rate: nil,                # Missing
-        payment_method: "VISA ****12",  # Truncated
-        date: "2026-02-O4",           # 'O' instead of '0'
+        # Uncertain digit
+        total: "49.7?",
+        # Missing
+        tax_rate: nil,
+        # Truncated
+        payment_method: "VISA ****12",
+        # 'O' instead of '0'
+        date: "2026-02-O4",
         time: nil
       },
       items: [
         %{
-          raw_text: "ORG MLK 1GL",      # Heavily abbreviated
-          brand: nil,                    # Couldn't detect
+          # Heavily abbreviated
+          raw_text: "ORG MLK 1GL",
+          # Couldn't detect
+          brand: nil,
           item: "Milk",
           quantity: 1,
           unit: "gallon",
@@ -126,35 +138,44 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
           total_price: "6.99",
           taxable: false,
           tax_indicator: "N",
-          store_code: "0012345678g0"    # 'g' instead of '9'
+          # 'g' instead of '9'
+          store_code: "0012345678g0"
         },
         %{
-          raw_text: "GV WH1TE BR3AD",   # '1' and '3' instead of 'I' and 'E'
+          # '1' and '3' instead of 'I' and 'E'
+          raw_text: "GV WH1TE BR3AD",
           brand: "Great Value",
-          item: nil,                     # Couldn't parse
+          # Couldn't parse
+          item: nil,
           quantity: 1,
           unit: nil,
-          unit_price: "l.50",           # 'l' instead of '1'
+          # 'l' instead of '1'
+          unit_price: "l.50",
           total_price: "1.50",
           taxable: false,
           tax_indicator: "N",
           store_code: nil
         },
         %{
-          raw_text: "T1D3 P0DS 42CT",   # Multiple OCR errors
+          # Multiple OCR errors
+          raw_text: "T1D3 P0DS 42CT",
           brand: nil,
           item: "Pods",
-          quantity: nil,                 # Couldn't parse count
+          # Couldn't parse count
+          quantity: nil,
           unit: "box",
-          unit_price: "19.g9",          # 'g' instead of '9'
+          # 'g' instead of '9'
+          unit_price: "19.g9",
           total_price: "19.99",
           taxable: true,
           tax_indicator: "X",
           tax_rate: "0.0825",
-          store_code: "03700050??83"    # Unknown digits
+          # Unknown digits
+          store_code: "03700050??83"
         },
         %{
-          raw_text: "##@!$%^&*()",       # Complete garbage line
+          # Complete garbage line
+          raw_text: "##@!$%^&*()",
           brand: nil,
           item: nil,
           quantity: nil,
@@ -172,7 +193,8 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
   defp get_fixture(:heavy_scramble) do
     %{
       store: %{
-        name: "W@|_M*R7",              # Very corrupted
+        # Very corrupted
+        name: "W@|_M*R7",
         store_id: nil,
         address: nil,
         phone: nil
@@ -268,9 +290,12 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
       },
       items: [
         %{
-          raw_text: "KS ORG XVOO 2L",  # Kirkland Signature abbreviation
-          brand: nil,                    # Needs learning: KS = Kirkland Signature
-          item: "XVOO 2L",               # Needs learning: XVOO = Extra Virgin Olive Oil
+          # Kirkland Signature abbreviation
+          raw_text: "KS ORG XVOO 2L",
+          # Needs learning: KS = Kirkland Signature
+          brand: nil,
+          # Needs learning: XVOO = Extra Virgin Olive Oil
+          item: "XVOO 2L",
           quantity: 1,
           unit: "bottle",
           unit_price: "14.99",
@@ -280,7 +305,8 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
           store_code: "1234567"
         },
         %{
-          raw_text: "KS CKN BRST 6LB",  # Chicken Breast abbreviation
+          # Chicken Breast abbreviation
+          raw_text: "KS CKN BRST 6LB",
           brand: nil,
           item: "CKN BRST",
           quantity: 1,
@@ -292,7 +318,8 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
           store_code: "2345678"
         },
         %{
-          raw_text: "DYSON V15 DETECT A",  # Taxable item
+          # Taxable item
+          raw_text: "DYSON V15 DETECT A",
           brand: "Dyson",
           item: "V15 Vacuum",
           quantity: 1,
@@ -347,7 +374,8 @@ defmodule MegaPlanner.Receipts.MockReceiptParser do
           unit_price: "3.78",
           total_price: "3.78",
           taxable: false,
-          tax_indicator: "F",  # Food stamp eligible
+          # Food stamp eligible
+          tax_indicator: "F",
           store_code: "078742127705"
         },
         %{

@@ -33,7 +33,10 @@ defmodule MegaPlanner.Inventory.Item do
     belongs_to :stop, MegaPlanner.Receipts.Stop
 
     belongs_to :sheet, MegaPlanner.Inventory.Sheet
-    has_many :shopping_list_items, MegaPlanner.Inventory.ShoppingListItem, foreign_key: :inventory_item_id
+
+    has_many :shopping_list_items, MegaPlanner.Inventory.ShoppingListItem,
+      foreign_key: :inventory_item_id
+
     many_to_many :tags, MegaPlanner.Tags.Tag,
       join_through: "inventory_items_tags",
       join_keys: [inventory_item_id: :id, tag_id: :id],
@@ -46,18 +49,37 @@ defmodule MegaPlanner.Inventory.Item do
   def changeset(item, attrs) do
     item
     |> cast(attrs, [
-      :name, :quantity, :min_quantity, :is_necessity, :store, :unit_of_measure, :brand,
-      :count, :count_unit, :price_per_count, :price_per_unit, :taxable, :total_price, :store_code, :item_name,
-      :custom_fields, :sheet_id, :purchase_id, :trip_id, :stop_id, :purchase_date, :usage_mode
+      :name,
+      :quantity,
+      :min_quantity,
+      :is_necessity,
+      :store,
+      :unit_of_measure,
+      :brand,
+      :count,
+      :count_unit,
+      :price_per_count,
+      :price_per_unit,
+      :taxable,
+      :total_price,
+      :store_code,
+      :item_name,
+      :custom_fields,
+      :sheet_id,
+      :purchase_id,
+      :trip_id,
+      :stop_id,
+      :purchase_date,
+      :usage_mode
     ])
     |> validate_required([:name, :sheet_id])
     |> validate_number(:quantity, greater_than_or_equal_to: 0)
     |> validate_number(:min_quantity, greater_than_or_equal_to: 0)
     |> validate_inclusion(:usage_mode, ["count", "quantity"])
     |> validate_change(:sheet_id, fn :sheet_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Inventory.Sheet, id),
-           do: [],
-           else: [sheet_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Inventory.Sheet, id),
+        do: [],
+        else: [sheet_id: "does not exist"]
+    end)
   end
 end

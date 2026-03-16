@@ -9,14 +9,16 @@ defmodule MegaPlannerWeb.PageController do
   def index(conn, %{"notebook_id" => notebook_id} = params) do
     user = Guardian.Plug.current_resource(conn)
 
-    opts = case params["tag_ids"] do
-      nil -> []
-      "" -> []
-      tag_ids when is_binary(tag_ids) -> [tag_ids: String.split(tag_ids, ",")]
-      tag_ids when is_list(tag_ids) -> [tag_ids: tag_ids]
-    end
+    opts =
+      case params["tag_ids"] do
+        nil -> []
+        "" -> []
+        tag_ids when is_binary(tag_ids) -> [tag_ids: String.split(tag_ids, ",")]
+        tag_ids when is_list(tag_ids) -> [tag_ids: tag_ids]
+      end
 
-    with notebook when not is_nil(notebook) <- Notes.get_household_notebook(user.household_id, notebook_id) do
+    with notebook when not is_nil(notebook) <-
+           Notes.get_household_notebook(user.household_id, notebook_id) do
       pages = Notes.list_pages(notebook.id, opts)
       json(conn, %{data: Enum.map(pages, &page_to_json/1)})
     else
@@ -27,8 +29,10 @@ defmodule MegaPlannerWeb.PageController do
   def create(conn, %{"notebook_id" => notebook_id, "page" => page_params}) do
     user = Guardian.Plug.current_resource(conn)
 
-    with notebook when not is_nil(notebook) <- Notes.get_household_notebook(user.household_id, notebook_id),
-         page_params <- page_params |> Map.put("notebook_id", notebook.id) |> Map.put("user_id", user.id),
+    with notebook when not is_nil(notebook) <-
+           Notes.get_household_notebook(user.household_id, notebook_id),
+         page_params <-
+           page_params |> Map.put("notebook_id", notebook.id) |> Map.put("user_id", user.id),
          {:ok, %Page{} = page} <- Notes.create_page(page_params) do
       conn
       |> put_status(:created)

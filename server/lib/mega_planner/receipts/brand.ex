@@ -23,13 +23,23 @@ defmodule MegaPlanner.Receipts.Brand do
   @doc false
   def changeset(brand, attrs) do
     brand
-    |> cast(attrs, [:name, :default_item, :default_unit_measurement, :default_count_unit, :default_quantity_per_count, :default_unit_measurement_per_count, :default_tags, :image_url, :household_id])
+    |> cast(attrs, [
+      :name,
+      :default_item,
+      :default_unit_measurement,
+      :default_count_unit,
+      :default_quantity_per_count,
+      :default_unit_measurement_per_count,
+      :default_tags,
+      :image_url,
+      :household_id
+    ])
     |> validate_required([:name, :household_id])
     |> unique_constraint([:household_id, :name])
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

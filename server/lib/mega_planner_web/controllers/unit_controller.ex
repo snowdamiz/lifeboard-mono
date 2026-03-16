@@ -14,7 +14,7 @@ defmodule MegaPlannerWeb.UnitController do
   def create(conn, %{"unit" => unit_params}) do
     user = Guardian.Plug.current_resource(conn)
     unit_params = Map.put(unit_params, "household_id", user.household_id)
-    
+
     with {:ok, %Unit{} = unit} <- Receipts.create_unit(unit_params) do
       conn
       |> put_status(:created)

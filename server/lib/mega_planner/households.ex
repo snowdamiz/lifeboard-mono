@@ -40,9 +40,11 @@ defmodule MegaPlanner.Households do
           case update_user_household(user, household.id) do
             {:ok, updated_user} ->
               {household, updated_user}
+
             {:error, changeset} ->
               Repo.rollback(changeset)
           end
+
         {:error, changeset} ->
           Repo.rollback(changeset)
       end
@@ -102,6 +104,7 @@ defmodule MegaPlanner.Households do
       else
         # Check if the invitee is already in this household
         invitee = Repo.get_by(User, email: email)
+
         if invitee && invitee.household_id == inviter.household_id do
           {:error, :already_member}
         else
@@ -147,9 +150,10 @@ defmodule MegaPlanner.Households do
   """
   def get_pending_invitation_for_email(household_id, email) do
     from(i in Invitation,
-      where: i.household_id == ^household_id and
-             i.email == ^email and
-             i.status == "pending"
+      where:
+        i.household_id == ^household_id and
+          i.email == ^email and
+          i.status == "pending"
     )
     |> Repo.one()
   end
@@ -184,10 +188,12 @@ defmodule MegaPlanner.Households do
   """
   def list_invitations_for_email(email) do
     now = DateTime.utc_now()
+
     from(i in Invitation,
-      where: i.email == ^email and
-             i.status == "pending" and
-             i.expires_at > ^now,
+      where:
+        i.email == ^email and
+          i.status == "pending" and
+          i.expires_at > ^now,
       order_by: [desc: i.inserted_at],
       preload: [:household, :inviter]
     )
@@ -223,6 +229,7 @@ defmodule MegaPlanner.Households do
         invitation
         |> Invitation.status_changeset("expired")
         |> Repo.update()
+
         {:error, :invitation_expired}
 
       user.household_id == invitation.household_id ->
@@ -333,8 +340,9 @@ defmodule MegaPlanner.Households do
 
   defp cleanup_empty_household(household_id) do
     # Check if household has any remaining members
-    member_count = from(u in User, where: u.household_id == ^household_id, select: count())
-                   |> Repo.one()
+    member_count =
+      from(u in User, where: u.household_id == ^household_id, select: count())
+      |> Repo.one()
 
     if member_count == 0 do
       # Delete the empty household
@@ -363,8 +371,9 @@ defmodule MegaPlanner.Households do
   """
   def leave_household(%User{} = user) do
     # Check if user is the only member
-    member_count = from(u in User, where: u.household_id == ^user.household_id, select: count())
-                   |> Repo.one()
+    member_count =
+      from(u in User, where: u.household_id == ^user.household_id, select: count())
+      |> Repo.one()
 
     if member_count == 1 do
       {:error, :only_member}
@@ -374,6 +383,7 @@ defmodule MegaPlanner.Households do
 
         # Create new personal household
         name = (user.name || user.email) <> "'s Household"
+
         case create_household(%{name: name}) do
           {:ok, new_household} ->
             # Move user's personal data to new household
@@ -383,6 +393,7 @@ defmodule MegaPlanner.Households do
             case update_user_household(user, new_household.id) do
               {:ok, updated_user} ->
                 updated_user
+
               {:error, changeset} ->
                 Repo.rollback(changeset)
             end

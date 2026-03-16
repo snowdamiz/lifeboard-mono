@@ -87,6 +87,7 @@ defmodule MegaPlannerWeb.Router do
       put "/items/:id", ShoppingListController, :update_item
       delete "/items/:id", ShoppingListController, :delete_item
     end
+
     put "/shopping-lists/:id", ShoppingListController, :update_list
     post "/shopping-lists/generate", ShoppingListController, :generate
     get "/shopping-items", ShoppingListController, :all_items
@@ -104,18 +105,18 @@ defmodule MegaPlannerWeb.Router do
         get "/inventory", StoreController, :get_inventory
         put "/inventory/:item_id", StoreController, :update_inventory_item
       end
-      
+
       get "/brands/search", BrandController, :search
       resources "/brands", BrandController, except: [:new, :edit, :delete]
-      
+
       resources "/units", UnitController, only: [:index, :create]
-      
+
       resources "/trips", TripController, except: [:new, :edit] do
         resources "/stops", StopController, only: [:index, :create]
       end
-      
+
       resources "/stops", StopController, only: [:update, :delete]
-      
+
       resources "/purchases", PurchaseController, except: [:new, :edit]
       get "/purchases/suggest/brand", PurchaseController, :suggest_by_brand
       get "/purchases/suggest/item", PurchaseController, :suggest_by_item
@@ -124,9 +125,9 @@ defmodule MegaPlannerWeb.Router do
       get "/purchases/suggest/receipt-item", PurchaseController, :suggest_receipt_items
       get "/purchases/suggest/item-name", PurchaseController, :suggest_items
       post "/purchases/to-inventory", PurchaseController, :add_to_inventory
-      
+
       resources "/drivers", DriverController, only: [:index, :create]
-      
+
       # Receipt scanning (AI-powered)
       post "/scan", ReceiptUploadController, :scan
       post "/confirm", ReceiptUploadController, :confirm
@@ -136,6 +137,7 @@ defmodule MegaPlannerWeb.Router do
     resources "/notebooks", NotebookController, except: [:new, :edit] do
       resources "/pages", PageController, only: [:index, :create]
     end
+
     resources "/pages", PageController, only: [:show, :update, :delete]
 
     # Search
@@ -144,6 +146,7 @@ defmodule MegaPlannerWeb.Router do
     # Tags
     get "/tags/search", TagController, :search
     post "/tags/create-tasks", TagController, :create_tasks
+
     resources "/tags", TagController, except: [:new, :edit] do
       get "/items", TagController, :items
     end
@@ -158,8 +161,6 @@ defmodule MegaPlannerWeb.Router do
     get "/goals/suggest/milestones", GoalController, :suggest_milestone_titles
     post "/goals/templates/milestones", GoalController, :create_template
 
-
-
     resources "/goals", GoalController, except: [:new, :edit] do
       post "/milestones", GoalController, :create_milestone
       put "/milestones/:milestone_id", GoalController, :update_milestone
@@ -171,6 +172,7 @@ defmodule MegaPlannerWeb.Router do
 
     # Habits - analytics route must come BEFORE resources to avoid :id matching "analytics"
     get "/habits/analytics", HabitController, :analytics
+
     resources "/habits", HabitController, except: [:new, :edit] do
       post "/complete", HabitController, :complete
       delete "/complete", HabitController, :uncomplete

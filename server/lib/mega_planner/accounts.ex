@@ -52,6 +52,7 @@ defmodule MegaPlanner.Accounts do
     Repo.transaction(fn ->
       # First create the household
       household_name = (name || email) <> "'s Household"
+
       case %Household{} |> Household.changeset(%{name: household_name}) |> Repo.insert() do
         {:ok, household} ->
           # Then create the user with the household_id
@@ -130,6 +131,7 @@ defmodule MegaPlanner.Accounts do
       nil ->
         {:ok, prefs} = create_preferences(%{user_id: user_id})
         prefs
+
       prefs ->
         prefs
     end

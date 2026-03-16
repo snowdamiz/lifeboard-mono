@@ -1,6 +1,7 @@
 defmodule MegaPlanner.Receipts.Stop do
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -29,21 +30,31 @@ defmodule MegaPlanner.Receipts.Stop do
       |> normalize_time_field("time_left")
 
     stop
-    |> cast(attrs, [:store_name, :store_address, :notes, :position, :trip_id, :store_id, :time_arrived, :time_left])
+    |> cast(attrs, [
+      :store_name,
+      :store_address,
+      :notes,
+      :position,
+      :trip_id,
+      :store_id,
+      :time_arrived,
+      :time_left
+    ])
     |> validate_required([:trip_id, :position])
     |> validate_change(:trip_id, fn :trip_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Receipts.Trip, id),
-           do: [],
-           else: [trip_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Receipts.Trip, id),
+        do: [],
+        else: [trip_id: "does not exist"]
+    end)
     |> validate_change(:store_id, fn :store_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Receipts.Store, id),
-           do: [],
-           else: [store_id: "does not exist"]
-       end)
-    |> unique_constraint([:trip_id, :store_id],
-       name: :stops_trip_store_unique,
-       message: "This store is already part of the trip")
+      if MegaPlanner.Repo.get(MegaPlanner.Receipts.Store, id),
+        do: [],
+        else: [store_id: "does not exist"]
+    end)
+    |> sqlite_compatible_unique_constraint([:trip_id, :store_id],
+      name: :stops_trip_store_unique,
+      message: "This store is already part of the trip"
+    )
   end
 
   defp normalize_time_field(attrs, key) do

@@ -8,9 +8,10 @@ defmodule MegaPlannerWeb.BrandController do
 
   def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    
-    opts = []
-    |> maybe_add_search(params["search"])
+
+    opts =
+      []
+      |> maybe_add_search(params["search"])
 
     brands = Receipts.list_brands(user.household_id, opts)
     json(conn, %{data: Enum.map(brands, &brand_to_json/1)})
@@ -18,7 +19,7 @@ defmodule MegaPlannerWeb.BrandController do
 
   def search(conn, %{"q" => query}) do
     user = Guardian.Plug.current_resource(conn)
-    
+
     if user do
       brands = Receipts.search_brands(user.household_id, query)
       json(conn, %{data: Enum.map(brands, &brand_to_json/1)})
@@ -53,6 +54,7 @@ defmodule MegaPlannerWeb.BrandController do
   defp maybe_add_search(opts, value) when is_binary(value) and value != "" do
     Keyword.put(opts, :search, value)
   end
+
   defp maybe_add_search(opts, _value), do: opts
 
   defp brand_to_json(brand) do

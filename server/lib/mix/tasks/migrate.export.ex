@@ -116,6 +116,7 @@ defmodule Mix.Tasks.Migrate.Export do
   defp serialize(binary) when is_binary(binary) do
     if String.valid?(binary), do: binary, else: Base.encode64(binary)
   end
+
   defp serialize(list) when is_list(list), do: Enum.map(list, &serialize/1)
   defp serialize(map) when is_map(map), do: Map.new(map, fn {k, v} -> {k, serialize(v)} end)
   defp serialize(v), do: v

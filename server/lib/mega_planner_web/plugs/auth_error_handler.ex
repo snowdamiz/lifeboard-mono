@@ -5,7 +5,12 @@ defmodule MegaPlannerWeb.Plugs.AuthErrorHandler do
 
   @impl Guardian.Plug.ErrorHandler
   def auth_error(conn, {type, reason}, _opts) do
-    File.write("debug_output.txt", "[#{DateTime.utc_now()}] AUTH ERROR: Type: #{inspect(type)}, Reason: #{inspect(reason)}\n", [:append])
+    File.write(
+      "debug_output.txt",
+      "[#{DateTime.utc_now()}] AUTH ERROR: Type: #{inspect(type)}, Reason: #{inspect(reason)}\n",
+      [:append]
+    )
+
     body = Jason.encode!(%{error: to_string(type)})
 
     conn

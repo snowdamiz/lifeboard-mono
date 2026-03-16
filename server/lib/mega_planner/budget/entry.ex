@@ -1,6 +1,7 @@
 defmodule MegaPlanner.Budget.Entry do
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -17,7 +18,10 @@ defmodule MegaPlanner.Budget.Entry do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     belongs_to :purchase, MegaPlanner.Receipts.Purchase
-    many_to_many :tags, MegaPlanner.Tags.Tag, join_through: "budget_entries_tags", on_replace: :delete
+
+    many_to_many :tags, MegaPlanner.Tags.Tag,
+      join_through: "budget_entries_tags",
+      on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -25,28 +29,38 @@ defmodule MegaPlanner.Budget.Entry do
   @doc false
   def changeset(entry, attrs) do
     entry
-    |> cast(attrs, [:date, :amount, :type, :notes, :source_id, :user_id, :household_id, :purchase_id])
+    |> cast(attrs, [
+      :date,
+      :amount,
+      :type,
+      :notes,
+      :source_id,
+      :user_id,
+      :household_id,
+      :purchase_id
+    ])
     |> validate_required([:date, :amount, :type, :user_id, :household_id])
     |> validate_inclusion(:type, @types)
     |> validate_number(:amount, greater_than_or_equal_to: 0)
     |> validate_change(:source_id, fn :source_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Budget.Source, id),
-           do: [],
-           else: [source_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Budget.Source, id),
+        do: [],
+        else: [source_id: "does not exist"]
+    end)
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
-    |> unique_constraint(:purchase_id,
-       name: :budget_entries_purchase_unique,
-       message: "A budget entry already exists for this purchase")
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
+    |> sqlite_compatible_unique_constraint(:purchase_id,
+      name: :budget_entries_purchase_unique,
+      message: "A budget entry already exists for this purchase"
+    )
   end
 
   def tags_changeset(entry, tags) do

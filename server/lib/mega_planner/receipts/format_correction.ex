@@ -49,9 +49,9 @@ defmodule MegaPlanner.Receipts.FormatCorrection do
     |> validate_inclusion(:match_type, ["exact", "fuzzy"])
     |> unique_constraint([:household_id, :raw_text])
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

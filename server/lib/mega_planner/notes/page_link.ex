@@ -23,9 +23,9 @@ defmodule MegaPlanner.Notes.PageLink do
     |> validate_required([:link_type, :linked_id, :page_id])
     |> validate_inclusion(:link_type, @link_types)
     |> validate_change(:page_id, fn :page_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Notes.Page, id),
-           do: [],
-           else: [page_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Notes.Page, id),
+        do: [],
+        else: [page_id: "does not exist"]
+    end)
   end
 end

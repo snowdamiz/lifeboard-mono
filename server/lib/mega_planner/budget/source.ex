@@ -19,6 +19,7 @@ defmodule MegaPlanner.Budget.Source do
     belongs_to :user, MegaPlanner.Accounts.User
     belongs_to :household, MegaPlanner.Households.Household
     has_many :entries, MegaPlanner.Budget.Entry, on_delete: :delete_all
+
     many_to_many :tag_objects, MegaPlanner.Tags.Tag,
       join_through: "budget_sources_tags",
       join_keys: [budget_source_id: :id, tag_id: :id],
@@ -35,14 +36,14 @@ defmodule MegaPlanner.Budget.Source do
     |> validate_inclusion(:type, @types)
     |> validate_number(:amount, greater_than_or_equal_to: 0)
     |> validate_change(:user_id, fn :user_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
-           do: [],
-           else: [user_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Accounts.User, id),
+        do: [],
+        else: [user_id: "does not exist"]
+    end)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

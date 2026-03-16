@@ -16,11 +16,14 @@ defmodule MegaPlannerWeb.InventorySheetController do
   defp parse_tag_ids(%{"tag_ids" => tag_ids}) when is_binary(tag_ids) do
     tag_ids |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.filter(&(&1 != ""))
   end
+
   defp parse_tag_ids(_), do: nil
 
   def create(conn, %{"sheet" => sheet_params}) do
     user = Guardian.Plug.current_resource(conn)
-    sheet_params = sheet_params
+
+    sheet_params =
+      sheet_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 

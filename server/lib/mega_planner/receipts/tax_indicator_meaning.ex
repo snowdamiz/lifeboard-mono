@@ -12,6 +12,7 @@ defmodule MegaPlanner.Receipts.TaxIndicatorMeaning do
   """
   use Ecto.Schema
   import Ecto.Changeset
+  import MegaPlanner.ChangesetConstraints, only: [sqlite_compatible_unique_constraint: 3]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -31,15 +32,23 @@ defmodule MegaPlanner.Receipts.TaxIndicatorMeaning do
   @doc false
   def changeset(meaning, attrs) do
     meaning
-    |> cast(attrs, [:store_name, :indicator, :is_taxable, :description, :default_tax_rate, :household_id])
+    |> cast(attrs, [
+      :store_name,
+      :indicator,
+      :is_taxable,
+      :description,
+      :default_tax_rate,
+      :household_id
+    ])
     |> validate_required([:store_name, :indicator, :is_taxable, :household_id])
     |> validate_length(:indicator, max: 5)
-    |> unique_constraint([:household_id, :store_name, :indicator],
-       name: :tax_indicator_meanings_unique)
+    |> sqlite_compatible_unique_constraint([:household_id, :store_name, :indicator],
+      name: :tax_indicator_meanings_unique
+    )
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

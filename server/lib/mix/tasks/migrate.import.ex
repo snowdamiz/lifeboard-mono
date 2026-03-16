@@ -110,6 +110,7 @@ defmodule Mix.Tasks.Migrate.Import do
   # Maps (JSONB columns) and lists (array columns) must be JSON-encoded for SQLite TEXT storage
   defp encode_for_sqlite(v) when is_map(v), do: Jason.encode!(v)
   defp encode_for_sqlite(v) when is_list(v), do: Jason.encode!(v)
+  defp encode_for_sqlite(v) when is_boolean(v), do: if(v, do: 1, else: 0)
   defp encode_for_sqlite(v), do: v
 
   defp import_table(nil, table_name) do

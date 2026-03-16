@@ -14,7 +14,9 @@ defmodule MegaPlannerWeb.NotebookController do
 
   def create(conn, %{"notebook" => notebook_params}) do
     user = Guardian.Plug.current_resource(conn)
-    notebook_params = notebook_params
+
+    notebook_params =
+      notebook_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 

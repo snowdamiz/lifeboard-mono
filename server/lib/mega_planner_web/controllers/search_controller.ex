@@ -12,6 +12,16 @@ defmodule MegaPlannerWeb.SearchController do
   end
 
   def index(conn, _params) do
-    json(conn, %{data: %{tasks: [], inventory_items: [], budget_sources: [], pages: [], goals: [], habits: [], total: 0}})
+    json(conn, %{
+      data: %{
+        tasks: [],
+        inventory_items: [],
+        budget_sources: [],
+        pages: [],
+        goals: [],
+        habits: [],
+        total: 0
+      }
+    })
   end
 end

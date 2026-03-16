@@ -11,32 +11,42 @@ defmodule MegaPlannerWeb.TaskController do
     user = Guardian.Plug.current_resource(conn)
     Logger.debug("[TASK_CTRL] INDEX params=#{inspect(params)}")
 
-    opts = []
-    |> maybe_add_date(:start_date, params["start_date"])
-    |> maybe_add_date(:end_date, params["end_date"])
-    |> maybe_add_status(params["status"])
-    |> maybe_add_tag_ids(params["tag_ids"])
+    opts =
+      []
+      |> maybe_add_date(:start_date, params["start_date"])
+      |> maybe_add_date(:end_date, params["end_date"])
+      |> maybe_add_status(params["status"])
+      |> maybe_add_tag_ids(params["tag_ids"])
 
     tasks = Calendar.list_tasks(user.household_id, opts)
     trip_tasks = Enum.filter(tasks, & &1.trip_id)
-    Logger.debug("[TASK_CTRL] INDEX returning #{length(tasks)} tasks, #{length(trip_tasks)} with trip_id")
+
+    Logger.debug(
+      "[TASK_CTRL] INDEX returning #{length(tasks)} tasks, #{length(trip_tasks)} with trip_id"
+    )
+
     json(conn, %{data: Enum.map(tasks, &task_to_json/1)})
   end
 
   def create(conn, %{"task" => task_params}) do
     user = Guardian.Plug.current_resource(conn)
     Logger.debug("[TASK_CTRL] CREATE raw params=#{inspect(task_params)}")
-    task_params = task_params
+
+    task_params =
+      task_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
     Logger.debug("[TASK_CTRL] CREATE full params=#{inspect(task_params)}")
+
     case Calendar.create_task(task_params) do
       {:ok, %Task{} = task} ->
         Logger.debug("[TASK_CTRL] CREATE success id=#{task.id}")
+
         conn
         |> put_status(:created)
         |> json(%{data: task_to_json(task)})
+
       {:error, changeset} ->
         Logger.error("[TASK_CTRL] CREATE FAILED changeset=#{inspect(changeset)}")
         {:error, changeset}
@@ -83,6 +93,7 @@ defmodule MegaPlannerWeb.TaskController do
     case Calendar.get_household_task(user.household_id, task_id) do
       nil ->
         {:error, :not_found}
+
       _task ->
         Calendar.reorder_tasks(user.household_id, task_ids)
         json(conn, %{message: "Tasks reordered"})
@@ -95,18 +106,21 @@ defmodule MegaPlannerWeb.TaskController do
       _ -> opts
     end
   end
+
   defp maybe_add_date(opts, _key, _value), do: opts
 
   defp maybe_add_status(opts, value) when is_binary(value) and value != "" do
     statuses = String.split(value, ",")
     Keyword.put(opts, :status, statuses)
   end
+
   defp maybe_add_status(opts, _value), do: opts
 
   defp maybe_add_tag_ids(opts, value) when is_binary(value) and value != "" do
     tag_ids = String.split(value, ",")
     Keyword.put(opts, :tag_ids, tag_ids)
   end
+
   defp maybe_add_tag_ids(opts, _value), do: opts
 
   defp task_to_json(task) do

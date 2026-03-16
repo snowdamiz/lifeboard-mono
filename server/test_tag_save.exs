@@ -10,11 +10,13 @@ tag = Repo.one(from t in Tag, where: t.household_id == ^user.household_id, limit
 
 if !tag do
   IO.puts("Creating a test tag...")
-  {:ok, tag} = MegaPlanner.Tags.create_tag(%{
-    "name" => "Test Tag",
-    "color" => "#FF5733",
-    "household_id" => user.household_id
-  })
+
+  {:ok, tag} =
+    MegaPlanner.Tags.create_tag(%{
+      "name" => "Test Tag",
+      "color" => "#FF5733",
+      "household_id" => user.household_id
+    })
 end
 
 IO.puts("Tag: #{tag.id} - #{tag.name}")
@@ -41,26 +43,26 @@ case Calendar.create_task(attrs) do
     IO.puts("  Title: #{task.title}")
     IO.puts("  Steps count: #{length(task.steps)}")
     IO.puts("  Tags count: #{length(task.tags)}")
-    
+
     if length(task.tags) > 0 do
       IO.puts("  Tags: #{Enum.map(task.tags, & &1.name) |> Enum.join(", ")}")
       IO.puts("\n✓✓ SUCCESS: Tags were saved correctly!")
     else
       IO.puts("\n✗✗ FAILURE: No tags on task!")
     end
-    
+
     # Now reload the task to verify persistence
     IO.puts("\n=== Reloading task from database ===")
     reloaded = Calendar.get_task(task.id)
     IO.puts("  Reloaded tags count: #{length(reloaded.tags)}")
-    
+
     if length(reloaded.tags) > 0 do
       IO.puts("  Reloaded tags: #{Enum.map(reloaded.tags, & &1.name) |> Enum.join(", ")}")
       IO.puts("\n✓✓✓ COMPLETE SUCCESS: Tags persisted correctly!")
     else
       IO.puts("\n✗✗✗ FAILURE: Tags lost after reload!")
     end
-    
+
   {:error, changeset} ->
     IO.puts("\n✗ Error creating task:")
     IO.puts("  #{inspect(changeset.errors)}")

@@ -10,10 +10,11 @@ defmodule MegaPlannerWeb.TripController do
   def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
     Logger.debug("[TRIP_CTRL] INDEX params=#{inspect(params)}")
-    
-    opts = []
-    |> maybe_add_datetime(:start_date, params["start_date"])
-    |> maybe_add_datetime(:end_date, params["end_date"])
+
+    opts =
+      []
+      |> maybe_add_datetime(:start_date, params["start_date"])
+      |> maybe_add_datetime(:end_date, params["end_date"])
 
     trips = Receipts.list_trips(user.household_id, opts)
     Logger.debug("[TRIP_CTRL] INDEX returning #{length(trips)} trips")
@@ -23,12 +24,17 @@ defmodule MegaPlannerWeb.TripController do
   def create(conn, %{"trip" => trip_params}) do
     user = Guardian.Plug.current_resource(conn)
     Logger.debug("[TRIP_CTRL] CREATE params=#{inspect(trip_params)}")
-    trip_params = trip_params
+
+    trip_params =
+      trip_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
     with {:ok, %Trip{} = trip} <- Receipts.create_trip(trip_params) do
-      Logger.debug("[TRIP_CTRL] CREATE SUCCESS id=#{trip.id} trip_start=#{inspect(trip.trip_start)}")
+      Logger.debug(
+        "[TRIP_CTRL] CREATE SUCCESS id=#{trip.id} trip_start=#{inspect(trip.trip_start)}"
+      )
+
       conn
       |> put_status(:created)
       |> json(%{data: trip_to_json(trip)})
@@ -71,9 +77,10 @@ defmodule MegaPlannerWeb.TripController do
   defp maybe_add_datetime(opts, key, value) when is_binary(value) do
     # Try DateTime first, then fall back to Date
     case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> 
+      {:ok, datetime, _offset} ->
         Keyword.put(opts, key, datetime)
-      _ -> 
+
+      _ ->
         # Try parsing as just a date
         case Date.from_iso8601(value) do
           {:ok, date} -> Keyword.put(opts, key, date)
@@ -81,6 +88,7 @@ defmodule MegaPlannerWeb.TripController do
         end
     end
   end
+
   defp maybe_add_datetime(opts, _key, _value), do: opts
 
   defp trip_to_json(trip) do

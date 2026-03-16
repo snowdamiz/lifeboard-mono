@@ -34,21 +34,25 @@ defmodule MegaPlanner.Notifications.Preferences do
   def changeset(preferences, attrs) do
     preferences
     |> cast(attrs, [
-      :task_due_enabled, :task_due_hours_before,
+      :task_due_enabled,
+      :task_due_hours_before,
       :low_inventory_enabled,
-      :budget_threshold_enabled, :budget_threshold_percent,
+      :budget_threshold_enabled,
+      :budget_threshold_percent,
       :habit_reminder_enabled,
-      :push_enabled, :push_subscription,
-      :user_id, :household_id
+      :push_enabled,
+      :push_subscription,
+      :user_id,
+      :household_id
     ])
     |> validate_required([:user_id, :household_id])
     |> validate_number(:task_due_hours_before, greater_than: 0, less_than_or_equal_to: 168)
     |> validate_number(:budget_threshold_percent, greater_than: 0, less_than_or_equal_to: 100)
     |> unique_constraint(:user_id)
     |> validate_change(:household_id, fn :household_id, id ->
-         if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
-           do: [],
-           else: [household_id: "does not exist"]
-       end)
+      if MegaPlanner.Repo.get(MegaPlanner.Households.Household, id),
+        do: [],
+        else: [household_id: "does not exist"]
+    end)
   end
 end

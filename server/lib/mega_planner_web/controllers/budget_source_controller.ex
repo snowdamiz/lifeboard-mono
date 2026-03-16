@@ -14,7 +14,9 @@ defmodule MegaPlannerWeb.BudgetSourceController do
 
   def create(conn, %{"source" => source_params}) do
     user = Guardian.Plug.current_resource(conn)
-    source_params = source_params
+
+    source_params =
+      source_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 

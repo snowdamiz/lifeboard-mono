@@ -9,9 +9,10 @@ defmodule MegaPlannerWeb.AuthController do
     require Logger
     Logger.error("OAuth failure: #{inspect(fails)}")
 
-    errors = Enum.map(fails.errors, fn error ->
-      "#{error.message_key}: #{error.message}"
-    end)
+    errors =
+      Enum.map(fails.errors, fn error ->
+        "#{error.message_key}: #{error.message}"
+      end)
 
     conn
     |> put_status(:unauthorized)
@@ -25,7 +26,9 @@ defmodule MegaPlannerWeb.AuthController do
 
         # Redirect to frontend with both tokens
         frontend_url = Application.get_env(:mega_planner, :frontend_url, "http://localhost:5173")
-        redirect_url = "#{frontend_url}/auth/callback?access_token=#{tokens.access_token}&refresh_token=#{tokens.refresh_token}"
+
+        redirect_url =
+          "#{frontend_url}/auth/callback?access_token=#{tokens.access_token}&refresh_token=#{tokens.refresh_token}"
 
         conn
         |> redirect(external: redirect_url)

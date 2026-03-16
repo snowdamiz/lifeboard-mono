@@ -12,22 +12,24 @@ defmodule MegaPlanner.Templates do
   If query is empty, returns all templates (up to limit), sorted alphabetically.
   """
   def suggest_templates(household_id, field_type, query) do
-    base_query = from(t in TextTemplate,
-      where: t.household_id == ^household_id and t.field_type == ^field_type,
-      select: t.value,
-      distinct: true,
-      order_by: [asc: t.value],
-      limit: 20
-    )
-    
+    base_query =
+      from(t in TextTemplate,
+        where: t.household_id == ^household_id and t.field_type == ^field_type,
+        select: t.value,
+        distinct: true,
+        order_by: [asc: t.value],
+        limit: 20
+      )
+
     # If query is provided, filter by it
-    filtered_query = if query && String.trim(query) != "" do
-      search_pattern = "%#{query}%"
-      from(t in base_query, where: like(t.value, ^search_pattern))
-    else
-      base_query
-    end
-    
+    filtered_query =
+      if query && String.trim(query) != "" do
+        search_pattern = "%#{query}%"
+        from(t in base_query, where: like(t.value, ^search_pattern))
+      else
+        base_query
+      end
+
     Repo.all(filtered_query)
   end
 

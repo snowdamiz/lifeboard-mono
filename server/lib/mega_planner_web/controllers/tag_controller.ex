@@ -21,7 +21,9 @@ defmodule MegaPlannerWeb.TagController do
 
   def create(conn, %{"tag" => tag_params}) do
     user = Guardian.Plug.current_resource(conn)
-    tag_params = tag_params
+
+    tag_params =
+      tag_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
@@ -75,6 +77,7 @@ defmodule MegaPlannerWeb.TagController do
     case Tags.get_tag_with_items(user.household_id, id) do
       nil ->
         {:error, :not_found}
+
       tag ->
         json(conn, %{
           data: %{
@@ -99,19 +102,30 @@ defmodule MegaPlannerWeb.TagController do
   def search(conn, params) do
     user = Guardian.Plug.current_resource(conn)
 
-    tag_ids = case params["tag_ids"] do
-      nil -> []
-      ids when is_binary(ids) -> String.split(ids, ",")
-      ids when is_list(ids) -> ids
-    end
+    tag_ids =
+      case params["tag_ids"] do
+        nil -> []
+        ids when is_binary(ids) -> String.split(ids, ",")
+        ids when is_list(ids) -> ids
+      end
 
-    mode = case params["mode"] do
-      "all" -> :all
-      _ -> :any
-    end
+    mode =
+      case params["mode"] do
+        "all" -> :all
+        _ -> :any
+      end
 
     if length(tag_ids) == 0 do
-      json(conn, %{data: %{tasks: [], goals: [], pages: [], habits: [], inventory_items: [], budget_sources: []}})
+      json(conn, %{
+        data: %{
+          tasks: [],
+          goals: [],
+          pages: [],
+          habits: [],
+          inventory_items: [],
+          budget_sources: []
+        }
+      })
     else
       items = Tags.search_by_tags(user.household_id, tag_ids, mode: mode)
 
@@ -135,35 +149,44 @@ defmodule MegaPlannerWeb.TagController do
   def create_tasks(conn, params) do
     user = Guardian.Plug.current_resource(conn)
 
-    tag_ids = case params["tag_ids"] do
-      nil -> []
-      ids when is_binary(ids) -> String.split(ids, ",")
-      ids when is_list(ids) -> ids
-    end
+    tag_ids =
+      case params["tag_ids"] do
+        nil -> []
+        ids when is_binary(ids) -> String.split(ids, ",")
+        ids when is_list(ids) -> ids
+      end
 
-    include_types = case params["include_types"] do
-      nil -> [:goals, :habits]
-      types when is_list(types) -> Enum.map(types, &String.to_existing_atom/1)
-      types when is_binary(types) -> String.split(types, ",") |> Enum.map(&String.to_existing_atom/1)
-    end
+    include_types =
+      case params["include_types"] do
+        nil ->
+          [:goals, :habits]
 
-    date = case params["date"] do
-      nil -> Date.utc_today()
-      date_str -> Date.from_iso8601!(date_str)
-    end
+        types when is_list(types) ->
+          Enum.map(types, &String.to_existing_atom/1)
+
+        types when is_binary(types) ->
+          String.split(types, ",") |> Enum.map(&String.to_existing_atom/1)
+      end
+
+    date =
+      case params["date"] do
+        nil -> Date.utc_today()
+        date_str -> Date.from_iso8601!(date_str)
+      end
 
     if length(tag_ids) == 0 do
       conn
       |> put_status(:bad_request)
       |> json(%{error: "tag_ids is required"})
     else
-      {:ok, tasks} = Tags.create_tasks_from_tags(
-        user.household_id,
-        user.id,
-        tag_ids,
-        include_types: include_types,
-        date: date
-      )
+      {:ok, tasks} =
+        Tags.create_tasks_from_tags(
+          user.household_id,
+          user.id,
+          tag_ids,
+          include_types: include_types,
+          date: date
+        )
 
       conn
       |> put_status(:created)

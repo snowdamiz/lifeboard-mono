@@ -11,8 +11,16 @@ defmodule MegaPlannerWeb.GoalController do
 
     opts = []
     opts = if status = params["status"], do: Keyword.put(opts, :status, status), else: opts
-    opts = if category_id = params["category_id"], do: Keyword.put(opts, :category_id, category_id), else: opts
-    opts = if tag_ids = params["tag_ids"], do: Keyword.put(opts, :tag_ids, String.split(tag_ids, ",")), else: opts
+
+    opts =
+      if category_id = params["category_id"],
+        do: Keyword.put(opts, :category_id, category_id),
+        else: opts
+
+    opts =
+      if tag_ids = params["tag_ids"],
+        do: Keyword.put(opts, :tag_ids, String.split(tag_ids, ",")),
+        else: opts
 
     goals = Goals.list_goals(user.household_id, opts)
     json(conn, %{data: Enum.map(goals, &goal_to_json/1)})
@@ -20,7 +28,9 @@ defmodule MegaPlannerWeb.GoalController do
 
   def create(conn, %{"goal" => goal_params}) do
     user = Guardian.Plug.current_resource(conn)
-    goal_params = goal_params
+
+    goal_params =
+      goal_params
       |> Map.put("user_id", user.id)
       |> Map.put("household_id", user.household_id)
 
@@ -91,7 +101,11 @@ defmodule MegaPlannerWeb.GoalController do
     end
   end
 
-  def update_milestone(conn, %{"goal_id" => goal_id, "milestone_id" => milestone_id, "milestone" => milestone_params}) do
+  def update_milestone(conn, %{
+        "goal_id" => goal_id,
+        "milestone_id" => milestone_id,
+        "milestone" => milestone_params
+      }) do
     user = Guardian.Plug.current_resource(conn)
 
     with goal when not is_nil(goal) <- Goals.get_household_goal(user.household_id, goal_id),
@@ -156,12 +170,13 @@ defmodule MegaPlannerWeb.GoalController do
 
   def create_template(conn, %{"title" => title}) do
     user = Guardian.Plug.current_resource(conn)
-    
-    {:ok, _template} = Goals.create_milestone_template(%{
-      "title" => title,
-      "household_id" => user.household_id
-    })
-    
+
+    {:ok, _template} =
+      Goals.create_milestone_template(%{
+        "title" => title,
+        "household_id" => user.household_id
+      })
+
     send_resp(conn, :no_content, "")
   end
 
@@ -174,16 +189,24 @@ defmodule MegaPlannerWeb.GoalController do
       status: goal.status,
       category: goal.category,
       goal_category_id: goal.goal_category_id,
-      goal_category: if(Ecto.assoc_loaded?(goal.goal_category) && goal.goal_category, do: %{
-        id: goal.goal_category.id,
-        name: goal.goal_category.name,
-        color: goal.goal_category.color,
-        parent: if(Ecto.assoc_loaded?(goal.goal_category.parent) && goal.goal_category.parent, do: %{
-          id: goal.goal_category.parent.id,
-          name: goal.goal_category.parent.name,
-          color: goal.goal_category.parent.color
-        }, else: nil)
-      }, else: nil),
+      goal_category:
+        if(Ecto.assoc_loaded?(goal.goal_category) && goal.goal_category,
+          do: %{
+            id: goal.goal_category.id,
+            name: goal.goal_category.name,
+            color: goal.goal_category.color,
+            parent:
+              if(Ecto.assoc_loaded?(goal.goal_category.parent) && goal.goal_category.parent,
+                do: %{
+                  id: goal.goal_category.parent.id,
+                  name: goal.goal_category.parent.name,
+                  color: goal.goal_category.parent.color
+                },
+                else: nil
+              )
+          },
+          else: nil
+        ),
       progress: goal.progress,
       milestones: Enum.map(goal.milestones || [], &milestone_to_json/1),
       tags: if(Ecto.assoc_loaded?(goal.tags), do: Enum.map(goal.tags, &tag_to_json/1), else: []),

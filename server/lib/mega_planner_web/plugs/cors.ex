@@ -26,4 +26,3 @@ defmodule MegaPlannerWeb.Plugs.Cors do
 
   defp handle_preflight(conn), do: conn
 end
-
