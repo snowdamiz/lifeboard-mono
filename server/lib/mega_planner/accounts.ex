@@ -133,7 +133,7 @@ defmodule MegaPlanner.Accounts do
         prefs
 
       prefs ->
-        prefs
+        maybe_normalize_preferences(prefs)
     end
   end
 
@@ -142,6 +142,7 @@ defmodule MegaPlanner.Accounts do
   """
   def get_preferences(user_id) do
     Repo.get_by(UserPreferences, user_id: user_id)
+    |> maybe_normalize_preferences()
   end
 
   @doc """
@@ -157,6 +158,8 @@ defmodule MegaPlanner.Accounts do
   Updates a user's preferences.
   """
   def update_preferences(%UserPreferences{} = prefs, attrs) do
+    prefs = maybe_normalize_preferences(prefs)
+
     prefs
     |> UserPreferences.changeset(attrs)
     |> Repo.update()
@@ -168,5 +171,23 @@ defmodule MegaPlanner.Accounts do
   def set_preferences(user_id, attrs) do
     prefs = get_or_create_preferences(user_id)
     update_preferences(prefs, attrs)
+  end
+
+  defp maybe_normalize_preferences(nil), do: nil
+
+  defp maybe_normalize_preferences(%UserPreferences{} = prefs) do
+    current_widgets = prefs.dashboard_widgets || []
+    normalized_widgets = UserPreferences.normalize_dashboard_widgets(current_widgets)
+
+    if normalized_widgets == current_widgets do
+      prefs
+    else
+      case prefs
+           |> UserPreferences.changeset(%{dashboard_widgets: normalized_widgets})
+           |> Repo.update() do
+        {:ok, updated_prefs} -> updated_prefs
+        {:error, _changeset} -> %{prefs | dashboard_widgets: normalized_widgets}
+      end
+    end
   end
 end

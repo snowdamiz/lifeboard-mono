@@ -747,7 +747,7 @@ defmodule MegaPlanner.Inventory do
           %{
             id: stop.id,
             trip_id: stop.trip && stop.trip.id,
-            store_name: (stop.store && stop.store.name) || stop.stop_name,
+            store_name: stop.store_name || (stop.store && stop.store.name),
             trip_start: trip_start,
             date: first_item.purchase_date,
             items: items

@@ -83,7 +83,8 @@ defmodule Mix.Tasks.Migrate.Export do
       @tables
       |> Enum.reduce(%{}, fn table, acc ->
         result = Postgrex.query!(pg, ~s(SELECT * FROM "#{table}"), [])
-        rows = Enum.map(result.rows, &row_to_map(result.columns, &1))
+        column_types = fetch_column_types(pg, table)
+        rows = Enum.map(result.rows, &row_to_map(result.columns, &1, column_types))
         IO.puts("  #{table}: #{length(rows)} rows")
         Map.put(acc, table, rows)
       end)
@@ -99,25 +100,38 @@ defmodule Mix.Tasks.Migrate.Export do
     IO.puts("\nExport complete: #{output_path} (#{map_size(export_map)} tables)")
   end
 
-  defp row_to_map(columns, row) do
+  defp row_to_map(columns, row, column_types) do
     Enum.zip(columns, row)
-    |> Enum.map(fn {col, val} -> {col, serialize(val)} end)
+    |> Enum.map(fn {col, val} -> {col, serialize(val, Map.get(column_types, col))} end)
     |> Map.new()
   end
 
-  defp serialize(%NaiveDateTime{} = dt), do: NaiveDateTime.to_iso8601(dt)
-  defp serialize(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp serialize(%Date{} = d), do: Date.to_iso8601(d)
-  defp serialize(%Time{} = t), do: Time.to_iso8601(t)
-  defp serialize(%Decimal{} = d), do: Decimal.to_string(d)
-  # 16-byte binary → UUID string (Postgrex returns raw UUID binaries from direct queries)
-  defp serialize(<<_::binary-size(16)>> = bytes), do: Ecto.UUID.cast!(bytes)
-  # Other non-UTF-8 binary → base64 to avoid Jason encoding errors
-  defp serialize(binary) when is_binary(binary) do
+  defp fetch_column_types(pg, table) do
+    Postgrex.query!(
+      pg,
+      """
+      SELECT column_name, udt_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = $1
+      """,
+      [table]
+    ).rows
+    |> Map.new()
+  end
+
+  defp serialize(%NaiveDateTime{} = dt, _type), do: NaiveDateTime.to_iso8601(dt)
+  defp serialize(%DateTime{} = dt, _type), do: DateTime.to_iso8601(dt)
+  defp serialize(%Date{} = d, _type), do: Date.to_iso8601(d)
+  defp serialize(%Time{} = t, _type), do: Time.to_iso8601(t)
+  defp serialize(%Decimal{} = d, _type), do: Decimal.to_string(d)
+  defp serialize(<<_::binary-size(16)>> = binary, "uuid"), do: Ecto.UUID.cast!(binary)
+  defp serialize(list, "_uuid"), do: Enum.map(list, &serialize(&1, "uuid"))
+
+  defp serialize(binary, _type) when is_binary(binary) do
     if String.valid?(binary), do: binary, else: Base.encode64(binary)
   end
 
-  defp serialize(list) when is_list(list), do: Enum.map(list, &serialize/1)
-  defp serialize(map) when is_map(map), do: Map.new(map, fn {k, v} -> {k, serialize(v)} end)
-  defp serialize(v), do: v
+  defp serialize(list, _type) when is_list(list), do: Enum.map(list, &serialize(&1, nil))
+  defp serialize(map, _type) when is_map(map), do: Map.new(map, fn {k, v} -> {k, serialize(v, nil)} end)
+  defp serialize(v, _type), do: v
 end

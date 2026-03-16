@@ -65,10 +65,13 @@ const greeting = computed(() => {
 const getWidgetComponentById = (id: string) => {
   const widget = preferencesStore.visibleWidgets.find(w => w.id === id)
   if (widget) {
-    return markRaw(widgetComponents[widget.type])
+    const component = widgetComponents[widget.type]
+    return component ? markRaw(component) : null
   }
   return null
 }
+
+const getWidgetComponent = (type: WidgetType) => widgetComponents[type] || null
 
 // Check if widget is a "stat" type (small card)
 const isStatWidget = (id: string) => {
@@ -224,8 +227,8 @@ onMounted(async () => {
           >
             <X class="h-3 w-3" />
           </button>
-          <component 
-            :is="widgetComponents[widget.type]" 
+          <component
+            :is="getWidgetComponent(widget.type)"
             :is-edit-mode="false"
           />
         </Card>
@@ -245,8 +248,8 @@ onMounted(async () => {
         >
           <X class="h-3 w-3" />
         </button>
-        <component 
-          :is="widgetComponents[widget.type]" 
+        <component
+          :is="getWidgetComponent(widget.type)"
           :is-edit-mode="false"
         />
       </Card>

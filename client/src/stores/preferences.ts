@@ -36,6 +36,12 @@ export const GRID_COLS = 4
 export const GRID_ROW_HEIGHT = 10
 export const GRID_MARGIN = 12
 
+const VALID_WIDGET_TYPES = new Set(widgetMeta.map(widget => widget.type))
+const VALID_WIDGET_SIZES = new Set<WidgetSize>(['small', 'medium', 'large', 'wide', 'tall'])
+const CORRUPTED_WIDGET_TYPES: Record<string, WidgetType> = {
+  '696e7665-6e74-6f72-795f-737461747573': 'inventory_status',
+}
+
 export const usePreferencesStore = defineStore('preferences', () => {
   const preferences = ref<UserPreferences | null>(null)
   const loading = ref(false)
@@ -51,7 +57,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
   const dashboardWidgets = computed(() => {
     if (preferences.value?.dashboard_widgets && preferences.value.dashboard_widgets.length > 0) {
       // Migrate old format if needed
-      return migrateWidgets(preferences.value.dashboard_widgets)
+      const widgets = migrateWidgets(preferences.value.dashboard_widgets)
+      return widgets.length > 0 ? widgets : DEFAULT_WIDGETS
     }
     return DEFAULT_WIDGETS
   })
@@ -62,22 +69,74 @@ export const usePreferencesStore = defineStore('preferences', () => {
 
   const theme = computed(() => preferences.value?.theme || 'system')
 
+  function normalizeWidgetType(type: unknown): WidgetType | null {
+    if (typeof type !== 'string') return null
+
+    const normalizedType = CORRUPTED_WIDGET_TYPES[type] || type
+
+    if (!VALID_WIDGET_TYPES.has(normalizedType as WidgetType)) {
+      return null
+    }
+
+    return normalizedType as WidgetType
+  }
+
+  function normalizeWidgetId(id: unknown, type: WidgetType, index: number): string {
+    if (typeof id === 'string' && id.length > 0) {
+      return CORRUPTED_WIDGET_TYPES[id] || id
+    }
+
+    return `${type}_${index}`
+  }
+
+  function normalizeWidgetSize(size: unknown): WidgetSize {
+    if (typeof size === 'string' && VALID_WIDGET_SIZES.has(size as WidgetSize)) {
+      return size as WidgetSize
+    }
+
+    return 'small'
+  }
+
   // Migrate old widget format (position-based) to new format (grid-based)
-  function migrateWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
-    return widgets.map((w, index) => {
+  function migrateWidgets(widgets: Array<Partial<DashboardWidget> | null | undefined>): DashboardWidget[] {
+    return widgets.flatMap((widget, index) => {
+      const type = normalizeWidgetType(widget?.type)
+      if (!widget || !type) {
+        return []
+      }
+
+      const size = normalizeWidgetSize(widget.size)
+      const dims = sizeToDimensions[size]
+      const id = normalizeWidgetId(widget.id, type, index)
+      const visible = widget.visible !== false
+
       // If widget already has grid properties, return as-is
-      if (typeof w.x === 'number' && typeof w.y === 'number') {
-        return w
+      if (
+        typeof widget.x === 'number' &&
+        typeof widget.y === 'number' &&
+        typeof widget.w === 'number' &&
+        typeof widget.h === 'number'
+      ) {
+        return [{
+          ...widget,
+          id,
+          type,
+          visible,
+          size,
+          minW: typeof widget.minW === 'number' ? widget.minW : dims.minW,
+          minH: typeof widget.minH === 'number' ? widget.minH : dims.minH,
+        } as DashboardWidget]
       }
 
       // Migrate from old format
-      const size = w.size || 'small'
-      const dims = sizeToDimensions[size]
       const col = index % GRID_COLS
       const row = Math.floor(index / GRID_COLS) * 2 // Approximate row based on position
 
-      return {
-        ...w,
+      return [{
+        ...widget,
+        id,
+        type,
+        visible,
         x: col,
         y: row,
         w: dims.w,
@@ -85,7 +144,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
         size,
         minW: dims.minW,
         minH: dims.minH,
-      }
+      } as DashboardWidget]
     })
   }
 
